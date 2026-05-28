@@ -78,7 +78,10 @@ Object.assign(state, {
   notificationPrefs: {},
   analytics: null,
   toolSearch: "",
-  historySearch: ""
+  historySearch: "",
+  organizations: { owned: [], memberships: [], pending_invites: [], active: null },
+  activeOrganization: null,
+  activeInviteToken: null
 });
 
 const $ = (id) => document.getElementById(id);
@@ -269,7 +272,7 @@ function updateCreditsUI() {
     return `${remain} / ${limit}`;
   };
 
-  const calcPct = (used, limit) => limit ? Math.min(100, (used / limit) * 100) : 0;
+  const calcPct = (used, limit) => limit ? Math.min(100, Math.round((used / limit) * 100)) : 0;
 
   const tTxt = format(u.daily_used, u.daily_limit);
   const tPct = calcPct(u.daily_used, u.daily_limit);
@@ -278,15 +281,11 @@ function updateCreditsUI() {
 
   if ($("creditsTodayText")) $("creditsTodayText").textContent = `Использование сегодня: ${tTxt}`;
   if ($("creditsTodayFill")) $("creditsTodayFill").style.width = `${tPct}%`;
+  if ($("profileCreditsTodayPct")) $("profileCreditsTodayPct").textContent = `${tPct}%`;
 
   if ($("creditsMonthText")) $("creditsMonthText").textContent = `Лимит на месяц: ${mTxt}`;
   if ($("creditsMonthFill")) $("creditsMonthFill").style.width = `${mPct}%`;
-
-  if ($("profileCreditsTodayText")) $("profileCreditsTodayText").textContent = tTxt;
-  if ($("profileCreditsTodayFill")) $("profileCreditsTodayFill").style.width = `${tPct}%`;
-
-  if ($("profileCreditsMonthText")) $("profileCreditsMonthText").textContent = mTxt;
-  if ($("profileCreditsMonthFill")) $("profileCreditsMonthFill").style.width = `${mPct}%`;
+  if ($("profileCreditsMonthPct")) $("profileCreditsMonthPct").textContent = `${mPct}%`;
   
   if ($("desktopTopCreditsValue")) {
     const remaining = Math.max(0, u.daily_limit - u.daily_used);
@@ -303,8 +302,8 @@ function updateProfileUI() {
   if ($("headerUserAvatar")) $("headerUserAvatar").textContent = initial;
   if ($("mobileHeaderAvatar")) $("mobileHeaderAvatar").textContent = initial;
   if ($("profileUserAvatar")) $("profileUserAvatar").textContent = initial;
-  if ($("profileUserTitle")) $("profileUserTitle").textContent = u.username ? `@${u.username}` : u.first_name;
-  if ($("profileUserSubtitle")) $("profileUserSubtitle").textContent = `ID: ${u.telegram_id}`;
+  if ($("profileUserTitle")) $("profileUserTitle").textContent = u.first_name;
+  if ($("profileUserSubtitle")) $("profileUserSubtitle").textContent = u.username ? `@${u.username}` : `ID: ${u.telegram_id}`;
   if ($("profilePlanLabel")) $("profilePlanLabel").textContent = String(u.plan).toUpperCase();
   if ($("profileBusinessDescription")) $("profileBusinessDescription").value = u.business_profile;
   if ($("profileCompanyName")) $("profileCompanyName").value = u.company_name || OWNER_DISPLAY_NAME;
@@ -338,6 +337,7 @@ function normalizeArrayPayload(data, keys = []) {
   return [];
 }
 
+/* Base Normalizer */
 function normalizeObjectPayload(data, key) {
   if (data?.[key] && typeof data[key] === "object") return data[key];
   if (data && typeof data === "object") return data;
@@ -650,6 +650,171 @@ function exportHistory() {
   openExternal("/api/export/history.txt");
 }
 
+/* ORGANIZATION DOM BUILDERS */
+function renderOrganizations() {
+  const accountBox = $("accountModeList");
+  const orgBox = $("organizationList");
+  const inviteBox = $("organizationInviteList");
+  const createHint = $("organizationCreateHint");
+  const orgs = state.organizations || { owned: [], memberships: [], pending_invites: [] };
+  const owned = orgs.owned || [];
+  const memberships = orgs.memberships || [];
+  const pending = orgs.pending_invites || [];
+  const active = state.activeOrganization || orgs.active || memberships[0] || null;
+
+  if (accountBox) {
+    const rows = [
+      `<div class="account-mode-row active"><span><strong>Личная учётная запись</strong><small>Тариф: ${escapeHTML(state.user?.plan || 'Free')}</small></span></div>`
+    ];
+    if (active) {
+      rows.push(`<div class="account-mode-row organization"><span><strong>Организация: ${escapeHTML(active.title || active.organization_title || 'Бизнес')}</strong><small>Доступ предоставлен через организацию</small></span></div>`);
+    }
+    accountBox.innerHTML = rows.join("");
+  }
+
+  if (orgBox) {
+    const all = [...owned.map(o => ({ ...o, role: 'owner' })), ...memberships.filter(m => !owned.some(o => String(o.id) === String(m.id)))];
+    if (!all.length) {
+      orgBox.innerHTML = `<div class="subtle-empty">Вы пока не состоите в организации.</div>`;
+    } else {
+      orgBox.innerHTML = all.map(o => `
+        <div class="organization-row">
+          <span><strong>${escapeHTML(o.title || o.organization_title || 'Компания')}</strong><small>Управление ресурсами команды</small></span>
+          <b>${escapeHTML(o.role || 'member')}</b>
+        </div>
+      `).join("");
+    }
+  }
+
+  if (inviteBox) {
+    if (!pending.length) {
+      inviteBox.innerHTML = `<div class="subtle-empty">Новых приглашений нет.</div>`;
+    } else {
+      inviteBox.innerHTML = pending.map(inv => `
+        <button type="button" class="organization-row invite" data-accept-invite="${escapeHTML(inv.token)}">
+          <span><strong>Приглашение в ${escapeHTML(inv.organization_title || 'Компанию')}</strong><small>Нажмите, чтобы принять приглашение</small></span>
+          <b>Вступить</b>
+        </button>
+      `).join("");
+    }
+  }
+
+  if (createHint) {
+    const plan = String(state.user?.plan || '').toLowerCase();
+    createHint.textContent = plan === 'business'
+      ? 'Ваш тариф позволяет создавать компанию и приглашать участников.'
+      : 'Создание компании доступно на тарифе Business.';
+  }
+}
+
+async function loadOrganizations() {
+  try {
+    const data = await apiTry("/api/organizations", "/api/organizations/current");
+    state.organizations = data?.organizations || data;
+    state.activeOrganization = data?.active || data?.current || null;
+  } catch {
+    state.organizations = { owned: [], memberships: [], pending_invites: [], active: null };
+    state.activeOrganization = null;
+  }
+  renderOrganizations();
+}
+
+async function createOrganization() {
+  const title = $("organizationTitleInput")?.value.trim();
+  if (!title) { showToast("Введите название компании"); return; }
+  try {
+    const data = await apiRequest("/api/organizations", { method: "POST", body: JSON.stringify({ title }) });
+    if (data.ok === false) throw new Error(data.error || "Не удалось создать компанию");
+    $("organizationTitleInput").value = "";
+    await loadOrganizations();
+    showToast("Компания успешно создана");
+  } catch (err) {
+    showToast(err.message || "Не удалось создать компанию");
+  }
+}
+
+async function inviteOrganizationMember() {
+  const username = $("organizationInviteUsername")?.value.trim();
+  const org = (state.organizations?.owned || [])[0] || state.activeOrganization;
+  if (!org) { showToast("Сначала необходимо создать компанию"); return; }
+  if (!username) { showToast("Введите username участника"); return; }
+  try {
+    const data = await apiTry(`/api/organizations/${encodeURIComponent(org.id)}/invites`, "/api/organizations/invite", {
+      method: "POST",
+      body: JSON.stringify({ username, invite_username: username })
+    });
+    if (data.ok === false) throw new Error(data.error || "Не удалось отправить инвайт");
+    $("organizationInviteUsername").value = "";
+    showToast("Приглашение успешно отправлено");
+    await loadOrganizations();
+  } catch (err) {
+    showToast(err.message || "Не удалось отправить инвайт");
+  }
+}
+
+async function loadPendingInvites() {
+  try {
+    const data = await apiRequest("/api/organizations/invites/pending");
+    if (data && Array.isArray(data.invites)) {
+      state.organizations.pending_invites = data.invites;
+      renderOrganizations();
+    }
+  } catch (e) { /* Изолированный сбой */ }
+}
+
+async function acceptOrganizationInvite(token) {
+  const targetToken = token || state.activeInviteToken;
+  if (!targetToken) return;
+  try {
+    const data = await apiRequest("/api/organizations/invites/accept", {
+      method: "POST",
+      body: JSON.stringify({ token: targetToken })
+    });
+    $("organizationInviteBannerModal").classList.remove("active");
+    await loadOrganizations();
+    showOrganizationJoinedModal(data.organization_title || "организацию");
+  } catch (err) {
+    showToast(err.message || "Не удалось принять приглашение");
+  }
+}
+
+async function declineOrganizationInvite() {
+  if (!state.activeInviteToken) return;
+  try {
+    await apiRequest("/api/organizations/invites/decline", {
+      method: "POST",
+      body: JSON.stringify({ token: state.activeInviteToken })
+    });
+    $("organizationInviteBannerModal").classList.remove("active");
+    showToast("Приглашение отклонено");
+    await loadOrganizations();
+  } catch (err) {
+    showToast(err.message || "Не удалось отклонить приглашение");
+  }
+}
+
+function showOrganizationJoinedModal(title) {
+  const modal = $("organizationAcceptedModal");
+  if (!modal) return;
+  const text = $("organizationAcceptedText");
+  if (text) {
+    text.textContent = `Вы успешно вступили в организацию «${title}». Теперь данные компании отображаются в вашем личном профиле.`;
+  }
+  modal.classList.add("active");
+}
+
+function checkInviteFromUrl() {
+  const params = new URLSearchParams(window.location.search);
+  const token = params.get("invite") || params.get("invite_token");
+  if (token) {
+    state.activeInviteToken = token;
+    const modal = $("organizationInviteBannerModal");
+    const txt = $("incomingInviteBannerText");
+    if (txt) txt.textContent = `Вы получили официальное приглашение присоединиться к общему рабочему пространству организации. Нажмите кнопку ниже для подтверждения входа.`;
+    if (modal) modal.classList.add("active");
+  }
+}
+
 function autoResizeTextarea(el) {
   if (!el) return;
   el.style.height = "auto";
@@ -761,6 +926,9 @@ async function loadMe() {
   try {
     const data = await apiRequest("/api/me");
     state.user = normalizeUserResponse(data);
+    state.organizations = data.organizations || state.organizations;
+    state.activeOrganization = data.organization || state.organizations?.active || null;
+    renderOrganizations();
     updateProfileUI();
     hidePreloader();
     if (state.user.onboarding_required) openOnboarding();
@@ -768,79 +936,6 @@ async function loadMe() {
     console.error("loadMe fail:", err);
     hidePreloader();
   }
-}
-
-async function loadTools() {
-  const grid = $("toolsGrid");
-  try {
-    const data = await apiRequest("/api/tools");
-    const tools = normalizeToolsResponse(data);
-    state.tools = tools.length ? tools : getFallbackTools();
-  } catch {
-    state.tools = getFallbackTools();
-  }
-  renderTools();
-}
-
-async function loadHistory() {
-  const list = $("historyList");
-  try {
-    const data = await apiRequest("/api/history");
-    const arr = normalizeHistoryResponse(data);
-    state.history = arr;
-    renderHistory();
-  } catch {
-    if (list) list.innerHTML = `<div class="loading-state">Не удалось загрузить историю.</div>`;
-  }
-}
-
-function renderHistory() {
-  const list = $("historyList");
-  if (!list) return;
-
-  let filtered = state.history;
-
-  if (state.historyFilter === "favorites") {
-    filtered = state.history.filter(h => h.is_saved || h.is_favorite || h.type === "saved" || h.type === "favorites");
-  } else if (state.historyFilter === "tools") {
-    filtered = state.history.filter(h => {
-      const type = String(h.mode || h.type || "").toLowerCase();
-      return type === "tool" || type === "tools" || (type && type !== "chat" && type !== "message");
-    });
-  } else if (state.historyFilter !== "all") {
-    filtered = state.history.filter(h => String(h.mode || h.type || "").toLowerCase() === state.historyFilter);
-  }
-
-  const hq = String(state.historySearch || "").trim().toLowerCase();
-  if (hq) {
-    filtered = filtered.filter(h => [h.title, h.prompt, h.text, h.answer, h.content, h.result].filter(Boolean).join(" ").toLowerCase().includes(hq));
-  }
-
-  if (!filtered.length) {
-    list.innerHTML = `
-      <div class="loading-state" style="border:none;">
-        <div style="margin-bottom:12px; opacity:0.5;"><span data-icon="history" style="width:24px;height:24px;"></span></div>
-        <h3>Архив пуст</h3>
-        <p class="muted">Записи сессий отсутствуют в данном фильтре.</p>
-      </div>`;
-    injectIcons(list);
-    return;
-  }
-
-  list.innerHTML = filtered.map(h => {
-    const type = String(h.mode || h.type || "chat").toUpperCase();
-    const title = h.title || h.prompt || h.text || "Запрос";
-    const preview = h.answer || h.content || h.result || "";
-    return `
-      <article class="history-item">
-        <div class="item-meta">
-          <span class="badge">${escapeHTML(type)}</span>
-        </div>
-        <h4>${escapeHTML(title)}</h4>
-        <p>${escapeHTML(preview)}</p>
-      </article>
-    `;
-  }).join("");
 }
 
 async function loadBillingPlans() {
@@ -852,237 +947,12 @@ async function loadBillingPlans() {
     state.plans = normalizeBillingPlans({
       plans: [
         { key: "free", title: "Free", description: "100 кредитов в день", price_text: "0 ₽", providers: [] },
-        { key: "pro", title: "Pro", description: "500 кредитов в день · 10 000 в месяц", price_text: "299 ₽/мес" },
-        { key: "business", title: "Business", description: "3 000 кредитов в день · 60 000 в месяц", price_text: "1 990 ₽/мес" }
+        { key: "go", title: "Go", description: "250 в день · 5 000 в месяц", price_text: "299 ₽/мес" },
+        { key: "plus", title: "Plus", description: "800 в день · 20 000 в месяц", price_text: "699 ₽/мес" },
+        { key: "pro", title: "Pro", description: "2 000 в день · 80 000 в месяц", price_text: "1 490 ₽/мес" },
+        { key: "business", title: "Business", description: "10 000 в день · 300 000 в месяц · компания", price_text: "3 990 ₽/мес" }
       ]
     });
-  }
-}
-
-function openBillingModal() {
-  const m = $("billingModal");
-  if (!m) return;
-  m.classList.add("active");
-
-  const list = $("billingPlanList");
-  const pBox = $("paymentProviderBox");
-  list.hidden = false;
-  pBox.hidden = true;
-  $("billingTitle").textContent = "Выбор тарифа";
-
-  const keys = Object.keys(state.plans || {});
-  if (!keys.length) {
-    list.innerHTML = `<div class="loading-state">Тарифы временно недоступны.</div>`;
-    return;
-  }
-
-  list.innerHTML = keys.map(k => {
-    const p = state.plans[k];
-    const isCurrent = state.user && String(state.user.plan).toLowerCase() === k.toLowerCase();
-    const price = p.price_text || (p.price_monthly ? `${p.price_monthly} ₽` : "Бесплатно");
-    return `
-      <button class="plan-card ${isCurrent ? 'active' : ''}" data-plan="${escapeHTML(k)}" type="button">
-        <div class="plan-info">
-          <h4>${escapeHTML(p.title || k)}</h4>
-          <small>${escapeHTML(p.description || '')}</small>
-        </div>
-        <div class="plan-cost">${escapeHTML(price)}</div>
-      </button>
-    `;
-  }).join("");
-}
-
-function selectPlan(key) {
-  if (key === "free") {
-    showToast("Тариф Free активен по умолчанию");
-    return;
-  }
-
-  state.activePlanKey = key;
-  const p = state.plans[key];
-  if (!p) return;
-
-  $("billingPlanList").hidden = true;
-  $("paymentProviderBox").hidden = false;
-  $("billingTitle").textContent = `Оплата: ${p.title}`;
-  $("billingError").hidden = true;
-
-  const provList = $("providerList");
-  const providers = getPlanProviders(p);
-
-  provList.innerHTML = providers.map(pr => {
-    const id = String(pr.id || pr.provider).toLowerCase();
-    let icon = "credit-card";
-    if (id.includes("star")) icon = "stars";
-    if (id.includes("sbp") || id.includes("yookassa")) icon = "target";
-    if (id.includes("ton")) icon = "ton";
-    if (id.includes("btc")) icon = "btc";
-
-    return `
-      <button class="provider-btn" data-provider="${escapeHTML(id)}" type="button">
-        <span class="provider-icon" data-icon="${icon}"></span>
-        <div class="provider-desc">
-          <strong>${escapeHTML(pr.title || pr.name || id)}</strong>
-          <small>${escapeHTML(pr.description || '')}</small>
-        </div>
-        ${pr.price_formatted ? `<div class="plan-cost">${escapeHTML(pr.price_formatted)}</div>` : ""}
-      </button>
-    `;
-  }).join("");
-
-  injectIcons(provList);
-}
-
-async function checkout(providerId) {
-  const errEl = $("billingError");
-  errEl.hidden = true;
-  showToast("Создание платежа...");
-
-  try {
-    const payload = { plan: state.activePlanKey, provider: providerId, telegram_user_id: getTelegramUserId() };
-    const res = await apiTry("/api/billing/create-order", "/api/billing/checkout", { method: "POST", body: JSON.stringify(payload) });
-
-    const link = res.invoice_link || res.invoice_url || res.payment_url || res.url;
-    const orderId = res.order_id || res.id;
-
-    if ((providerId.includes("star")) && link && tg?.openInvoice) {
-      tg.openInvoice(link, (status) => {
-        if (status === "paid") { showToast("Оплата прошла"); loadMe(); $("billingModal").classList.remove("active"); }
-        else if (status === "cancelled") showToast("Оплата отменена");
-      });
-      return;
-    }
-
-    if (link) {
-      if (tg?.openLink) tg.openLink(link);
-      else window.open(link, "_blank");
-      if (orderId) pollOrderStatus(orderId);
-      $("billingModal").classList.remove("active");
-      return;
-    }
-
-    if (res.ok || res.success) {
-      showToast("Успешно");
-      loadMe();
-      $("billingModal").classList.remove("active");
-      return;
-    }
-    throw new Error("Не удалось получить ссылку");
-  } catch (err) {
-    errEl.textContent = err.message;
-    errEl.hidden = false;
-  }
-}
-
-function pollOrderStatus(orderId) {
-  let attempts = 0;
-  clearInterval(state.orderPollTimer);
-  state.orderPollTimer = setInterval(async () => {
-    attempts++;
-    if (attempts > 20) { clearInterval(state.orderPollTimer); return; }
-    try {
-      const data = await apiRequest(`/api/billing/order/${orderId}`);
-      const s = String(data.status || "").toLowerCase();
-      if (["paid", "success", "active"].includes(s)) {
-        clearInterval(state.orderPollTimer);
-        showToast("Оплата получена");
-        loadMe();
-      } else if (["failed", "cancelled", "expired"].includes(s)) {
-        clearInterval(state.orderPollTimer);
-        showToast("Оплата не прошла");
-      }
-    } catch { /* ignore */ }
-  }, 5000);
-}
-
-// ONBOARDING ENGINE
-function openOnboarding() {
-  state.onboardingStep = 0;
-  state.onboardingData = {};
-  const m = $("onboardingModal");
-  if (m) {
-    m.classList.add("active");
-    renderOnboardingStep();
-  }
-}
-
-function renderOnboardingStep() {
-  const cfg = state.onboardingConfig[state.onboardingStep];
-  if (!cfg) return;
-
-  $("onboardingTitle").textContent = cfg.title;
-  $("onboardingError").hidden = true;
-  $("onboardingError").style.display = "none";
-
-  const dots = $("onboardingProgressRow")?.querySelectorAll(".dot");
-  if (dots) {
-    dots.forEach((d, i) => d.classList.toggle("active", i <= state.onboardingStep));
-  }
-
-  const body = $("onboardingBody");
-  if (!body) return;
-  body.innerHTML = "";
-
-  if (cfg.type === "textarea") {
-    const ta = document.createElement("textarea");
-    ta.className = "ref-form-textarea";
-    ta.rows = 4;
-    ta.placeholder = cfg.placeholder || "";
-    ta.value = state.onboardingData[cfg.id] || "";
-    ta.oninput = () => { state.onboardingData[cfg.id] = ta.value; };
-    body.appendChild(ta);
-  } else {
-    if (Array.isArray(cfg.options)) {
-      cfg.options.forEach(o => {
-        const b = document.createElement("button");
-        b.type = "button";
-        b.className = `choice-btn ${state.onboardingData[cfg.id] === o.key ? 'active' : ''}`;
-        b.textContent = o.label;
-        b.onclick = () => {
-          state.onboardingData[cfg.id] = o.key;
-          renderOnboardingStep();
-        };
-        body.appendChild(b);
-      });
-    }
-  }
-
-  if ($("onboardingBackBtn")) {
-    $("onboardingBackBtn").disabled = state.onboardingStep === 0;
-  }
-  if ($("onboardingNextBtn")) {
-    $("onboardingNextBtn").textContent = state.onboardingStep === state.onboardingConfig.length - 1 ? "Завершить" : "Продолжить";
-  }
-}
-
-async function nextOnboarding() {
-  const cfg = state.onboardingConfig[state.onboardingStep];
-  const val = state.onboardingData[cfg.id];
-
-  if (!val || !String(val).trim()) {
-    $("onboardingError").textContent = "Пожалуйста, заполните это поле.";
-    $("onboardingError").hidden = false;
-    $("onboardingError").style.display = "block";
-    return;
-  }
-
-  if (state.onboardingStep < state.onboardingConfig.length - 1) {
-    state.onboardingStep++;
-    renderOnboardingStep();
-    return;
-  }
-
-  $("onboardingNextBtn").disabled = true;
-  try {
-    await apiRequest("/api/onboarding", { method: "POST", body: JSON.stringify(state.onboardingData) });
-    $("onboardingModal").classList.remove("active");
-    showToast("Профиль настроен");
-    loadMe();
-  } catch {
-    $("onboardingModal").classList.remove("active");
-    showToast("Профиль зафиксирован");
-  } finally {
-    $("onboardingNextBtn").disabled = false;
   }
 }
 
@@ -1142,7 +1012,7 @@ function bindEvents() {
         state.user.business_profile = text;
         state.user.company_name = companyName;
       }
-      showToast("Контекст и реквизиты сохранены");
+      showToast("Контекст сохранён");
     } catch (err) { showToast(err.message); }
   });
 
@@ -1212,6 +1082,19 @@ function bindEvents() {
   });
   $("saveNotificationsBtn")?.addEventListener("click", saveNotificationPrefs);
 
+  /* New Organization Form Handlers Binding Loop */
+  $("createOrganizationBtn")?.addEventListener("click", createOrganization);
+  $("inviteOrganizationBtn")?.addEventListener("click", inviteOrganizationMember);
+  $("organizationInviteList")?.addEventListener("click", e => {
+    const row = e.target.closest("[data-accept-invite]");
+    if (row) acceptOrganizationInvite(row.dataset.acceptInvite);
+  });
+  $("closeOrganizationAcceptedBtn")?.addEventListener("click", () => $("organizationAcceptedModal")?.classList.remove("active"));
+  
+  /* Banner Actions */
+  $("acceptIncomingInviteBtn")?.addEventListener("click", () => acceptOrganizationInvite(null));
+  $("declineIncomingInviteBtn")?.addEventListener("click", declineOrganizationInvite);
+
   $("onboardingBackBtn")?.addEventListener("click", () => { if (state.onboardingStep > 0) { state.onboardingStep--; renderOnboardingStep(); } });
   $("onboardingNextBtn")?.addEventListener("click", nextOnboarding);
 }
@@ -1244,8 +1127,11 @@ async function boot() {
     loadTemplates(),
     loadCreditPacks(),
     loadNotificationPrefs(),
-    loadAnalyticsSummary()
+    loadAnalyticsSummary(),
+    loadOrganizations(),
+    loadPendingInvites()
   ]);
+  checkInviteFromUrl();
 }
 
 document.addEventListener("DOMContentLoaded", boot);
