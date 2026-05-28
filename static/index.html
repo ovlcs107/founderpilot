@@ -1,0 +1,326 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <meta name="color-scheme" content="light dark" />
+  <title>FounderPilot AI</title>
+  <link rel="stylesheet" href="/static/styles.css" />
+  <script src="https://telegram.org/js/telegram-web-app.js"></script>
+</head>
+<body>
+  <div class="app-shell">
+    <header class="app-header">
+      <div class="header-title">
+        <span class="product-label">FounderPilot AI</span>
+        <h1 id="pageTitle">Главная</h1>
+      </div>
+      <button class="avatar-button" id="headerProfileBtn" type="button" aria-label="Открыть профиль">
+        <span class="avatar" id="userAvatar">FP</span>
+      </button>
+    </header>
+
+    <main class="content" id="content">
+      <section class="view active" id="view-home" aria-labelledby="homeTitle">
+        <div class="hero-panel">
+          <div>
+            <p class="muted" id="homeGreeting">Добро пожаловать</p>
+            <h2 id="homeTitle">AI-кабинет предпринимателя внутри Telegram</h2>
+          </div>
+          <p>Выбери задачу или напиши вопрос в AI Chat - FounderPilot AI поможет с продажами, карточками товаров, рекламой и стратегией.</p>
+        </div>
+
+        <section class="assistant-card" aria-label="AI-помощник для бизнеса">
+          <div class="card-icon" data-icon="chat"></div>
+          <div>
+            <h3>AI-помощник для бизнеса</h3>
+            <p>Разбирает задачи по WB/Ozon, офферам, контенту, марже и плану продаж.</p>
+          </div>
+          <button class="primary full" id="openChatBtn" type="button">
+            <span data-icon="chat"></span>
+            Открыть AI Chat
+          </button>
+        </section>
+
+        <div class="section-head">
+          <h3>Быстрые действия</h3>
+          <button class="text-btn" data-open-view="tools" type="button">Все инструменты</button>
+        </div>
+        <div class="quick-grid" id="quickActions"></div>
+
+        <div class="section-head">
+          <h3>Последние результаты</h3>
+          <button class="text-btn" data-open-view="history" type="button">История</button>
+        </div>
+        <div class="history-list compact" id="homeHistory"></div>
+      </section>
+
+      <section class="view chat-view" id="view-chat" aria-labelledby="chatTitle">
+        <div class="chat-topbar">
+          <div>
+            <h2 id="chatTitle">AI Chat</h2>
+            <p class="muted" id="chatSubtitle">Текущий диалог</p>
+          </div>
+          <button class="icon-btn" id="newChatBtn" type="button" aria-label="Новый чат" title="Новый чат">
+            <span data-icon="plus"></span>
+          </button>
+        </div>
+
+        <div class="chat-scroll" id="chatScroll">
+          <div class="chat-empty" id="chatEmpty">
+            <div class="empty-icon" data-icon="chat"></div>
+            <h2>С чего начнем?</h2>
+            <p>Напиши бизнес-задачу - FounderPilot AI поможет с идеями, продажами, карточками WB/Ozon, рекламой и стратегией.</p>
+          </div>
+          <div class="chat-messages" id="chatMessages"></div>
+        </div>
+
+        <div class="chat-composer" id="chatComposer">
+          <div class="prompt-row" id="promptRow"></div>
+          <div class="composer-row">
+            <textarea id="chatInput" rows="1" placeholder="Напишите бизнес-задачу"></textarea>
+            <button class="send-btn" id="sendChatBtn" type="button" disabled aria-label="Отправить">
+              <span data-icon="send"></span>
+            </button>
+          </div>
+          <p class="form-error" id="chatError" hidden></p>
+        </div>
+      </section>
+
+      <section class="view" id="view-tools" aria-labelledby="toolsTitle">
+        <div class="intro-panel">
+          <h2 id="toolsTitle">Инструменты</h2>
+          <p>Выберите бизнес-задачу. FounderPilot AI использует профиль бизнеса и вернет результат в удобной структуре.</p>
+        </div>
+        <div class="tools-grid" id="toolsGrid"></div>
+      </section>
+
+      <section class="view" id="view-tool" aria-labelledby="toolTitle">
+        <button class="back-btn" id="backToToolsBtn" type="button">
+          <span data-icon="back"></span>
+          Назад к инструментам
+        </button>
+
+        <form class="tool-card" id="toolForm">
+          <div class="tool-heading">
+            <span class="card-icon" id="toolIcon" data-icon="tools"></span>
+            <div>
+              <h2 id="toolTitle">Инструмент</h2>
+              <p id="toolDescription">Описание инструмента</p>
+            </div>
+          </div>
+
+          <div class="field-grid" id="toolFields"></div>
+
+          <label class="field-label" for="toolInput">Дополнительные вводные</label>
+          <textarea id="toolInput" maxlength="8000" placeholder="Добавьте контекст, ограничения, ссылки или текущие показатели"></textarea>
+
+          <p class="form-error" id="toolError" hidden></p>
+          <button class="primary full" id="generateBtn" type="submit">
+            <span data-icon="check"></span>
+            Получить результат
+          </button>
+        </form>
+
+        <article class="result-card" id="toolResultCard" hidden>
+          <div class="section-head inline">
+            <h3>Результат</h3>
+            <span class="status-pill" id="toolResultStatus">Готово</span>
+          </div>
+          <div class="result-content" id="toolResultContent"></div>
+          <div class="result-actions" id="toolResultActions"></div>
+          <div class="feedback-box" id="toolFeedbackBox" hidden></div>
+        </article>
+      </section>
+
+      <section class="view" id="view-history" aria-labelledby="historyTitle">
+        <div class="intro-panel">
+          <h2 id="historyTitle">История</h2>
+          <p>Диалоги, результаты инструментов и сохраненные материалы в одном месте.</p>
+        </div>
+        <div class="segmented" id="historyFilters" role="tablist" aria-label="Фильтр истории">
+          <button class="active" type="button" data-filter="all">Все</button>
+          <button type="button" data-filter="chats">Чаты</button>
+          <button type="button" data-filter="tools">Инструменты</button>
+          <button type="button" data-filter="saved">Сохраненное</button>
+        </div>
+        <div class="history-list" id="historyList"></div>
+      </section>
+
+      <section class="view" id="view-profile" aria-labelledby="profileTitle">
+        <article class="profile-card">
+          <div class="profile-main">
+            <span class="avatar large" id="profileAvatar">FP</span>
+            <div>
+              <h2 id="profileTitle">Профиль</h2>
+              <p id="profileUsername" class="muted">Telegram Mini App</p>
+            </div>
+          </div>
+          <div class="stats-grid">
+            <div class="stat-card">
+              <span>Запросов сегодня</span>
+              <strong id="statToday">0</strong>
+            </div>
+            <div class="stat-card">
+              <span>Дневной лимит</span>
+              <strong id="statLimit">20</strong>
+            </div>
+            <div class="stat-card">
+              <span>Осталось</span>
+              <strong id="statRemaining">20</strong>
+            </div>
+            <div class="stat-card">
+              <span>Тариф</span>
+              <strong id="statPlan">Free</strong>
+            </div>
+          </div>
+        </article>
+
+        <div class="profile-actions">
+          <button class="secondary" type="button" data-scroll-target="businessProfileCard">
+            <span data-icon="settings"></span>
+            Мой бизнес
+          </button>
+          <button class="secondary" type="button" data-scroll-target="savedCard">
+            <span data-icon="save"></span>
+            Сохраненное
+          </button>
+          <button class="secondary" type="button" data-scroll-target="referralCard">
+            <span data-icon="link"></span>
+            Пригласить друга
+          </button>
+          <button class="secondary" type="button" data-scroll-target="feedbackCard">
+            <span data-icon="thumbsDown"></span>
+            Обратная связь
+          </button>
+        </div>
+
+        <article class="info-card" id="businessProfileCard">
+          <div class="section-head inline">
+            <h3>Мой бизнес</h3>
+            <button class="text-btn" id="clearBusinessProfileBtn" type="button">Очистить</button>
+          </div>
+          <form id="businessProfileForm" class="profile-form">
+            <label class="field-label" for="businessName">Название бизнеса</label>
+            <input id="businessName" name="business_name" placeholder="Например: магазин товаров для дома" />
+
+            <label class="field-label" for="businessNiche">Ниша</label>
+            <input id="businessNiche" name="niche" placeholder="Например: хранение и порядок" />
+
+            <label class="field-label" for="businessMarketplace">Маркетплейс</label>
+            <input id="businessMarketplace" name="marketplace" placeholder="WB, Ozon, Telegram, сайт" />
+
+            <label class="field-label" for="businessAudience">Целевая аудитория</label>
+            <textarea id="businessAudience" name="target_audience" placeholder="Кто покупает и какую задачу решает"></textarea>
+
+            <label class="field-label" for="businessAveragePrice">Средняя цена</label>
+            <input id="businessAveragePrice" name="average_price" placeholder="Например: 1500 руб." inputmode="decimal" />
+
+            <label class="field-label" for="businessDescription">Описание бизнеса</label>
+            <textarea id="businessDescription" name="description" placeholder="Что продаете, чем отличаетесь, какие каналы используете"></textarea>
+
+            <label class="field-label" for="businessProblem">Главная проблема</label>
+            <textarea id="businessProblem" name="main_problem" placeholder="Например: мало продаж, слабая карточка, дорогая реклама"></textarea>
+
+            <p class="form-error" id="businessProfileError" hidden></p>
+            <button class="primary full" type="submit">
+              <span data-icon="save"></span>
+              Сохранить профиль
+            </button>
+          </form>
+        </article>
+
+        <article class="info-card" id="savedCard">
+          <div class="section-head inline">
+            <h3>Сохраненное</h3>
+            <button class="text-btn" id="refreshSavedBtn" type="button">Обновить</button>
+          </div>
+          <div class="history-list" id="savedList"></div>
+        </article>
+
+        <article class="info-card" id="referralCard">
+          <div class="section-head inline">
+            <h3>Пригласить друга</h3>
+            <span class="status-pill">Бонусы</span>
+          </div>
+          <p class="muted">Поделитесь кодом или ссылкой. За приглашенного пользователя начисляются бонусные запросы.</p>
+          <div class="copy-box">
+            <input id="referralLink" readonly value="" />
+            <button class="icon-btn" id="copyReferralBtn" type="button" aria-label="Скопировать">
+              <span data-icon="copy"></span>
+            </button>
+          </div>
+          <div class="stats-grid small">
+            <div class="stat-card">
+              <span>Приглашено</span>
+              <strong id="refInvited">0</strong>
+            </div>
+            <div class="stat-card">
+              <span>Бонусные запросы</span>
+              <strong id="refBonus">0</strong>
+            </div>
+          </div>
+        </article>
+
+        <article class="info-card" id="feedbackCard">
+          <h3>Обратная связь</h3>
+          <form id="appFeedbackForm" class="feedback-form">
+            <label class="field-label" for="appFeedbackText">Что улучшить?</label>
+            <textarea id="appFeedbackText" placeholder="Напишите идею, проблему или пожелание"></textarea>
+            <button class="secondary full" type="submit">
+              <span data-icon="check"></span>
+              Отправить
+            </button>
+          </form>
+        </article>
+
+        <article class="info-card">
+          <h3>О продукте</h3>
+          <p>FounderPilot AI помогает предпринимателям, селлерам WB/Ozon и маркетологам быстрее готовить коммерческие материалы, считать экономику, сохранять полезные ответы и возвращаться к истории решений.</p>
+        </article>
+      </section>
+    </main>
+  </div>
+
+  <nav class="bottom-nav" aria-label="Навигация">
+    <button class="nav-btn active" data-view="home" type="button"><span data-icon="home"></span><span>Главная</span></button>
+    <button class="nav-btn" data-view="chat" type="button"><span data-icon="chat"></span><span>AI Chat</span></button>
+    <button class="nav-btn" data-view="tools" type="button"><span data-icon="tools"></span><span>Инструменты</span></button>
+    <button class="nav-btn" data-view="history" type="button"><span data-icon="history"></span><span>История</span></button>
+    <button class="nav-btn" data-view="profile" type="button"><span data-icon="user"></span><span>Профиль</span></button>
+  </nav>
+
+  <div class="modal-backdrop" id="detailModal" hidden>
+    <article class="modal-card" role="dialog" aria-modal="true" aria-labelledby="detailTitle">
+      <div class="section-head inline">
+        <h3 id="detailTitle">Результат</h3>
+        <button class="icon-btn" id="closeDetailBtn" type="button" aria-label="Закрыть">
+          <span data-icon="close"></span>
+        </button>
+      </div>
+      <div class="result-content" id="detailContent"></div>
+      <div class="result-actions" id="detailActions"></div>
+    </article>
+  </div>
+
+  <div class="modal-backdrop" id="onboardingModal" hidden>
+    <article class="modal-card onboarding-card" role="dialog" aria-modal="true" aria-labelledby="onboardingTitle">
+      <div class="progress-row" aria-hidden="true">
+        <span class="active"></span>
+        <span></span>
+        <span></span>
+      </div>
+      <h2 id="onboardingTitle">Кто вы?</h2>
+      <div id="onboardingBody"></div>
+      <p class="form-error" id="onboardingError" hidden></p>
+      <div class="modal-actions">
+        <button class="ghost" id="onboardingBackBtn" type="button">Назад</button>
+        <button class="primary" id="onboardingNextBtn" type="button">Далее</button>
+      </div>
+    </article>
+  </div>
+
+  <div class="toast" id="toast" hidden></div>
+  <script src="/static/app.js"></script>
+</body>
+</html>

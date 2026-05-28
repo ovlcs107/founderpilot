@@ -1,0 +1,731 @@
+from __future__ import annotations
+
+import asyncio
+import logging
+import re
+from contextlib import suppress
+from typing import Any
+
+import uvicorn
+from aiogram import Bot
+from fastapi import Depends, FastAPI, Header, HTTPException, Request
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import FileResponse, JSONResponse, RedirectResponse
+from fastapi.staticfiles import StaticFiles
+from fastapi.exceptions import RequestValidationError
+from pydantic import BaseModel, Field
+
+from app.bot import build_dispatcher
+from app.config import Settings, get_settings, require_runtime_settings
+from app.db import Database
+from app.openrouter_client import AIClientError, OpenRouterClient
+from app.prompts import MODES, get_mini_app_tools
+from app.rate_limit import RateLimitError, RateLimiter
+from app.telegram_auth import TelegramAuthError, TelegramUser, dev_user, validate_telegram_init_data
+
+logger = logging.getLogger(__name__)
+
+
+class AskRequest(BaseModel):
+    mode: str = Field(default="strategy", min_length=1, max_length=64)
+    text: str = Field(min_length=3, max_length=8000)
+
+
+class AskResponse(BaseModel):
+    answer: str
+    mode: str
+    saved_id: int
+
+
+class GenerateRequest(BaseModel):
+    tool_id: str = Field(min_length=1, max_length=64)
+    user_input: str = Field(min_length=3, max_length=8000)
+    optional_fields: dict[str, Any] = Field(default_factory=dict)
+    telegram_user_id: int | None = None
+
+
+class ToolRunRequest(BaseModel):
+    tool_id: str = Field(min_length=1, max_length=64)
+    input: dict[str, Any] = Field(default_factory=dict)
+    telegram_user_id: int | None = None
+
+
+class GenerateResponse(BaseModel):
+    ok: bool
+    result: str | None = None
+    tool_id: str | None = None
+    saved_id: int | None = None
+    usage: dict[str, Any] | None = None
+    error: str | None = None
+
+
+class ChatRequest(BaseModel):
+    telegram_user_id: int | None = None
+    message: str = Field(min_length=1, max_length=8000)
+    conversation_id: str | None = Field(default=None, max_length=64)
+
+
+class ChatResponse(BaseModel):
+    ok: bool
+    answer: str | None = None
+    conversation_id: str | None = None
+    usage: dict[str, Any] | None = None
+    error: str | None = None
+
+
+class HistoryResponse(BaseModel):
+    items: list[dict[str, Any]]
+    conversations: list[dict[str, Any]] = Field(default_factory=list)
+    tool_runs: list[dict[str, Any]] = Field(default_factory=list)
+    saved: list[dict[str, Any]] = Field(default_factory=list)
+
+
+class SaveResultRequest(BaseModel):
+    source_type: str = Field(min_length=1, max_length=40)
+    source_id: str = Field(min_length=1, max_length=120)
+    title: str | None = Field(default=None, max_length=160)
+    content: str = Field(min_length=1, max_length=20000)
+
+
+class FeedbackRequest(BaseModel):
+    source_type: str | None = Field(default=None, max_length=40)
+    source_id: str | None = Field(default=None, max_length=120)
+    rating: int = Field(ge=-1, le=1)
+    message: str | None = Field(default=None, max_length=2000)
+
+
+class BusinessProfileRequest(BaseModel):
+    user_type: str | None = None
+    main_goal: str | None = None
+    business_name: str | None = None
+    niche: str | None = None
+    marketplace: str | None = None
+    target_audience: str | None = None
+    average_price: str | None = None
+    description: str | None = None
+    main_problem: str | None = None
+
+
+class StatsResponse(BaseModel):
+    used_today: int
+    daily_limit: int | None
+    per_minute_limit: int
+    free_limit: int
+    monthly_limit: int
+    used_total: int
+    used_period: int
+    remaining: int | None
+    plan: str
+    status: str
+    status_label: str
+    subscription_until: str | None = None
+    unlimited: bool = False
+
+
+def _parse_money(value: Any) -> float:
+    if value is None:
+        return 0.0
+    text = str(value).strip().replace(",", ".")
+    if not text:
+        return 0.0
+    match = re.search(r"-?\d+(?:\.\d+)?", text.replace(" ", ""))
+    return float(match.group(0)) if match else 0.0
+
+
+def _parse_rate_or_amount(value: Any, base: float) -> tuple[float, float]:
+    text = str(value or "").strip().replace(",", ".")
+    if not text:
+        return 0.0, 0.0
+    raw = _parse_money(text)
+    if "%" in text:
+        rate = raw / 100
+        return base * rate, rate
+    if 0 < raw < 1:
+        return base * raw, raw
+    return raw, raw / base if base else 0.0
+
+
+def margin_calculation(input_data: dict[str, Any]) -> dict[str, Any] | None:
+    sale_price = _parse_money(input_data.get("sale_price"))
+    purchase_price = _parse_money(input_data.get("purchase_price"))
+    if sale_price <= 0 or purchase_price < 0:
+        return None
+
+    commission_amount, commission_rate = _parse_rate_or_amount(input_data.get("commission"), sale_price)
+    taxes_amount, taxes_rate = _parse_rate_or_amount(input_data.get("taxes_other"), sale_price)
+    logistics = _parse_money(input_data.get("logistics"))
+    packaging = _parse_money(input_data.get("packaging"))
+    ads = _parse_money(input_data.get("ads"))
+    fixed_costs = purchase_price + logistics + packaging + ads
+    variable_costs = commission_amount + taxes_amount
+    total_costs = fixed_costs + variable_costs
+    profit = sale_price - total_costs
+    margin = profit / sale_price * 100 if sale_price else 0
+    roi_base = fixed_costs + variable_costs
+    roi = profit / roi_base * 100 if roi_base else 0
+
+    variable_rate = commission_rate + taxes_rate
+    breakeven_price = None
+    if variable_rate < 1:
+        breakeven_price = fixed_costs / (1 - variable_rate)
+
+    return {
+        "sale_price": sale_price,
+        "purchase_price": purchase_price,
+        "commission_amount": commission_amount,
+        "taxes_amount": taxes_amount,
+        "logistics": logistics,
+        "packaging": packaging,
+        "ads": ads,
+        "total_costs": total_costs,
+        "profit": profit,
+        "margin": margin,
+        "roi": roi,
+        "breakeven_price": breakeven_price,
+    }
+
+
+def _money(value: float | None) -> str:
+    if value is None:
+        return "недостаточно данных"
+    return f"{value:.2f} руб."
+
+
+def margin_markdown(calculation: dict[str, Any] | None) -> str:
+    if not calculation:
+        return ""
+    breakeven = calculation.get("breakeven_price")
+    return "\n".join(
+        [
+            "## Расчет backend",
+            f"- Прибыль с единицы: {_money(calculation['profit'])}",
+            f"- Маржа: {calculation['margin']:.1f}%",
+            f"- ROI: {calculation['roi']:.1f}%",
+            f"- Себестоимость с расходами: {_money(calculation['total_costs'])}",
+            f"- Ориентир безубыточной цены: {_money(breakeven) if breakeven else 'недостаточно данных'}",
+            "",
+        ]
+    )
+
+
+def create_app(settings: Settings | None = None) -> FastAPI:
+    settings = settings or get_settings()
+    db = Database(settings.database_path)
+    ai_client = OpenRouterClient(settings)
+    rate_limiter = RateLimiter(settings, db)
+
+    app = FastAPI(
+        title="FounderPilot AI",
+        description="Telegram Mini App Bot with AI business advisor",
+        version="1.0.0",
+    )
+
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=["*"],
+        allow_credentials=False,
+        allow_methods=["GET", "POST", "OPTIONS"],
+        allow_headers=["*"],
+    )
+
+    app.mount("/static", StaticFiles(directory="static"), name="static")
+
+    @app.exception_handler(HTTPException)
+    async def http_exception_handler(request: Request, exc: HTTPException) -> JSONResponse:
+        return JSONResponse(status_code=exc.status_code, content={"ok": False, "error": str(exc.detail)})
+
+    @app.exception_handler(RequestValidationError)
+    async def validation_exception_handler(request: Request, exc: RequestValidationError) -> JSONResponse:
+        return JSONResponse(status_code=422, content={"ok": False, "error": "Проверьте заполнение полей и повторите запрос."})
+
+    def resolve_telegram_id(user: TelegramUser, requested_id: int | None = None) -> int:
+        if settings.allow_dev_auth and requested_id:
+            return requested_id
+        return user.id
+
+    def usage_payload(access: dict[str, Any]) -> dict[str, Any]:
+        return {
+            "daily_used": access["used_today"],
+            "daily_limit": access["current_limit"],
+            "used_total": access["used_total"],
+            "used_period": access["used_period"],
+            "remaining": access["remaining"],
+            "plan": access["plan"],
+            "status": access["status"],
+            "status_label": access["status_label"],
+            "subscription_until": access["subscription_until"],
+            "unlimited": access["unlimited"],
+        }
+
+    def stored_user_input(user_input: str, optional_fields: dict[str, Any]) -> str:
+        filled = [
+            (key, str(value).strip())
+            for key, value in optional_fields.items()
+            if value is not None and str(value).strip()
+        ]
+        if not filled:
+            return user_input.strip()
+        fields = "\n".join(f"{key}: {value}" for key, value in filled)
+        return f"{user_input.strip()}\n\nДополнительные поля:\n{fields}"
+
+    def prepare_tool_context(tool_id: str, input_data: dict[str, Any]) -> tuple[str, dict[str, Any], str]:
+        optional_fields = dict(input_data)
+        input_text = "\n".join(
+            f"{key}: {value}" for key, value in input_data.items() if value is not None and str(value).strip()
+        )
+        prefix = ""
+        if tool_id == "margin_calc":
+            calculation = margin_calculation(input_data)
+            if calculation:
+                prefix = margin_markdown(calculation)
+                optional_fields["backend_margin_calculation"] = prefix
+                input_text = f"{input_text}\n\nСерверный расчет:\n{prefix}".strip()
+        return input_text, optional_fields, prefix
+
+    def parse_conversation_id(value: str | None) -> str | None:
+        if not value:
+            return None
+        clean = value.strip()
+        return clean or None
+
+    def business_context(profile: dict[str, Any] | None) -> str:
+        if not profile:
+            return ""
+        labels = {
+            "user_type": "Тип пользователя",
+            "main_goal": "Главная цель",
+            "business_name": "Бизнес",
+            "niche": "Ниша",
+            "marketplace": "Маркетплейс",
+            "target_audience": "Целевая аудитория",
+            "average_price": "Средняя цена",
+            "description": "Описание",
+            "main_problem": "Главная проблема",
+        }
+        lines = [f"{label}: {profile.get(key)}" for key, label in labels.items() if profile.get(key)]
+        return "\n".join(lines)
+
+    async def current_user(x_telegram_init_data: str | None = Header(default=None)) -> TelegramUser:
+        if settings.allow_dev_auth:
+            return dev_user()
+        try:
+            return validate_telegram_init_data(x_telegram_init_data or "", settings.bot_token)
+        except TelegramAuthError as exc:
+            raise HTTPException(status_code=401, detail=str(exc)) from exc
+
+    def require_admin(x_admin_secret: str | None) -> None:
+        if not settings.admin_secret or x_admin_secret != settings.admin_secret:
+            raise HTTPException(status_code=403, detail="Доступ запрещён.")
+
+    @app.on_event("startup")
+    async def on_startup() -> None:
+        await db.init()
+        logger.info("Database initialized at %s", settings.database_path)
+
+    @app.get("/", include_in_schema=False)
+    async def root() -> RedirectResponse:
+        return RedirectResponse(url="/app")
+
+    @app.get("/app", include_in_schema=False)
+    async def mini_app() -> FileResponse:
+        return FileResponse("static/index.html")
+
+    @app.get("/api/modes")
+    async def modes() -> dict[str, Any]:
+        return {
+            "modes": [
+                {"key": mode.key, "title": mode.title, "description": mode.description}
+                for mode in MODES.values()
+            ]
+        }
+
+    @app.get("/api/tools")
+    async def tools() -> dict[str, Any]:
+        return {
+            "tools": [
+                {
+                    "id": tool.key,
+                    "title": tool.title,
+                    "description": tool.description,
+                    "icon": tool.icon,
+                    "placeholder": tool.placeholder,
+                    "fields": list(tool.fields),
+                }
+                for tool in get_mini_app_tools()
+            ]
+        }
+
+    @app.get("/api/me")
+    async def me(start_param: str | None = None, user: TelegramUser = Depends(current_user)) -> dict[str, Any]:
+        await db.upsert_user(user.id, user.username, user.first_name, user.last_name)
+        if start_param:
+            await db.set_referrer(user.id, start_param.strip())
+        access = await db.get_access_state(
+            user.id,
+            free_limit_default=settings.free_trial_requests,
+            monthly_limit_default=settings.subscriber_monthly_limit,
+        )
+        profile_data = await db.get_business_profile(user.id)
+        user_profile = await db.get_user_profile(user.id)
+        return {
+            "user": {
+                "id": user.id,
+                "telegram_user_id": str(user.id),
+                "username": user.username,
+                "first_name": user.first_name,
+                "last_name": user.last_name,
+                "plan": (user_profile or {}).get("plan", "free"),
+                "onboarding_completed": bool((user_profile or {}).get("onboarding_completed")),
+            },
+            "profile": profile_data,
+            "usage": usage_payload(access),
+        }
+
+    @app.post("/api/onboarding")
+    async def onboarding(payload: BusinessProfileRequest, user: TelegramUser = Depends(current_user)) -> dict[str, Any]:
+        profile_data = await db.complete_onboarding(user.id, payload.model_dump())
+        return {"ok": True, "profile": profile_data}
+
+    @app.get("/api/business-profile")
+    async def business_profile(user: TelegramUser = Depends(current_user)) -> dict[str, Any]:
+        return {"ok": True, "profile": await db.get_business_profile(user.id)}
+
+    @app.post("/api/business-profile")
+    async def save_business_profile(payload: BusinessProfileRequest, user: TelegramUser = Depends(current_user)) -> dict[str, Any]:
+        profile_data = await db.upsert_business_profile(user.id, payload.model_dump())
+        return {"ok": True, "profile": profile_data}
+
+    @app.delete("/api/business-profile")
+    async def delete_business_profile(user: TelegramUser = Depends(current_user)) -> dict[str, Any]:
+        await db.clear_business_profile(user.id)
+        return {"ok": True}
+
+    @app.post("/api/ask", response_model=AskResponse)
+    async def ask(payload: AskRequest, user: TelegramUser = Depends(current_user)) -> AskResponse:
+        await db.upsert_user(user.id, user.username, user.first_name, user.last_name)
+
+        try:
+            await rate_limiter.check(user.id)
+            answer = await ai_client.ask_business_ai(payload.mode, payload.text)
+            saved_id = await db.save_request(user.id, payload.mode, payload.text, answer)
+        except RateLimitError as exc:
+            raise HTTPException(status_code=429, detail=str(exc)) from exc
+        except AIClientError as exc:
+            raise HTTPException(status_code=502, detail=str(exc)) from exc
+
+        return AskResponse(answer=answer, mode=payload.mode, saved_id=saved_id)
+
+    @app.post("/api/generate", response_model=GenerateResponse)
+    async def generate(payload: GenerateRequest, user: TelegramUser = Depends(current_user)) -> GenerateResponse:
+        telegram_id = resolve_telegram_id(user, payload.telegram_user_id)
+        await db.upsert_user(telegram_id, user.username, user.first_name, user.last_name)
+
+        if payload.tool_id not in MODES:
+            return GenerateResponse(ok=False, error="Неизвестный AI-инструмент. Обновите приложение и попробуйте снова.")
+
+        try:
+            await rate_limiter.check(telegram_id)
+            profile_data = await db.get_business_profile(telegram_id)
+            raw_fields = dict(payload.optional_fields)
+            raw_fields["user_input"] = payload.user_input
+            input_text, optional_fields, result_prefix = prepare_tool_context(payload.tool_id, raw_fields)
+            context = business_context(profile_data)
+            if context:
+                optional_fields["business_profile"] = context
+            ai_answer = await ai_client.ask_business_ai(payload.tool_id, input_text or payload.user_input, optional_fields)
+            answer = f"{result_prefix}\n{ai_answer}".strip() if result_prefix else ai_answer
+            saved_id = await db.save_request(
+                telegram_id,
+                payload.tool_id,
+                stored_user_input(payload.user_input, optional_fields),
+                answer,
+            )
+            await db.create_tool_run(
+                telegram_id,
+                payload.tool_id,
+                {"user_input": payload.user_input, "optional_fields": payload.optional_fields},
+                result_text=answer,
+                model=settings.openrouter_model,
+            )
+            access = await db.get_access_state(
+                telegram_id,
+                free_limit_default=settings.free_trial_requests,
+                monthly_limit_default=settings.subscriber_monthly_limit,
+            )
+        except RateLimitError as exc:
+            access = await db.get_access_state(
+                telegram_id,
+                free_limit_default=settings.free_trial_requests,
+                monthly_limit_default=settings.subscriber_monthly_limit,
+            )
+            return GenerateResponse(ok=False, error=str(exc), tool_id=payload.tool_id, usage=usage_payload(access))
+        except AIClientError as exc:
+            await db.log_error("generate", str(exc), telegram_id)
+            return GenerateResponse(ok=False, error=str(exc), tool_id=payload.tool_id)
+        except Exception as exc:  # noqa: BLE001
+            logger.exception("Mini App generation failed")
+            await db.log_error("generate", str(exc), telegram_id)
+            return GenerateResponse(ok=False, error=f"Непредвиденная ошибка: {exc}", tool_id=payload.tool_id)
+
+        return GenerateResponse(
+            ok=True,
+            result=answer,
+            tool_id=payload.tool_id,
+            saved_id=saved_id,
+            usage=usage_payload(access),
+        )
+
+    @app.post("/api/tools/run")
+    async def tools_run(payload: ToolRunRequest, user: TelegramUser = Depends(current_user)) -> dict[str, Any]:
+        telegram_id = resolve_telegram_id(user, payload.telegram_user_id)
+        if payload.tool_id not in MODES:
+            return {"ok": False, "error": "Неизвестный AI-инструмент."}
+
+        input_text, optional_fields, result_prefix = prepare_tool_context(payload.tool_id, payload.input)
+        if len(input_text.strip()) < 3:
+            return {"ok": False, "error": "Заполните хотя бы одно поле инструмента."}
+
+        try:
+            await rate_limiter.check(telegram_id)
+            profile_data = await db.get_business_profile(telegram_id)
+            context = business_context(profile_data)
+            if context:
+                optional_fields["business_profile"] = context
+            ai_answer = await ai_client.ask_business_ai(payload.tool_id, input_text, optional_fields)
+            answer = f"{result_prefix}\n{ai_answer}".strip() if result_prefix else ai_answer
+            tool_run_id = await db.create_tool_run(
+                telegram_id,
+                payload.tool_id,
+                payload.input,
+                result_text=answer,
+                model=settings.openrouter_model,
+            )
+            await db.save_request(telegram_id, payload.tool_id, input_text, answer)
+            access = await db.get_access_state(
+                telegram_id,
+                free_limit_default=settings.free_trial_requests,
+                monthly_limit_default=settings.subscriber_monthly_limit,
+            )
+            return {"ok": True, "result": answer, "tool_run_id": str(tool_run_id), "usage": usage_payload(access)}
+        except RateLimitError as exc:
+            access = await db.get_access_state(
+                telegram_id,
+                free_limit_default=settings.free_trial_requests,
+                monthly_limit_default=settings.subscriber_monthly_limit,
+            )
+            return {"ok": False, "error": str(exc), "usage": usage_payload(access)}
+        except AIClientError as exc:
+            await db.create_tool_run(telegram_id, payload.tool_id, payload.input, status="error", error_message=str(exc))
+            await db.log_error("tools_run", str(exc), telegram_id)
+            return {"ok": False, "error": str(exc)}
+        except Exception as exc:  # noqa: BLE001
+            logger.exception("Tool run failed")
+            await db.create_tool_run(telegram_id, payload.tool_id, payload.input, status="error", error_message=str(exc))
+            await db.log_error("tools_run", str(exc), telegram_id)
+            return {"ok": False, "error": f"Непредвиденная ошибка: {exc}"}
+
+    @app.post("/api/chat", response_model=ChatResponse)
+    async def chat(payload: ChatRequest, user: TelegramUser = Depends(current_user)) -> ChatResponse:
+        telegram_id = resolve_telegram_id(user, payload.telegram_user_id)
+        message = payload.message.strip()
+        if len(message) < 2:
+            return ChatResponse(ok=False, error="Сообщение слишком короткое. Опишите бизнес-задачу чуть подробнее.")
+
+        await db.upsert_user(telegram_id, user.username, user.first_name, user.last_name)
+
+        try:
+            await rate_limiter.check(telegram_id)
+            conversation_id = await db.get_or_create_conversation(
+                telegram_id,
+                parse_conversation_id(payload.conversation_id),
+                message,
+            )
+            history = await db.list_chat_messages(conversation_id, limit=20)
+            profile_data = await db.get_business_profile(telegram_id)
+            answer = await ai_client.ask_chat(history, message, business_context(profile_data))
+            await db.add_chat_message(conversation_id, "user", message)
+            await db.add_chat_message(conversation_id, "assistant", answer, model=settings.openrouter_model)
+            access = await db.get_access_state(
+                telegram_id,
+                free_limit_default=settings.free_trial_requests,
+                monthly_limit_default=settings.subscriber_monthly_limit,
+            )
+        except RateLimitError as exc:
+            access = await db.get_access_state(
+                telegram_id,
+                free_limit_default=settings.free_trial_requests,
+                monthly_limit_default=settings.subscriber_monthly_limit,
+            )
+            return ChatResponse(ok=False, error=str(exc), conversation_id=payload.conversation_id, usage=usage_payload(access))
+        except AIClientError as exc:
+            await db.log_error("chat", str(exc), telegram_id)
+            return ChatResponse(ok=False, error=str(exc), conversation_id=payload.conversation_id)
+        except Exception as exc:  # noqa: BLE001
+            logger.exception("AI Chat request failed")
+            await db.log_error("chat", str(exc), telegram_id)
+            return ChatResponse(ok=False, error=f"Непредвиденная ошибка: {exc}", conversation_id=payload.conversation_id)
+
+        return ChatResponse(
+            ok=True,
+            answer=answer,
+            conversation_id=str(conversation_id),
+            usage=usage_payload(access),
+        )
+
+    @app.get("/api/conversations")
+    async def conversations(user: TelegramUser = Depends(current_user)) -> dict[str, Any]:
+        items = await db.list_conversations(user.id, limit=20)
+        return {"items": items}
+
+    @app.post("/api/conversations")
+    async def create_conversation(user: TelegramUser = Depends(current_user)) -> dict[str, Any]:
+        conversation_id = await db.create_conversation(user.id, "Новый диалог")
+        return {"ok": True, "conversation_id": conversation_id}
+
+    @app.get("/api/conversations/{conversation_id}")
+    @app.get("/api/chat/{conversation_id}")
+    async def chat_history(conversation_id: str, user: TelegramUser = Depends(current_user)) -> dict[str, Any]:
+        conversation = await db.get_conversation(user.id, conversation_id)
+        if not conversation:
+            raise HTTPException(status_code=404, detail="Диалог не найден.")
+        messages = await db.list_chat_messages(conversation_id, limit=50)
+        return {"conversation": conversation, "messages": messages}
+
+    @app.delete("/api/conversations/{conversation_id}")
+    async def delete_conversation(conversation_id: str, user: TelegramUser = Depends(current_user)) -> dict[str, Any]:
+        deleted = await db.archive_conversation(user.id, conversation_id)
+        return {"ok": deleted}
+
+    @app.get("/api/history", response_model=HistoryResponse)
+    async def history(user: TelegramUser = Depends(current_user)) -> HistoryResponse:
+        items = await db.list_recent_requests(user.id, limit=10)
+        for item in items:
+            mode = MODES.get(str(item.get("mode")))
+            item["tool_title"] = mode.title if mode else item.get("mode")
+        conversations = await db.list_conversations(user.id, limit=10)
+        tool_runs = await db.list_tool_runs(user.id, limit=20)
+        saved = await db.list_saved_results(user.id, limit=20)
+        return HistoryResponse(items=items, conversations=conversations, tool_runs=tool_runs, saved=saved)
+
+    @app.get("/api/saved")
+    async def saved(user: TelegramUser = Depends(current_user)) -> dict[str, Any]:
+        return {"items": await db.list_saved_results(user.id)}
+
+    @app.post("/api/saved")
+    async def save_result(payload: SaveResultRequest, user: TelegramUser = Depends(current_user)) -> dict[str, Any]:
+        saved_id = await db.save_result(user.id, payload.source_type, payload.source_id, payload.title, payload.content)
+        return {"ok": True, "id": saved_id}
+
+    @app.delete("/api/saved/{saved_id}")
+    async def delete_saved(saved_id: int, user: TelegramUser = Depends(current_user)) -> dict[str, Any]:
+        return {"ok": await db.delete_saved_result(user.id, saved_id)}
+
+    @app.post("/api/feedback")
+    async def feedback(payload: FeedbackRequest, user: TelegramUser = Depends(current_user)) -> dict[str, Any]:
+        feedback_id = await db.save_feedback(
+            user.id,
+            rating=payload.rating,
+            message=payload.message,
+            source_type=payload.source_type,
+            source_id=payload.source_id,
+        )
+        return {"ok": True, "id": feedback_id}
+
+    @app.get("/api/referral")
+    async def referral(user: TelegramUser = Depends(current_user)) -> dict[str, Any]:
+        bot_username = None
+        return {"ok": True, **await db.referral_stats(user.id, bot_username)}
+
+    @app.get("/api/stats", response_model=StatsResponse)
+    async def stats(user: TelegramUser = Depends(current_user)) -> StatsResponse:
+        access = await db.get_access_state(
+            user.id,
+            free_limit_default=settings.free_trial_requests,
+            monthly_limit_default=settings.subscriber_monthly_limit,
+        )
+        return StatsResponse(
+            used_today=access["used_today"],
+            daily_limit=access["current_limit"],
+            per_minute_limit=settings.per_minute_limit,
+            free_limit=access["free_limit"],
+            monthly_limit=access["monthly_limit"],
+            used_total=access["used_total"],
+            used_period=access["used_period"],
+            remaining=access["remaining"],
+            plan=access["plan"],
+            status=access["status"],
+            status_label=access["status_label"],
+            subscription_until=access["subscription_until"],
+            unlimited=access["unlimited"],
+        )
+
+    @app.get("/api/profile")
+    async def profile(user: TelegramUser = Depends(current_user)) -> dict[str, Any]:
+        await db.upsert_user(user.id, user.username, user.first_name, user.last_name)
+        access = await db.get_access_state(
+            user.id,
+            free_limit_default=settings.free_trial_requests,
+            monthly_limit_default=settings.subscriber_monthly_limit,
+        )
+        return {
+            "user": {
+                "id": user.id,
+                "username": user.username,
+                "first_name": user.first_name,
+                "last_name": user.last_name,
+            },
+            "usage": usage_payload(access),
+            "limits": {
+                "free_trial_requests": settings.free_trial_requests,
+                "subscriber_monthly_limit": settings.subscriber_monthly_limit,
+                "per_minute_limit": settings.per_minute_limit,
+            },
+        }
+
+    @app.get("/api/admin/stats")
+    async def admin_stats(x_admin_secret: str | None = Header(default=None)) -> dict[str, Any]:
+        require_admin(x_admin_secret)
+        return {"ok": True, **await db.admin_stats()}
+
+    return app
+
+
+async def async_main() -> None:
+    logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
+    settings = get_settings()
+    require_runtime_settings(settings)
+
+    db = Database(settings.database_path)
+    await db.init()
+    ai_client = OpenRouterClient(settings)
+    rate_limiter = RateLimiter(settings, db)
+
+    app = create_app(settings)
+    bot = Bot(token=settings.bot_token)
+    dp = build_dispatcher(settings, db, ai_client, rate_limiter)
+
+    config = uvicorn.Config(app=app, host=settings.host, port=settings.port, log_level="info")
+    server = uvicorn.Server(config=config)
+
+    server_task = asyncio.create_task(server.serve(), name="uvicorn-server")
+    bot_task = asyncio.create_task(dp.start_polling(bot), name="telegram-bot")
+
+    logger.info("FounderPilot AI is running")
+    logger.info("Mini App local URL: http://%s:%s/app", settings.host, settings.port)
+    logger.info("Telegram WebApp URL from .env: %s", settings.webapp_url)
+
+    done, pending = await asyncio.wait({server_task, bot_task}, return_when=asyncio.FIRST_EXCEPTION)
+    for task in done:
+        exc = task.exception()
+        if exc:
+            logger.exception("Task failed: %s", exc)
+            raise exc
+
+    for task in pending:
+        task.cancel()
+        with suppress(asyncio.CancelledError):
+            await task
+
+
+def main() -> None:
+    asyncio.run(async_main())
