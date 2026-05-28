@@ -242,7 +242,6 @@ function updateSendButton() {
   if (input && btn) btn.disabled = !input.value.trim() || state.isSending;
 }
 
-
 // UI Updaters
 function switchView(target) {
   document.querySelectorAll(".view").forEach(v => v.classList.remove("active"));
@@ -324,7 +323,6 @@ function appendMessage(role, text, id = null) {
   if (id) wrap.id = id;
   
   const txtDiv = document.createElement("div");
-  // Security: Text content inserted safely against XSS
   txtDiv.textContent = text; 
   wrap.appendChild(txtDiv);
   
@@ -332,7 +330,6 @@ function appendMessage(role, text, id = null) {
     const act = document.createElement("div");
     act.className = "message-actions";
     
-    // Copy button
     const copyBtn = document.createElement("button");
     copyBtn.type = "button";
     copyBtn.innerHTML = `<span data-icon="copy"></span> Скопировать`;
@@ -340,7 +337,6 @@ function appendMessage(role, text, id = null) {
       navigator.clipboard.writeText(text).then(() => showToast("Скопировано!"));
     });
     
-    // Save button
     const saveBtn = document.createElement("button");
     saveBtn.type = "button";
     saveBtn.innerHTML = `<span data-icon="save"></span> Сохранить`;
@@ -387,12 +383,10 @@ async function handleChatSend() {
     appendMessage("bot", answer);
     
     if (state.user) {
-      // Update Daily
       if (res.usage?.credits_used_today !== undefined) state.user.daily_used = res.usage.credits_used_today;
       else if (res.used_today !== undefined) state.user.daily_used = res.used_today;
       else if (res.usage?.daily_used !== undefined) state.user.daily_used = res.usage.daily_used;
       
-      // Update Monthly
       if (res.usage?.credits_used_month !== undefined) state.user.monthly_used = res.usage.credits_used_month;
       else if (res.credits_used_month !== undefined) state.user.monthly_used = res.credits_used_month;
       else if (res.used_period !== undefined) state.user.monthly_used = res.used_period;
@@ -639,7 +633,7 @@ function pollOrderStatus(orderId) {
         clearInterval(state.orderPollTimer);
         showToast("Оплата получена!");
         loadMe();
-      } else if (["failed", "canceled", "expired"].includes(s)) {
+      } else if (["failed", "cancelled", "expired"].includes(s)) {
         clearInterval(state.orderPollTimer);
         showToast("Оплата не прошла");
       }
@@ -811,7 +805,6 @@ async function boot() {
   
   bindEvents();
   
-  // Concurrent safe loading to prevent eternal skeleton screens
   await Promise.allSettled([
     loadMe(),
     loadTools(),

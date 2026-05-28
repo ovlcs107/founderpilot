@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
   <meta name="color-scheme" content="light dark" />
   <title>FounderPilot AI</title>
-  <link rel="stylesheet" href="/static/styles.css?v=system-4" />
+  <link rel="stylesheet" href="/static/styles.css?v=system-5" />
   <script src="https://telegram.org/js/telegram-web-app.js"></script>
 </head>
 <body>
@@ -54,7 +54,7 @@
             <div class="credit-card">
               <div class="credit-card-header">
                 <span class="small">Кредиты сегодня</span>
-                <span class="nav-icon" data-icon="chart" style="width:14px; height:14px; opacity:0.5;"></span>
+                <span class="nav-icon" data-icon="chart"></span>
               </div>
               <div class="credit-value" id="creditsTodayText">- / -</div>
               <div class="progress-bar"><div class="progress-fill" id="creditsTodayFill" style="width: 0%"></div></div>
@@ -62,7 +62,7 @@
             <div class="credit-card">
               <div class="credit-card-header">
                 <span class="small">Кредиты месяца</span>
-                <span class="nav-icon" data-icon="wallet" style="width:14px; height:14px; opacity:0.5;"></span>
+                <span class="nav-icon" data-icon="wallet"></span>
               </div>
               <div class="credit-value" id="creditsMonthText">- / -</div>
               <div class="progress-bar"><div class="progress-fill" id="creditsMonthFill" style="width: 0%"></div></div>
@@ -71,23 +71,27 @@
 
           <div class="quick-strip mt-4" id="quickStrip">
             <button class="quick-action" data-prompt="Посчитать маржу для моего товара" type="button">
-              <span class="nav-icon" data-icon="calculator"></span> Посчитать маржу
+              <span class="nav-icon" data-icon="calculator"></span>
+              <span class="quick-text">Посчитать маржу</span>
             </button>
             <button class="quick-action" data-prompt="Улучшить описание карточки товара" type="button">
-              <span class="nav-icon" data-icon="edit"></span> Улучшить карточку
+              <span class="nav-icon" data-icon="edit"></span>
+              <span class="quick-text">Улучшить карточку</span>
             </button>
             <button class="quick-action" data-prompt="Составить оффер для акции" type="button">
-              <span class="nav-icon" data-icon="target"></span> Сделать оффер
+              <span class="nav-icon" data-icon="target"></span>
+              <span class="quick-text">Сделать оффер</span>
             </button>
             <button class="quick-action" data-prompt="Провести анализ конкурентов" type="button">
-              <span class="nav-icon" data-icon="search"></span> Разобрать конкурента
+              <span class="nav-icon" data-icon="search"></span>
+              <span class="quick-text">Разобрать конкурента</span>
             </button>
           </div>
 
           <div class="main-chat-card mt-3">
             <div class="chat-scroll" id="homeChatScroll">
-              <div class="chat-empty skeleton-state" id="chatEmptyState">
-                <span class="nav-icon mb-2" data-icon="message" style="width:32px; height:32px; margin: 0 auto;"></span>
+              <div class="chat-empty" id="chatEmptyState">
+                <span class="nav-icon mb-2" data-icon="message"></span>
                 <p>Напишите задачу — FounderPilot поможет с расчётами, продажами и карточками товаров.</p>
               </div>
             </div>
@@ -203,6 +207,6 @@
   </div>
 
   <div class="toast" id="toast" role="alert" aria-live="assertive"></div>
-  <script src="/static/app.js?v=system-4"></script>
+  <script src="/static/app.js?v=system-5"></script>
 </body>
 </html>
