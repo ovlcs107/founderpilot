@@ -3,13 +3,17 @@ const tg = window.Telegram?.WebApp || null;
 const iconPaths = {
   home: '<path d="m3 9 9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/>',
   chat: '<path d="M21 11.5a8.4 8.4 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.4 8.4 0 0 1-3.8-.9L3 21l1.9-5.7A8.4 8.4 0 0 1 4 11.5a8.5 8.5 0 0 1 17 0Z"/>',
-  tools: '<rect x=\"3\" y=\"3\" width=\"7\" height=\"7\" rx=\"1\"/><rect x=\"14\" y=\"3\" width=\"7\" height=\"7\" rx=\"1\"/><rect x=\"14\" y=\"14\" width=\"7\" height=\"7\" rx=\"1\"/><rect x=\"3\" y=\"14\" width=\"7\" height=\"7\" rx=\"1\"/>',
-  history: '<circle cx=\"12\" cy=\"12\" r=\"10\"/><polyline points=\"12 6 12 12 16 14\"/>',
-  user: '<path d=\"M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2\"/><circle cx=\"12\" cy=\"7\" r=\"4\"/>',
-  send: '<line x1=\"22\" y1=\"2\" x2=\"11\" y2=\"13\"/><polygon points=\"22 2 15 22 11 13 2 9 22 2\"/>',
-  close: '<line x1=\"18\" y1=\"6\" x2=\"6\" y2=\"18\"/><line x1=\"6\" y1=\"6\" x2=\"18\" y2=\"18\"/>',
-  back: '<line x1=\"19\" y1=\"12\" x2=\"5\" y2=\"12\"/><polyline points=\"12 19 5 12 12 5\"/>',
-  chevron: '<polyline points=\"9 18 15 12 9 6\"/>'
+  tools: '<rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/>',
+  history: '<circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/>',
+  user: '<path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/>',
+  send: '<line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/>',
+  close: '<line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>',
+  back: '<line x1="19" y1="12" x2="5" y2="12"/><polyline points="12 19 5 12 12 5"/>',
+  chevron: '<polyline points="9 18 15 12 9 6"/>',
+  // Премиальная нативная звезда Telegram Stars
+  tg_stars: '<path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/>',
+  // Чистый геометрический логотип TON
+  ton: '<path d="M12 2L3 9l9 13 9-13L12 2zm0 4.5L17.5 10H6.5L12 6.5zM6.8 12h10.4l-5.2 7.5-5.2-7.5z"/>'
 };
 
 const state = {
@@ -62,7 +66,7 @@ function injectIcons(root = document) {
   root.querySelectorAll("[data-icon]").forEach((el) => {
     const name = el.dataset.icon;
     if (iconPaths[name] && !el.querySelector("svg")) {
-      el.innerHTML = `<svg viewBox="0 0 24 24">${iconPaths[name]}</svg>`;
+      el.innerHTML = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${iconPaths[name]}</svg>`;
     }
   });
 }
@@ -153,7 +157,7 @@ async function handleChatSend(inputId, scrollId, sendBtnId) {
       method: "POST",
       body: JSON.stringify({ mode: state.currentMode, text })
     });
-    $ (statusId)?.remove();
+    $(statusId)?.remove();
     scroll.insertAdjacentHTML("beforeend", `<div class="msg bot">${res.answer}</div>`);
     if (state.user) {
       state.user.used_today = res.used_today;
@@ -359,18 +363,33 @@ function selectPlan(key) {
   box.hidden = false;
   
   const list = $("providerList");
-  list.innerHTML = state.activePlan.providers.map(prov => `
-    <button class="provider-card" data-provider="${prov.id}" type="button">
-      <div class="provider-main">
-        <span data-icon="chat"></span>
-        <div>
-          <strong>${prov.title}</strong>
-          <small>${prov.description || ""}</small>
+  list.innerHTML = state.activePlan.providers.map(prov => {
+    // Интеллектуальный роутинг кастомных брендовых логотипов
+    let iconName = "chat";
+    let customClass = "";
+    const pid = prov.id.toLowerCase();
+    
+    if (pid.includes("stars") || pid.includes("telegram_stars")) {
+      iconName = "tg_stars";
+      customClass = "provider-icon-stars";
+    } else if (pid.includes("ton") || pid.includes("crypto") || pid.includes("wallet")) {
+      iconName = "ton";
+      customClass = "provider-icon-ton";
+    }
+
+    return `
+      <button class="provider-card" data-provider="${prov.id}" type="button">
+        <div class="provider-main">
+          <span class="card-icon ${customClass}" data-icon="${iconName}"></span>
+          <div>
+            <strong>${prov.title}</strong>
+            <small>${prov.description || ""}</small>
+          </div>
         </div>
-      </div>
-      <span data-icon="chevron" class="chevron"></span>
-    </button>
-  `).join("");
+        <span data-icon="chevron" class="chevron"></span>
+      </button>
+    `;
+  }).join("");
   injectIcons(list);
   $("billingError").hidden = true;
 }
