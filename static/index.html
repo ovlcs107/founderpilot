@@ -5,32 +5,36 @@
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
   <meta name="color-scheme" content="light dark" />
   <title>FounderPilot</title>
-  <link rel="stylesheet" href="/static/styles.css?v=system-6" />
+  <link rel="stylesheet" href="/static/styles.css?v=2.0" />
   <script src="https://telegram.org/js/telegram-web-app.js"></script>
 </head>
 <body>
   <div class="app-shell">
     <nav class="app-nav" aria-label="Главное меню">
       <div class="nav-brand-pc">
-        <span class="nav-icon" data-icon="target"></span>
+        <div class="nav-logo">
+          <span data-icon="target"></span>
+        </div>
         <span class="product-label-pc">FounderPilot</span>
       </div>
-      <button class="nav-item active" data-target="home" type="button">
-        <span class="nav-icon" data-icon="home"></span>
-        <span class="nav-text">Главная</span>
-      </button>
-      <button class="nav-item" data-target="tools" type="button">
-        <span class="nav-icon" data-icon="tools"></span>
-        <span class="nav-text">Инструменты</span>
-      </button>
-      <button class="nav-item" data-target="history" type="button">
-        <span class="nav-icon" data-icon="history"></span>
-        <span class="nav-text">История</span>
-      </button>
-      <button class="nav-item" data-target="profile" type="button">
-        <span class="nav-icon" data-icon="user"></span>
-        <span class="nav-text">Профиль</span>
-      </button>
+      <div class="nav-links">
+        <button class="nav-item active" data-target="home" type="button">
+          <span class="nav-icon" data-icon="home"></span>
+          <span class="nav-text">Главная</span>
+        </button>
+        <button class="nav-item" data-target="tools" type="button">
+          <span class="nav-icon" data-icon="tools"></span>
+          <span class="nav-text">Инструменты</span>
+        </button>
+        <button class="nav-item" data-target="history" type="button">
+          <span class="nav-icon" data-icon="history"></span>
+          <span class="nav-text">История</span>
+        </button>
+        <button class="nav-item" data-target="profile" type="button">
+          <span class="nav-icon" data-icon="user"></span>
+          <span class="nav-text">Профиль</span>
+        </button>
+      </div>
     </nav>
 
     <div class="main-container">
@@ -45,137 +49,147 @@
 
       <main class="content" id="content">
         <section class="view active" id="view-home" aria-labelledby="homeGreeting">
-          <div class="home-heading">
-            <h2 id="homeGreeting">Здравствуйте</h2>
-            <p class="muted mt-1">Чем займёмся сегодня?</p>
+          <div class="dashboard-header">
+            <h2 id="homeGreeting" class="greeting-text">Здравствуйте</h2>
+            <p class="greeting-sub">Умный ассистент для вашего бизнеса</p>
           </div>
 
-          <div class="credits-overview mt-4">
-            <div class="credit-card">
-              <div class="credit-card-header">
-                <span class="small">Кредиты сегодня</span>
-                <span class="nav-icon" data-icon="chart"></span>
+          <div class="credits-showcase mt-6">
+            <div class="credit-box">
+              <div class="credit-box-top">
+                <span class="credit-label">Лимит на сегодня</span>
+                <span class="credit-icon" data-icon="chart"></span>
               </div>
-              <div class="credit-value" id="creditsTodayText">- / -</div>
-              <div class="progress-bar"><div class="progress-fill" id="creditsTodayFill" style="width: 0%"></div></div>
+              <div class="credit-amount" id="creditsTodayText">- / -</div>
+              <div class="credit-track"><div class="credit-fill" id="creditsTodayFill" style="width: 0%"></div></div>
             </div>
-            <div class="credit-card">
-              <div class="credit-card-header">
-                <span class="small">Кредиты месяца</span>
-                <span class="nav-icon" data-icon="wallet"></span>
+            <div class="credit-box dark-box">
+              <div class="credit-box-top">
+                <span class="credit-label">Лимит на месяц</span>
+                <span class="credit-icon" data-icon="wallet"></span>
               </div>
-              <div class="credit-value" id="creditsMonthText">- / -</div>
-              <div class="progress-bar"><div class="progress-fill" id="creditsMonthFill" style="width: 0%"></div></div>
+              <div class="credit-amount" id="creditsMonthText">- / -</div>
+              <div class="credit-track"><div class="credit-fill" id="creditsMonthFill" style="width: 0%"></div></div>
             </div>
           </div>
 
-          <div class="quick-strip mt-4" id="quickStrip">
-            <button class="quick-action" data-prompt="Посчитать маржу для моего товара" type="button">
-              <span class="nav-icon" data-icon="calculator"></span>
-              <span class="quick-text">Посчитать маржу</span>
+          <div class="quick-actions-rail mt-6" id="quickStrip">
+            <button class="quick-pill" data-prompt="Посчитать маржу для моего товара" type="button">
+              <span class="pill-icon" data-icon="calculator"></span>
+              <span>Посчитать маржу</span>
             </button>
-            <button class="quick-action" data-prompt="Улучшить описание карточки товара" type="button">
-              <span class="nav-icon" data-icon="edit"></span>
-              <span class="quick-text">Улучшить карточку</span>
+            <button class="quick-pill" data-prompt="Улучшить описание карточки товара" type="button">
+              <span class="pill-icon" data-icon="edit"></span>
+              <span>Улучшить карточку</span>
             </button>
-            <button class="quick-action" data-prompt="Составить оффер для акции" type="button">
-              <span class="nav-icon" data-icon="target"></span>
-              <span class="quick-text">Сделать оффер</span>
+            <button class="quick-pill" data-prompt="Составить оффер для акции" type="button">
+              <span class="pill-icon" data-icon="target"></span>
+              <span>Сделать оффер</span>
             </button>
-            <button class="quick-action" data-prompt="Провести анализ конкурентов" type="button">
-              <span class="nav-icon" data-icon="search"></span>
-              <span class="quick-text">Разобрать конкурента</span>
+            <button class="quick-pill" data-prompt="Провести анализ конкурентов" type="button">
+              <span class="pill-icon" data-icon="search"></span>
+              <span>Разбор конкурента</span>
             </button>
-            <button class="quick-action" data-prompt="Ответить на негативный отзыв клиента" type="button">
-              <span class="nav-icon" data-icon="message"></span>
-              <span class="quick-text">Ответить на отзыв</span>
+            <button class="quick-pill" data-prompt="Ответить на негативный отзыв клиента" type="button">
+              <span class="pill-icon" data-icon="message"></span>
+              <span>Ответ на отзыв</span>
             </button>
           </div>
 
-          <div class="main-chat-card mt-4">
-            <div class="chat-scroll" id="homeChatScroll">
-              <div class="chat-empty" id="chatEmptyState">
-                <span class="nav-icon mb-3" data-icon="message"></span>
-                <p>Напишите задачу — FounderPilot поможет с расчётами, продажами и карточками товаров.</p>
+          <div class="workspace-card mt-6">
+            <div class="chat-viewport" id="homeChatScroll">
+              <div class="chat-empty-state" id="chatEmptyState">
+                <div class="empty-icon-wrap">
+                  <span data-icon="target"></span>
+                </div>
+                <h3>FounderPilot готов к работе</h3>
+                <p>Напишите задачу, чтобы начать аналитику, расчёты или создание контента.</p>
               </div>
             </div>
-            <div class="chat-input-area">
-              <textarea id="homeChatInput" rows="1" placeholder="Опишите задачу: карточка товара, маржа, реклама, продажи..."></textarea>
-              <button class="send-btn" id="homeChatSendBtn" type="button" disabled aria-label="Отправить">
-                <span data-icon="send"></span>
-              </button>
+            <div class="chat-composer">
+              <div class="composer-inner">
+                <textarea id="homeChatInput" rows="1" placeholder="Спросите о продажах, марже, конкурентах..."></textarea>
+                <button class="composer-send" id="homeChatSendBtn" type="button" disabled aria-label="Отправить">
+                  <span data-icon="send"></span>
+                </button>
+              </div>
             </div>
           </div>
         </section>
 
         <section class="view" id="view-tools" aria-labelledby="toolsTitle">
-          <div class="page-heading mb-4">
+          <div class="section-intro mb-6">
             <h2 class="sr-only" id="toolsTitle">Инструменты</h2>
-            <p class="muted">Готовые сценарии для ускорения рутинных задач.</p>
+            <p class="intro-desc">Готовые AI-модели для автоматизации рутины селлера и предпринимателя.</p>
           </div>
-          <div class="tools-grid" id="toolsGrid">
-            <div class="skeleton-state">Загрузка инструментов...</div>
+          <div class="tools-layout" id="toolsGrid">
+            <div class="loading-state">Загрузка библиотеки...</div>
           </div>
         </section>
 
         <section class="view" id="view-history" aria-labelledby="historyTitle">
           <h2 class="sr-only" id="historyTitle">История</h2>
-          <div class="history-filters mb-4" id="historyFilters">
-            <button class="filter-btn active" data-filter="all" type="button">Все</button>
-            <button class="filter-btn" data-filter="chat" type="button">Чаты</button>
-            <button class="filter-btn" data-filter="tools" type="button">Инструменты</button>
-            <button class="filter-btn" data-filter="favorites" type="button">Сохранённое</button>
+          <div class="history-controls mb-5" id="historyFilters">
+            <button class="chip active" data-filter="all" type="button">Все запросы</button>
+            <button class="chip" data-filter="chat" type="button">Чаты</button>
+            <button class="chip" data-filter="tools" type="button">Инструменты</button>
+            <button class="chip" data-filter="favorites" type="button">Сохранённое</button>
           </div>
-          <div class="history-list" id="historyList">
-            <div class="skeleton-state">Загрузка истории...</div>
+          <div class="history-feed" id="historyList">
+            <div class="loading-state">Загрузка архива...</div>
           </div>
         </section>
 
         <section class="view" id="view-profile" aria-labelledby="profileTitle">
           <h2 class="sr-only" id="profileTitle">Профиль</h2>
-          <div class="profile-clean-card">
-            <div class="avatar avatar-large" id="profileUserAvatar">FP</div>
-            <div class="profile-meta">
+          
+          <div class="account-card mb-6">
+            <div class="account-avatar" id="profileUserAvatar">FP</div>
+            <div class="account-info">
               <h3 id="profileUserTitle">Пользователь</h3>
-              <p class="muted small mt-1" id="profileUserSubtitle">Загрузка...</p>
-              <div class="plan-badge mt-2" id="profilePlanLabel">FREE</div>
+              <p id="profileUserSubtitle">Загрузка...</p>
+              <div class="status-badge mt-2" id="profilePlanLabel">FREE</div>
             </div>
           </div>
 
-          <div class="usage-card mt-4">
-            <div class="usage-header mb-3">
+          <div class="workspace-section mb-6">
+            <div class="section-header">
               <h4>Подписка и лимиты</h4>
-              <button class="text-btn" id="openBillingBtn" type="button">Управление</button>
+              <button class="btn-ghost" id="openBillingBtn" type="button">Управление</button>
             </div>
-            <div class="credits-overview">
-              <div class="credit-card">
-                <div class="credit-card-header"><span class="small">Сегодня</span></div>
-                <div class="credit-value" id="profileCreditsTodayText">- / -</div>
-                <div class="progress-bar"><div class="progress-fill" id="profileCreditsTodayFill" style="width: 0%"></div></div>
+            <div class="limits-grid">
+              <div class="limit-item">
+                <div class="limit-header"><span>Сегодня</span></div>
+                <div class="limit-val" id="profileCreditsTodayText">- / -</div>
+                <div class="limit-bar"><div class="limit-fill" id="profileCreditsTodayFill" style="width: 0%"></div></div>
               </div>
-              <div class="credit-card">
-                <div class="credit-card-header"><span class="small">В этом месяце</span></div>
-                <div class="credit-value" id="profileCreditsMonthText">- / -</div>
-                <div class="progress-bar"><div class="progress-fill" id="profileCreditsMonthFill" style="width: 0%"></div></div>
+              <div class="limit-item">
+                <div class="limit-header"><span>Месяц</span></div>
+                <div class="limit-val" id="profileCreditsMonthText">- / -</div>
+                <div class="limit-bar"><div class="limit-fill" id="profileCreditsMonthFill" style="width: 0%"></div></div>
               </div>
             </div>
           </div>
 
-          <div class="settings-group mt-4">
-            <h3 class="mb-2">Бизнес-профиль</h3>
-            <p class="muted small mb-3">FounderPilot будет учитывать этот контекст в ответах для большей точности.</p>
-            <textarea class="profile-textarea" id="profileBusinessDescription" placeholder="Например: Продаю автотовары на WB, оборот 500к/мес." rows="4"></textarea>
-            <div class="settings-actions mt-3">
-              <button class="secondary" id="saveProfileBtn" type="button">Сохранить настройки</button>
+          <div class="workspace-section mb-6">
+            <div class="section-header">
+              <h4>Бизнес-контекст</h4>
+            </div>
+            <p class="section-hint mb-3">Опишите ваш бизнес, чтобы FounderPilot давал более точные советы.</p>
+            <textarea class="form-textarea" id="profileBusinessDescription" placeholder="Продаю автотовары на маркетплейсах, оборот 1М/мес..." rows="3"></textarea>
+            <div class="form-actions mt-4">
+              <button class="btn-secondary" id="saveProfileBtn" type="button">Сохранить контекст</button>
             </div>
           </div>
 
-          <div class="settings-group mt-4">
-            <h3 class="mb-2">Обратная связь</h3>
-            <p class="muted small mb-3">Нашли ошибку или есть идея для нового инструмента?</p>
-            <textarea class="profile-textarea" id="appFeedbackText" placeholder="Что можно улучшить?" rows="3"></textarea>
-            <div class="settings-actions mt-3">
-              <button class="secondary" id="submitAppFeedbackBtn" type="button">Отправить сообщение</button>
+          <div class="workspace-section">
+            <div class="section-header">
+              <h4>Обратная связь</h4>
+            </div>
+            <p class="section-hint mb-3">Сообщите об ошибке или предложите новый инструмент.</p>
+            <textarea class="form-textarea" id="appFeedbackText" placeholder="Что мы можем улучшить?" rows="2"></textarea>
+            <div class="form-actions mt-4">
+              <button class="btn-secondary" id="submitAppFeedbackBtn" type="button">Отправить</button>
             </div>
           </div>
         </section>
@@ -183,42 +197,49 @@
     </div>
   </div>
 
-  <div class="modal-backdrop" id="billingModal" hidden>
-    <article class="modal-card" role="dialog" aria-modal="true" aria-labelledby="billingTitle">
-      <div class="modal-header">
-        <h2 id="billingTitle">Тарифные планы</h2>
-        <button class="icon-btn" id="closeBillingBtn" type="button" aria-label="Закрыть">
+  <div class="overlay" id="billingModal" hidden>
+    <article class="sheet" role="dialog" aria-modal="true" aria-labelledby="billingTitle">
+      <div class="sheet-top">
+        <h2 id="billingTitle" class="sheet-title">Выбор тарифа</h2>
+        <button class="btn-icon-round" id="closeBillingBtn" type="button" aria-label="Закрыть">
           <span data-icon="close"></span>
         </button>
       </div>
-      <div class="billing-plan-list" id="billingPlanList"></div>
-      <div class="payment-provider-box" id="paymentProviderBox" hidden>
-        <button class="back-btn mb-4" id="backToPlansBtn" type="button">
-          <span data-icon="back"></span> К выбору тарифа
-        </button>
-        <h3 class="mb-3">Способ оплаты</h3>
-        <div class="provider-list" id="providerList"></div>
-        <p class="form-error mt-4" id="billingError" hidden></p>
+      <div class="sheet-content">
+        <div class="billing-plans" id="billingPlanList"></div>
+        
+        <div class="billing-providers" id="paymentProviderBox" hidden>
+          <button class="btn-back mb-5" id="backToPlansBtn" type="button">
+            <span data-icon="back"></span> К тарифам
+          </button>
+          <h3 class="step-title mb-4">Способ оплаты</h3>
+          <div class="provider-grid" id="providerList"></div>
+          <p class="alert-text mt-4" id="billingError" hidden></p>
+        </div>
       </div>
     </article>
   </div>
 
-  <div class="modal-backdrop" id="onboardingModal" hidden>
-    <article class="modal-card" role="dialog" aria-modal="true" aria-labelledby="onboardingTitle">
-      <div class="progress-row mb-4" id="onboardingProgressRow" aria-hidden="true">
-        <span class="active"></span><span></span><span></span>
+  <div class="overlay" id="onboardingModal" hidden>
+    <article class="sheet sheet-tall" role="dialog" aria-modal="true" aria-labelledby="onboardingTitle">
+      <div class="sheet-top">
+        <div class="progress-indicator" id="onboardingProgressRow" aria-hidden="true">
+          <span class="active"></span><span></span><span></span>
+        </div>
       </div>
-      <h2 id="onboardingTitle" class="mb-4">Кто вы?</h2>
-      <div class="onboarding-body" id="onboardingBody"></div>
-      <p class="form-error mt-4" id="onboardingError" hidden></p>
-      <div class="modal-actions mt-5">
-        <button class="secondary" id="onboardingBackBtn" type="button">Назад</button>
-        <button class="primary" id="onboardingNextBtn" type="button">Далее</button>
+      <div class="sheet-content">
+        <h2 id="onboardingTitle" class="sheet-title step-title mb-5">Настройка</h2>
+        <div class="onboarding-flow" id="onboardingBody"></div>
+        <p class="alert-text mt-4" id="onboardingError" hidden></p>
+        <div class="sheet-actions mt-6">
+          <button class="btn-secondary" id="onboardingBackBtn" type="button">Назад</button>
+          <button class="btn-primary" id="onboardingNextBtn" type="button">Продолжить</button>
+        </div>
       </div>
     </article>
   </div>
 
-  <div class="toast" id="toast" role="alert" aria-live="assertive"></div>
-  <script src="/static/app.js?v=system-6"></script>
+  <div class="toast-message" id="toast" role="alert" aria-live="assertive"></div>
+  <script src="/static/app.js?v=2.0"></script>
 </body>
 </html>

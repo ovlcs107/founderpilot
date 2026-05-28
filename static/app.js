@@ -1,6 +1,6 @@
 /**
  * FounderPilot AI - Frontend App (Vanilla JS)
- * Premium Minimal SaaS Edition
+ * Premium Minimal SaaS Edition - V2
  */
 
 const tg = window.Telegram?.WebApp || null;
@@ -298,8 +298,8 @@ function updateProfileUI() {
 // Chat Logic
 function autoResizeTextarea(el) {
   if (!el) return;
-  el.style.height = "20px";
-  el.style.height = `${Math.min(el.scrollHeight, 120)}px`;
+  el.style.height = "22px";
+  el.style.height = `${Math.min(el.scrollHeight, 100)}px`;
 }
 
 function appendMessage(role, text, id = null) {
@@ -437,18 +437,18 @@ async function loadTools() {
 
   if (!grid) return;
   if (!state.tools.length) {
-    grid.innerHTML = `<div class="skeleton-state">Инструменты временно недоступны.</div>`;
+    grid.innerHTML = `<div class="loading-state">Инструменты временно недоступны.</div>`;
     return;
   }
 
   grid.innerHTML = state.tools.map(t => {
     const iconKey = t.icon || "tools";
     return `
-      <div class="tool-item-row" data-prompt="${escapeHTML(t.prompt_template || t.prompt || '')}">
-        <div class="tool-icon-box"><span data-icon="${iconKey}"></span></div>
-        <div class="tool-text-box">
+      <div class="tool-card" data-prompt="${escapeHTML(t.prompt_template || t.prompt || '')}">
+        <div class="tool-icon-bg"><span data-icon="${iconKey}"></span></div>
+        <div class="tool-info">
           <h4>${escapeHTML(t.title || t.name || 'Инструмент')}</h4>
-          <p class="muted">${escapeHTML(t.description || t.subtitle || 'Готовый сценарий')}</p>
+          <p>${escapeHTML(t.description || t.subtitle || 'Готовый сценарий')}</p>
         </div>
       </div>
     `;
@@ -464,7 +464,7 @@ async function loadHistory() {
     state.history = arr;
     renderHistory();
   } catch {
-    if (list) list.innerHTML = `<div class="skeleton-state">Не удалось загрузить историю.</div>`;
+    if (list) list.innerHTML = `<div class="loading-state">Не удалось загрузить историю.</div>`;
   }
 }
 
@@ -487,10 +487,10 @@ function renderHistory() {
   
   if (!filtered.length) {
     list.innerHTML = `
-      <div class="empty-state">
-        <span data-icon="history"></span>
+      <div class="loading-state" style="border:none;">
+        <div style="margin-bottom:12px; opacity:0.5;"><span data-icon="history" style="width:24px;height:24px;"></span></div>
         <h3>Истории пока нет</h3>
-        <p>Ваши запросы и сохранённые ответы появятся здесь.</p>
+        <p class="muted">Ваши запросы появятся здесь.</p>
       </div>`;
     injectIcons(list);
     return;
@@ -501,8 +501,10 @@ function renderHistory() {
     const title = h.title || h.prompt || h.text || "Запрос";
     const preview = h.answer || h.content || h.result || "";
     return `
-      <article class="history-row">
-        <span class="badge">${escapeHTML(type)}</span>
+      <article class="history-item">
+        <div class="item-meta">
+          <span class="badge">${escapeHTML(type)}</span>
+        </div>
         <h4>${escapeHTML(title)}</h4>
         <p>${escapeHTML(preview)}</p>
       </article>
@@ -536,11 +538,11 @@ function openBillingModal() {
   const pBox = $("paymentProviderBox");
   list.hidden = false;
   pBox.hidden = true;
-  $("billingTitle").textContent = "Тарифные планы";
+  $("billingTitle").textContent = "Выбор тарифа";
   
   const keys = Object.keys(state.plans || {});
   if (!keys.length) {
-    list.innerHTML = `<div class="skeleton-state">Тарифы временно недоступны.</div>`;
+    list.innerHTML = `<div class="loading-state">Тарифы временно недоступны.</div>`;
     return;
   }
   
@@ -549,12 +551,12 @@ function openBillingModal() {
     const isCurrent = state.user && String(state.user.plan).toLowerCase() === k.toLowerCase();
     const price = p.price_text || (p.price_monthly ? `${p.price_monthly} ₽` : "Бесплатно");
     return `
-      <button class="plan-item-row ${isCurrent ? 'active' : ''}" data-plan="${escapeHTML(k)}" type="button">
-        <div class="plan-main">
+      <button class="plan-card ${isCurrent ? 'active' : ''}" data-plan="${escapeHTML(k)}" type="button">
+        <div class="plan-info">
           <h4>${escapeHTML(p.title || k)}</h4>
           <small>${escapeHTML(p.description || '')}</small>
         </div>
-        <div class="plan-price">${escapeHTML(price)}</div>
+        <div class="plan-cost">${escapeHTML(price)}</div>
       </button>
     `;
   }).join("");
@@ -583,13 +585,13 @@ function selectPlan(key) {
     if (id.includes("btc")) icon = "btc";
     
     return `
-      <button class="provider-item-row" data-provider="${escapeHTML(id)}" type="button">
+      <button class="provider-btn" data-provider="${escapeHTML(id)}" type="button">
         <span class="provider-icon" data-icon="${icon}"></span>
-        <div class="provider-info">
+        <div class="provider-desc">
           <strong>${escapeHTML(pr.title || pr.name || id)}</strong>
           <small>${escapeHTML(pr.description || '')}</small>
         </div>
-        ${pr.price_formatted ? `<div class="provider-price-tag">${escapeHTML(pr.price_formatted)}</div>` : ""}
+        ${pr.price_formatted ? `<div class="plan-cost">${escapeHTML(pr.price_formatted)}</div>` : ""}
       </button>
     `;
   }).join("");
@@ -682,7 +684,7 @@ function renderOnboardingStep() {
   
   if (cfg.type === "textarea") {
     const ta = document.createElement("textarea");
-    ta.className = "profile-textarea";
+    ta.className = "form-textarea";
     ta.rows = 4;
     ta.placeholder = cfg.placeholder;
     ta.value = state.onboardingData[cfg.id] || "";
@@ -691,7 +693,7 @@ function renderOnboardingStep() {
   } else {
     cfg.options.forEach(o => {
       const b = document.createElement("button");
-      b.className = `onboarding-option ${state.onboardingData[cfg.id] === o.key ? 'active' : ''}`;
+      b.className = `choice-btn ${state.onboardingData[cfg.id] === o.key ? 'active' : ''}`;
       b.textContent = o.label;
       b.onclick = () => { state.onboardingData[cfg.id] = o.key; renderOnboardingStep(); };
       body.appendChild(b);
@@ -699,7 +701,7 @@ function renderOnboardingStep() {
   }
   
   $("onboardingBackBtn").disabled = state.onboardingStep === 0;
-  $("onboardingNextBtn").textContent = state.onboardingStep === state.onboardingConfig.length - 1 ? "Завершить" : "Далее";
+  $("onboardingNextBtn").textContent = state.onboardingStep === state.onboardingConfig.length - 1 ? "Завершить" : "Продолжить";
 }
 
 async function nextOnboarding() {
@@ -756,19 +758,19 @@ function bindEvents() {
   
   // Quick Actions & Tools
   $("quickStrip")?.addEventListener("click", e => {
-    const b = e.target.closest(".quick-action");
+    const b = e.target.closest(".quick-pill");
     if (b && chatInput) { chatInput.value = b.dataset.prompt; chatInput.focus(); autoResizeTextarea(chatInput); updateSendButton(); }
   });
   $("toolsGrid")?.addEventListener("click", e => {
-    const r = e.target.closest(".tool-item-row");
+    const r = e.target.closest(".tool-card");
     if (r) { switchView("home"); if(chatInput) { chatInput.value = r.dataset.prompt; chatInput.focus(); autoResizeTextarea(chatInput); updateSendButton(); } }
   });
   
   // History Filters
   $("historyFilters")?.addEventListener("click", e => {
-    const b = e.target.closest(".filter-btn");
+    const b = e.target.closest(".chip");
     if (!b) return;
-    $("historyFilters").querySelectorAll(".filter-btn").forEach(n => n.classList.remove("active"));
+    $("historyFilters").querySelectorAll(".chip").forEach(n => n.classList.remove("active"));
     b.classList.add("active");
     state.historyFilter = b.dataset.filter;
     renderHistory();
@@ -780,7 +782,7 @@ function bindEvents() {
     try {
       await apiTry("/api/profile/save", "/api/business-profile", { method: "POST", body: JSON.stringify({ telegram_user_id: getTelegramUserId(), business_profile: text, description: text }) });
       if(state.user) state.user.business_profile = text;
-      showToast("Настройки сохранены");
+      showToast("Контекст сохранён");
     } catch(err) { showToast(err.message); }
   });
   
@@ -797,14 +799,14 @@ function bindEvents() {
   // Modals
   $("openBillingBtn")?.addEventListener("click", openBillingModal);
   $("closeBillingBtn")?.addEventListener("click", () => $("billingModal").hidden = true);
-  $("backToPlansBtn")?.addEventListener("click", () => { $("paymentProviderBox").hidden = true; $("billingPlanList").hidden = false; $("billingTitle").textContent = "Тарифные планы";});
+  $("backToPlansBtn")?.addEventListener("click", () => { $("paymentProviderBox").hidden = true; $("billingPlanList").hidden = false; $("billingTitle").textContent = "Выбор тарифа";});
   
   $("billingPlanList")?.addEventListener("click", e => {
-    const b = e.target.closest(".plan-item-row");
+    const b = e.target.closest(".plan-card");
     if (b) selectPlan(b.dataset.plan);
   });
   $("providerList")?.addEventListener("click", e => {
-    const b = e.target.closest(".provider-item-row");
+    const b = e.target.closest(".provider-btn");
     if (b) checkout(b.dataset.provider);
   });
   
