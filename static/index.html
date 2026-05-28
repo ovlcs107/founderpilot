@@ -4,23 +4,21 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
   <title>FounderPilot AI</title>
-  <link rel="stylesheet" href="/static/styles.css?v=reborn-2">
+  <link rel="stylesheet" href="/static/styles.css?v=reborn-3">
   <script src="https://telegram.org/js/telegram-web-app.js"></script>
 </head>
 <body>
 
   <div id="appPreloader" class="app-preloader">
     <div class="preloader-content">
-      <div class="preloader-logo-zone">
-        <div class="preloader-svg-orbit" data-icon="stars"></div>
-      </div>
+      <div class="preloader-logo-zone" data-icon="stars"></div>
       <h2 class="preloader-title">FounderPilot</h2>
-      <p class="preloader-subtitle">Загрузка защищенного бизнес-контекста...</p>
+      <p class="preloader-subtitle">Синхронизация бизнес-контекста...</p>
       <div class="preloader-bar"><div class="preloader-progress"></div></div>
     </div>
   </div>
 
-  <div class="app-container" style="opacity: 0; transition: opacity 0.5s ease;">
+  <div class="app-container" id="appContainer">
     
     <aside class="sidebar">
       <div class="sidebar-brand">
@@ -73,13 +71,13 @@
         <div class="view-scroll-container">
           <header class="workspace-intro">
             <h2 id="homeGreeting">Здравствуйте</h2>
-            <p class="section-subtitle">Интеллектуальная рабочая среда управления маркетплейсами и автоматизации бизнес-процессов.</p>
+            <p class="section-subtitle">Интеллектуальная рабочая среда управления маркетплейсами и оптимизации бизнес-процессов.</p>
           </header>
 
           <div class="metrics-grid">
             <div class="metric-card">
               <div class="metric-header">
-                <span class="metric-title">Баланс лимитов на сегодня</span>
+                <span class="metric-title">Лимит запросов на сегодня</span>
                 <span class="metric-badge" id="creditsTodayText">0 / 0</span>
               </div>
               <div class="progress-bar">
@@ -98,7 +96,7 @@
           </div>
 
           <div class="quick-suggestions-wrapper">
-            <span class="tiny-label">Рекомендуемые экспресс-сценарии</span>
+            <span class="tiny-label">Рекомендуемые сценарии</span>
             <div class="quick-strip" id="quickStrip">
               <button class="quick-pill" data-prompt="Рассчитай юнит-экономику: себестоимость 450₽, логистика 80₽, хранение 40₽, комиссия 15%, розничная цена 1200₽. Покажи чистую прибыль и ROI.">
                 <span data-icon="calculator"></span> Юнит-экономика
@@ -107,7 +105,7 @@
                 <span data-icon="edit"></span> SEO Карточки товара
               </button>
               <button class="quick-pill" data-prompt="Проведи глубокий аудит рыночной ниши автотоваров. Выдели топ-3 критических фактора упущенной выручки у конкурентов.">
-                <span data-icon="search"></span> Поиск упущенной выручки
+                <span data-icon="search"></span> Анализ ниши
               </button>
             </div>
           </div>
@@ -138,7 +136,7 @@
       <section id="view-tools" class="view">
         <div class="view-scroll-container">
           <header class="section-header-block">
-            <h2>Инженерные инструменты</h2>
+            <h2>Инструменты автоматизации</h2>
             <p class="section-subtitle">Специализированные микро-модели, настроенные на выполнение регламентных бизнес-задач.</p>
           </header>
           <div class="tools-grid" id="toolsGrid"></div>
@@ -168,7 +166,7 @@
       <section id="view-profile" class="view">
         <div class="view-scroll-container">
           <header class="section-header-block">
-            <h2>Панель управления аккаунтом</h2>
+            <h2>Личный кабинет</h2>
           </header>
 
           <div class="profile-account-card">
@@ -182,7 +180,7 @@
 
             <div class="plan-status-row">
               <div class="plan-badge-zone">
-                <span class="plan-label-tag">Текущий уровень доступа</span>
+                <span class="plan-label-tag">Текущий тариф</span>
                 <span class="plan-value" id="profilePlanLabel">FREE</span>
               </div>
               <button class="btn-premium" id="openBillingBtn">
@@ -191,11 +189,11 @@
             </div>
           </div>
 
-          <div class="cabinet-block-title">Квоты вычислительной мощности</div>
+          <div class="cabinet-block-title">Расход лимитов (кредиты)</div>
           <div class="metrics-grid">
             <div class="metric-card">
               <div class="metric-header">
-                <span class="metric-title">Доступно на текущие сутки</span>
+                <span class="metric-title">Доступно сегодня</span>
                 <span class="metric-badge" id="profileCreditsTodayText">0 / 0</span>
               </div>
               <div class="progress-bar">
@@ -204,7 +202,7 @@
             </div>
             <div class="metric-card">
               <div class="metric-header">
-                <span class="metric-title">Остаток баланса в расчетном месяце</span>
+                <span class="metric-title">Доступно в этом месяце</span>
                 <span class="metric-badge" id="profileCreditsMonthText">0 / 0</span>
               </div>
               <div class="progress-bar">
@@ -216,7 +214,7 @@
           <div class="cabinet-block-title">Глобальный контекст компании</div>
           <div class="settings-card">
             <p class="field-description">Эти данные автоматически интегрируются во все запросы к нейросети, гарантируя экспертные ответы без постоянного ввода базовых вводных.</p>
-            <textarea id="profileBusinessDescription" class="form-textarea" placeholder="Укажите: Обороты, нишу, маркетплейсы, текущие проблемы, цели продвижения, чтобы ИИ давал кастомизированные ответы..."></textarea>
+            <textarea id="profileBusinessDescription" class="form-textarea" placeholder="Укажите: Обороты, нишу, маркетплейсы, цели продвижения, чтобы ИИ давал кастомизированные ответы..."></textarea>
             <div class="action-row-right">
               <button class="btn-primary" id="saveProfileBtn">
                 <span data-icon="save"></span> Обновить контекст
@@ -226,10 +224,10 @@
 
           <div class="cabinet-block-title">Техническая поддержка</div>
           <div class="settings-card">
-            <p class="field-description">Обнаружили сбой или хотите заказать индивидуальную ИИ-модель под ваши требования? Опишите детали.</p>
+            <p class="field-description">Столкнулись с проблемой или хотите предложить функцию? Опишите детали.</p>
             <textarea id="appFeedbackText" class="form-textarea" placeholder="Опишите ваше предложение или баг..."></textarea>
             <div class="action-row-right">
-              <button class="btn-secondary" id="submitAppFeedbackBtn">Отправить обращение</button>
+              <button class="btn-secondary" id="submitAppFeedbackBtn">Отправить отзыв</button>
             </div>
           </div>
         </div>
@@ -258,10 +256,10 @@
 
   </div>
 
-  <div id="billingModal" class="modal-overlay" hidden>
+  <div id="billingModal" class="modal-overlay">
     <div class="modal-sheet">
       <div class="modal-header">
-        <h3 id="billingTitle">Выбор тарифного плана</h3>
+        <h3 id="billingTitle">Выбор тарифа</h3>
         <button id="closeBillingBtn" class="modal-close-btn">
           <span data-icon="close"></span>
         </button>
@@ -272,17 +270,17 @@
         <div id="billingPlanList" class="plans-layout-stack"></div>
 
         <div id="paymentProviderBox" class="providers-layout-zone" hidden>
-          <p class="provider-intro-text">Выберите сертифицированный шлюз безопасной транзакции:</p>
+          <p class="provider-intro-text">Выберите способ проведения безопасного платежа:</p>
           <div id="providerList" class="providers-stack"></div>
           <button id="backToPlansBtn" class="btn-text-back">
-            <span data-icon="back"></span> Вернуться назад к тарифам
+            <span data-icon="back"></span> Вернуться к выбору тарифов
           </button>
         </div>
       </div>
     </div>
   </div>
 
-  <div id="onboardingModal" class="modal-overlay" hidden>
+  <div id="onboardingModal" class="modal-overlay">
     <div class="modal-sheet onboarding-sheet">
       <div class="modal-header no-border">
         <div class="onboarding-progress-indicator" id="onboardingProgressRow">
@@ -307,6 +305,6 @@
 
   <div id="toast" class="toast-component">Оповещение</div>
 
-  <script src="/static/app.js?v=reborn-2"></script>
+  <script src="/static/app.js?v=reborn-3"></script>
 </body>
 </html>

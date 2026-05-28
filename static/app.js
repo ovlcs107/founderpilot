@@ -1,6 +1,10 @@
+/**
+ * FounderPilot AI - Frontend App (Vanilla JS)
+ * Premium Minimal SaaS Edition - V2 (Stable Production)
+ */
+
 const tg = window.Telegram?.WebApp || null;
 
-// Strict Whitelist inline SVG icons (Apple/Linear style - 24x24 stroke)
 const iconPaths = {
   home: '<path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path><polyline points="9 22 9 12 15 12 15 22"></polyline>',
   tools: '<rect x="3" y="3" width="7" height="7" rx="1"></rect><rect x="14" y="3" width="7" height="7" rx="1"></rect><rect x="14" y="14" width="7" height="7" rx="1"></rect><rect x="3" y="14" width="7" height="7" rx="1"></rect>',
@@ -21,13 +25,9 @@ const iconPaths = {
   'credit-card': '<rect x="1" y="4" width="22" height="16" rx="2" ry="2"></rect><line x1="1" y1="10" x2="23" y2="10"></line>',
   stars: '<polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"></polygon>',
   ton: '<polygon points="12 2 3 9 12 22 21 9 12 2"></polygon><polyline points="3 9 12 13 21 9"></polyline><line x1="12" y1="22" x2="12" y2="13"></line>',
-  btc: '<path d="M12 22c5.523 0 10-4.477 10-10S17.523 2 12 2 2 6.477 2 12s4.477 10 10 10z"></path><path d="M10 8h2.5a1.5 1.5 0 0 1 0 3H10V8z"></path><path d="M10 13h3a1.5 1.5 0 0 1 0 3h-3v-3z"></path><path d="M12 5v2"></path><path d="M12 17v2"></path>',
-  settings: '<circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path>',
-  check: '<polyline points="20 6 9 17 4 12"></polyline>',
-  warning: '<path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"></path><line x1="12" y1="9" x2="12" y2="13"></line><line x1="12" y1="17" x2="12.01" y2="17"></line>'
+  btc: '<path d="M12 22c5.523 0 10-4.477 10-10S17.523 2 12 2 2 6.477 2 12s4.477 10 10 10z"></path><path d="M10 8h2.5a1.5 1.5 0 0 1 0 3H10V8z"></path><path d="M10 13h3a1.5 1.5 0 0 1 0 3h-3v-3z"></path><path d="M12 5v2"></path><path d="M12 17v2"></path>'
 };
 
-// Global State
 const state = {
   user: null,
   tools: [],
@@ -46,7 +46,7 @@ const state = {
   onboardingConfig: [
     {
       id: "role", title: "Чем вы занимаетесь?", type: "choices", options: [
-        { key: "wb_seller", label: "Селлер WB/Ozon" },
+        { key: "wb_seller", label: "Селлер WB / Ozon" },
         { key: "entrepreneur", label: "Предприниматель" },
         { key: "marketer", label: "Маркетолог" },
         { key: "beginner", label: "Новичок" },
@@ -67,7 +67,6 @@ const state = {
   ]
 };
 
-// DOM Utilities
 const $ = (id) => document.getElementById(id);
 
 function escapeHTML(str) {
@@ -83,7 +82,7 @@ function injectIcons(root = document) {
   root.querySelectorAll("[data-icon]").forEach(el => {
     const name = el.getAttribute("data-icon");
     if (iconPaths[name] && !el.querySelector("svg")) {
-      el.innerHTML = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${iconPaths[name]}</svg>`;
+      el.innerHTML = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">${iconPaths[name]}</svg>`;
     }
   });
 }
@@ -97,7 +96,6 @@ function showToast(msg) {
   state.toastTimer = setTimeout(() => el.classList.remove("visible"), 2500);
 }
 
-// API Handlers
 function getTelegramUserId() {
   return String(tg?.initDataUnsafe?.user?.id || state.user?.telegram_id || "dev");
 }
@@ -125,7 +123,6 @@ async function apiTry(urlPrimary, urlFallback, options = {}) {
   }
 }
 
-// Normalizers
 function normalizeUserResponse(data) {
   const root = data?.user || data || {};
   const tgUser = tg?.initDataUnsafe?.user || {};
@@ -185,7 +182,6 @@ function normalizeBillingPlans(data) {
       };
     });
   }
-
   state.providers = globalProviders;
   return result;
 }
@@ -232,7 +228,6 @@ function updateSendButton() {
   if (input && btn) btn.disabled = !input.value.trim() || state.isSending;
 }
 
-// UI Updaters
 function switchView(target) {
   document.querySelectorAll(".view").forEach(v => v.classList.remove("active"));
   document.querySelectorAll(".nav-item").forEach(b => b.classList.toggle("active", b.dataset.target === target));
@@ -295,10 +290,9 @@ function updateProfileUI() {
   updateCreditsUI();
 }
 
-// Chat Logic
 function autoResizeTextarea(el) {
   if (!el) return;
-  el.style.height = "22px";
+  el.style.height = "auto";
   el.style.height = `${Math.min(el.scrollHeight, 100)}px`;
 }
 
@@ -413,15 +407,27 @@ async function handleChatSend() {
   }
 }
 
-// API Loaders
 async function loadMe() {
   try {
     const data = await apiRequest("/api/me");
     state.user = normalizeUserResponse(data);
     updateProfileUI();
+    
+    // Smooth transition from preloader to container
+    const preloader = $("appPreloader");
+    const container = $("appContainer");
+    if (preloader && container) {
+      preloader.style.opacity = "0";
+      container.style.opacity = "1";
+      setTimeout(() => { preloader.style.display = "none"; }, 300);
+    }
+    
     if (state.user.onboarding_required) openOnboarding();
   } catch (err) {
     console.error("loadMe fail:", err);
+    const preloader = $("appPreloader");
+    const container = $("appContainer");
+    if(preloader && container) { preloader.style.display = "none"; container.style.opacity = "1"; }
   }
 }
 
@@ -512,7 +518,6 @@ function renderHistory() {
   }).join("");
 }
 
-// Billing
 async function loadBillingPlans() {
   try {
     const data = await apiRequest("/api/billing/plans");
@@ -532,7 +537,7 @@ async function loadBillingPlans() {
 function openBillingModal() {
   const m = $("billingModal");
   if (!m) return;
-  m.hidden = false;
+  m.classList.add("active");
 
   const list = $("billingPlanList");
   const pBox = $("paymentProviderBox");
@@ -563,7 +568,6 @@ function openBillingModal() {
 }
 
 function selectPlan(key) {
-  // If Free plan clicked, just prevent proceeding to checkout
   if (key === "free") {
     showToast("Тариф Free активен по умолчанию");
     return;
@@ -583,7 +587,6 @@ function selectPlan(key) {
 
   provList.innerHTML = providers.map(pr => {
     const id = String(pr.id || pr.provider).toLowerCase();
-
     let icon = "credit-card";
     if (id.includes("star")) icon = "stars";
     if (id.includes("sbp") || id.includes("yookassa")) icon = "target";
@@ -619,7 +622,7 @@ async function checkout(providerId) {
 
     if ((providerId.includes("star")) && link && tg?.openInvoice) {
       tg.openInvoice(link, (status) => {
-        if (status === "paid") { showToast("Оплата прошла"); loadMe(); $("billingModal").hidden = true; }
+        if (status === "paid") { showToast("Оплата прошла"); loadMe(); $("billingModal").classList.remove("active"); }
         else if (status === "cancelled") showToast("Оплата отменена");
       });
       return;
@@ -629,14 +632,14 @@ async function checkout(providerId) {
       if (tg?.openLink) tg.openLink(link);
       else window.open(link, "_blank");
       if (orderId) pollOrderStatus(orderId);
-      $("billingModal").hidden = true;
+      $("billingModal").classList.remove("active");
       return;
     }
 
     if (res.ok || res.success) {
       showToast("Успешно");
       loadMe();
-      $("billingModal").hidden = true;
+      $("billingModal").classList.remove("active");
       return;
     }
     throw new Error("Не удалось получить ссылку");
@@ -667,14 +670,13 @@ function pollOrderStatus(orderId) {
   }, 5000);
 }
 
-// Onboarding
+// ONBOARDING ENGINE
 function openOnboarding() {
   state.onboardingStep = 0;
   state.onboardingData = {};
   const m = $("onboardingModal");
   if (m) {
-    m.removeAttribute("hidden");
-    m.style.display = "flex";
+    m.classList.add("active");
     renderOnboardingStep();
   }
 }
@@ -687,7 +689,6 @@ function renderOnboardingStep() {
   $("onboardingError").hidden = true;
   $("onboardingError").style.display = "none";
 
-  // Исправленный поиск индикаторов шага (.dot вместо абстрактных span)
   const dots = $("onboardingProgressRow")?.querySelectorAll(".dot");
   if (dots) {
     dots.forEach((d, i) => d.classList.toggle("active", i <= state.onboardingStep));
@@ -705,7 +706,7 @@ function renderOnboardingStep() {
     ta.value = state.onboardingData[cfg.id] || "";
     ta.oninput = () => { state.onboardingData[cfg.id] = ta.value; };
     body.appendChild(ta);
-  } else {
+  } {
     if (Array.isArray(cfg.options)) {
       cfg.options.forEach(o => {
         const b = document.createElement("button");
@@ -736,6 +737,7 @@ async function nextOnboarding() {
   if (!val || !String(val).trim()) {
     $("onboardingError").textContent = "Пожалуйста, заполните это поле.";
     $("onboardingError").hidden = false;
+    $("onboardingError").style.display = "block";
     return;
   }
 
@@ -748,26 +750,23 @@ async function nextOnboarding() {
   $("onboardingNextBtn").disabled = true;
   try {
     await apiRequest("/api/onboarding", { method: "POST", body: JSON.stringify(state.onboardingData) });
-    $("onboardingModal").hidden = true;
+    $("onboardingModal").classList.remove("active");
     showToast("Профиль настроен");
     loadMe();
   } catch {
-    $("onboardingModal").hidden = true;
+    $("onboardingModal").classList.remove("active");
     showToast("Профиль можно заполнить позже.");
   } finally {
     $("onboardingNextBtn").disabled = false;
   }
 }
 
-// Events
 function bindEvents() {
-  // Nav
   document.querySelectorAll(".nav-item").forEach(b => {
     b.addEventListener("click", () => switchView(b.dataset.target));
   });
   $("headerProfileBtn")?.addEventListener("click", () => switchView("profile"));
 
-  // Chat
   const chatInput = $("homeChatInput");
   const chatBtn = $("homeChatSendBtn");
   if (chatInput && chatBtn) {
@@ -781,7 +780,6 @@ function bindEvents() {
     chatBtn.addEventListener("click", handleChatSend);
   }
 
-  // Quick Actions & Tools
   $("quickStrip")?.addEventListener("click", e => {
     const b = e.target.closest(".quick-pill");
     if (b && chatInput) { chatInput.value = b.dataset.prompt; chatInput.focus(); autoResizeTextarea(chatInput); updateSendButton(); }
@@ -791,7 +789,6 @@ function bindEvents() {
     if (r) { switchView("home"); if (chatInput) { chatInput.value = r.dataset.prompt; chatInput.focus(); autoResizeTextarea(chatInput); updateSendButton(); } }
   });
 
-  // History Filters
   $("historyFilters")?.addEventListener("click", e => {
     const b = e.target.closest(".chip");
     if (!b) return;
@@ -801,7 +798,6 @@ function bindEvents() {
     renderHistory();
   });
 
-  // Profile Forms
   $("saveProfileBtn")?.addEventListener("click", async () => {
     const text = $("profileBusinessDescription")?.value.trim();
     try {
@@ -821,9 +817,8 @@ function bindEvents() {
     } catch (err) { showToast(err.message); }
   });
 
-  // Modals
   $("openBillingBtn")?.addEventListener("click", openBillingModal);
-  $("closeBillingBtn")?.addEventListener("click", () => $("billingModal").hidden = true);
+  $("closeBillingBtn")?.addEventListener("click", () => $("billingModal").classList.remove("active"));
   $("backToPlansBtn")?.addEventListener("click", () => { $("paymentProviderBox").hidden = true; $("billingPlanList").hidden = false; $("billingTitle").textContent = "Выбор тарифа"; });
 
   $("billingPlanList")?.addEventListener("click", e => {
@@ -839,7 +834,6 @@ function bindEvents() {
   $("onboardingNextBtn")?.addEventListener("click", nextOnboarding);
 }
 
-// Boot
 async function boot() {
   injectIcons();
   if (tg) {
