@@ -272,15 +272,17 @@ async function loadTools() {
   if (!grid) return;
   
   if (!state.tools.length) {
-    grid.innerHTML = `<p class="muted" style="grid-column:1/-1; text-align:center; padding:30px 0;">Инструменты временно недоступны.</p>`;
+    grid.innerHTML = `<p class="muted" style="text-align:center; padding:30px 0;">Инструменты временно недоступны.</p>`;
     return;
   }
   
   grid.innerHTML = state.tools.map(t => `
-    <div class="tool-card" data-prompt="${t.prompt_template}">
-      <div class="tool-icon-wrapper"><span data-icon="tools"></span></div>
-      <h4>${t.title}</h4>
-      <p class="muted">${t.description}</p>
+    <div class="tool-item-row" data-prompt="${t.prompt_template}">
+      <div class="tool-icon-box"><span data-icon="tools"></span></div>
+      <div class="tool-text-box">
+        <h4>${t.title}</h4>
+        <p class="muted">${t.description}</p>
+      </div>
     </div>
   `).join("");
   injectIcons(grid);
@@ -316,7 +318,7 @@ function renderBillingPlans() {
     const p = state.plans[k];
     const isCurrent = state.user && state.user.plan === k;
     return `
-      <button class="plan-card ${isCurrent ? 'muted-plan' : ''}" data-plan-key="${k}" type="button">
+      <button class="plan-item-row ${isCurrent ? 'muted-plan' : ''}" data-plan-key="${k}" type="button">
         <div class="plan-main">
           <h4>${p.title}</h4>
           <small>${p.description}</small>
@@ -342,12 +344,12 @@ function selectPlan(planKey) {
   provList.innerHTML = state.activePlan.providers.map(p => {
     let iconName = "credit-card";
     let premiumCls = "";
-    if (p.id === "telegram_stars") { iconName = "tg_stars"; premiumCls = "provider-card-stars"; }
-    if (p.id === "ton" || p.id === "crypto") { iconName = "ton"; premiumCls = "provider-card-ton"; }
-    if (p.id === "btc") { iconName = "btc"; premiumCls = "provider-card-btc"; }
+    if (p.id === "telegram_stars") { iconName = "tg_stars"; premiumCls = "provider-row-stars"; }
+    if (p.id === "ton" || p.id === "crypto") { iconName = "ton"; premiumCls = "provider-row-ton"; }
+    if (p.id === "btc") { iconName = "btc"; premiumCls = "provider-row-btc"; }
     
     return `
-      <button class="provider-card ${premiumCls}" data-provider="${p.id}" type="button">
+      <button class="provider-item-row ${premiumCls}" data-provider="${p.id}" type="button">
         <span class="provider-icon" data-icon="${iconName}"></span>
         <div class="provider-info">
           <strong>${p.title}</strong>
@@ -437,13 +439,13 @@ function renderHistory() {
   }
 
   list.innerHTML = filtered.map(h => `
-    <article class="history-card">
-      <div class="history-card-header">
-        <span class="badge badge-${h.mode}">${h.mode.toUpperCase()}</span>
+    <article class="history-row">
+      <div class="history-meta-line">
+        <span class="badge">${h.mode.toUpperCase()}</span>
         <time class="muted small">${new Date(h.timestamp * 1000).toLocaleDateString()}</time>
       </div>
-      <p class="history-prompt"><strong>Запрос:</strong> ${h.text}</p>
-      <div class="history-answer"><strong>Ответ:</strong> ${h.answer}</div>
+      <p class="history-prompt">Запрос: ${h.text}</p>
+      <div class="history-answer">${h.answer}</div>
     </article>
   `).join("");
 }
@@ -497,7 +499,7 @@ function bindEvents() {
   });
 
   $("toolsGrid")?.addEventListener("click", (e) => {
-    const card = e.target.closest(".tool-card");
+    const card = e.target.closest(".tool-item-row");
     if (!card) return;
     switchView("chat");
     const mainIn = $("mainChatInput");

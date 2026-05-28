@@ -99,29 +99,27 @@
       </section>
 
       <section class="view" id="view-profile" aria-labelledby="profileTitle">
-        <div class="profile-card">
-          <div class="profile-header">
-            <div class="avatar" id="userAvatar">FP</div>
-            <div class="profile-meta">
-              <h3 id="profileUserTitle">@username</h3>
-              <div class="plan-badge" id="profilePlanLabel">FREE</div>
-            </div>
+        <div class="profile-clean-card">
+          <div class="avatar" id="userAvatar">FP</div>
+          <div class="profile-meta">
+            <h3 id="profileUserTitle">@username</h3>
+            <div class="plan-badge" id="profilePlanLabel">FREE</div>
           </div>
-          <button class="primary" id="openBillingBtn" type="button">Управление подпиской</button>
         </div>
+        <button class="primary" id="openBillingBtn" type="button">Управление подпиской</button>
 
         <div class="settings-group">
           <h3>Бизнес-профиль</h3>
           <p class="muted field-desc">Ниша и оборот для точечной адаптации ответов ИИ под ваш масштаб.</p>
           <textarea class="profile-textarea" id="profileBusinessDescription" placeholder="Например: Продаю автотовары на WB, оборот 500к/мес." rows="3"></textarea>
-          <button class="secondary" id="saveProfileBtn" type="button" style="margin-top: 8px; width: 100%;">Сохранить</button>
+          <button class="secondary" id="saveProfileBtn" type="button">Сохранить профиль</button>
         </div>
 
         <div class="settings-group">
           <h3>Обратная связь</h3>
           <p class="muted field-desc">Предложения или найденные баги отправляются напрямую разработчикам.</p>
           <textarea class="profile-textarea" id="appFeedbackText" placeholder="Опишите вашу идею..." rows="2"></textarea>
-          <button class="secondary" id="submitAppFeedbackBtn" type="button" style="margin-top: 8px; width: 100%;">Отправить отзыв</button>
+          <button class="secondary" id="submitAppFeedbackBtn" type="button">Отправить отзыв</button>
         </div>
       </section>
     </main>
@@ -164,7 +162,7 @@
           <span data-icon="back"></span>
           К тарифам
         </button>
-        <h3 id="providerTitle" style="margin: 12px 0 8px; font-size: 15px;">Выберите способ оплаты</h3>
+        <h3 id="providerTitle" style="margin: 0 0 12px; font-size: 15px; font-weight: 600;">Выберите способ оплаты</h3>
         <div class="provider-list" id="providerList"></div>
         <p class="form-error" id="billingError" hidden></p>
       </div>
@@ -172,14 +170,14 @@
   </div>
 
   <div class="modal-backdrop" id="onboardingModal" hidden>
-    <article class="modal-card onboarding-card" role="dialog" aria-modal="true" aria-labelledby="onboardingTitle">
+    <article class="modal-card" role="dialog" aria-modal="true" aria-labelledby="onboardingTitle">
       <div class="progress-row" aria-hidden="true">
         <span class="active"></span>
         <span></span>
         <span></span>
       </div>
       <h2 id="onboardingTitle">Кто вы?</h2>
-      <div id="onboardingBody"></div>
+      <div class="onboarding-body" id="onboardingBody"></div>
       <p class="form-error" id="onboardingError" hidden></p>
       <div class="modal-actions">
         <button class="ghost" id="onboardingBackBtn" type="button">Назад</button>
