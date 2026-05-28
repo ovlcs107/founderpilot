@@ -26,7 +26,7 @@ class Settings(BaseSettings):
     subscriber_monthly_limit: int = Field(default=300, alias="SUBSCRIBER_MONTHLY_LIMIT")
     per_minute_limit: int = Field(default=6, alias="PER_MINUTE_LIMIT")
     admin_telegram_ids_raw: str = Field(default="", alias="ADMIN_TELEGRAM_IDS")
-    host: str = Field(default="127.0.0.1", alias="HOST")
+    host: str = Field(default="0.0.0.0", alias="HOST")
     port: int = Field(default=8000, alias="PORT")
 
     @field_validator("webapp_public_url")

@@ -21,76 +21,63 @@
     </header>
 
     <main class="content" id="content">
-      <section class="view active" id="view-home" aria-labelledby="homeTitle">
-        <div class="hero-panel">
+      <section class="view active home-chat-view" id="view-home" aria-labelledby="homeTitle">
+        <div class="home-head">
           <div>
-            <p class="muted" id="homeGreeting">Добро пожаловать</p>
-            <h2 id="homeTitle">AI-кабинет предпринимателя внутри Telegram</h2>
+            <p class="muted" id="homeGreeting">Здравствуйте</p>
+            <h2 id="homeTitle">Что делаем сегодня?</h2>
           </div>
-          <p>Выбери задачу или напиши вопрос в AI Chat - FounderPilot AI поможет с продажами, карточками товаров, рекламой и стратегией.</p>
+          <button class="secondary compact-btn" id="openChatBtn" type="button">
+            <span data-icon="plus"></span>
+            Новый чат
+          </button>
         </div>
 
-        <section class="assistant-card" aria-label="AI-помощник для бизнеса">
-          <div class="card-icon" data-icon="chat"></div>
-          <div>
-            <h3>AI-помощник для бизнеса</h3>
-            <p>Разбирает задачи по WB/Ozon, офферам, контенту, марже и плану продаж.</p>
+        <div class="quick-strip" id="quickActions"></div>
+
+        <section class="main-chat-card" aria-labelledby="chatTitle">
+          <div class="chat-topbar compact">
+            <div>
+              <h3 id="chatTitle">AI Chat</h3>
+              <p class="muted" id="chatSubtitle">Опишите задачу обычным текстом</p>
+            </div>
+            <button class="icon-btn" id="newChatBtn" type="button" aria-label="Новый чат" title="Новый чат">
+              <span data-icon="plus"></span>
+            </button>
           </div>
-          <button class="primary full" id="openChatBtn" type="button">
-            <span data-icon="chat"></span>
-            Открыть AI Chat
-          </button>
+
+          <div class="chat-scroll" id="chatScroll">
+            <div class="chat-empty" id="chatEmpty">
+              <div class="empty-icon" data-icon="chat"></div>
+              <h2>Напишите задачу</h2>
+              <p>Например: посчитать маржу, улучшить карточку товара или сделать оффер.</p>
+            </div>
+            <div class="chat-messages" id="chatMessages"></div>
+          </div>
+
+          <div class="chat-composer" id="chatComposer">
+            <div class="prompt-row" id="promptRow"></div>
+            <div class="composer-row">
+              <textarea id="chatInput" rows="1" placeholder="Напишите вопрос или задачу"></textarea>
+              <button class="send-btn" id="sendChatBtn" type="button" disabled aria-label="Отправить">
+                <span data-icon="send"></span>
+              </button>
+            </div>
+            <p class="form-error" id="chatError" hidden></p>
+          </div>
         </section>
 
-        <div class="section-head">
-          <h3>Быстрые действия</h3>
-          <button class="text-btn" data-open-view="tools" type="button">Все инструменты</button>
-        </div>
-        <div class="quick-grid" id="quickActions"></div>
-
-        <div class="section-head">
+        <div class="section-head slim">
           <h3>Последние результаты</h3>
           <button class="text-btn" data-open-view="history" type="button">История</button>
         </div>
         <div class="history-list compact" id="homeHistory"></div>
       </section>
 
-      <section class="view chat-view" id="view-chat" aria-labelledby="chatTitle">
-        <div class="chat-topbar">
-          <div>
-            <h2 id="chatTitle">AI Chat</h2>
-            <p class="muted" id="chatSubtitle">Текущий диалог</p>
-          </div>
-          <button class="icon-btn" id="newChatBtn" type="button" aria-label="Новый чат" title="Новый чат">
-            <span data-icon="plus"></span>
-          </button>
-        </div>
-
-        <div class="chat-scroll" id="chatScroll">
-          <div class="chat-empty" id="chatEmpty">
-            <div class="empty-icon" data-icon="chat"></div>
-            <h2>С чего начнем?</h2>
-            <p>Напиши бизнес-задачу - FounderPilot AI поможет с идеями, продажами, карточками WB/Ozon, рекламой и стратегией.</p>
-          </div>
-          <div class="chat-messages" id="chatMessages"></div>
-        </div>
-
-        <div class="chat-composer" id="chatComposer">
-          <div class="prompt-row" id="promptRow"></div>
-          <div class="composer-row">
-            <textarea id="chatInput" rows="1" placeholder="Напишите бизнес-задачу"></textarea>
-            <button class="send-btn" id="sendChatBtn" type="button" disabled aria-label="Отправить">
-              <span data-icon="send"></span>
-            </button>
-          </div>
-          <p class="form-error" id="chatError" hidden></p>
-        </div>
-      </section>
-
       <section class="view" id="view-tools" aria-labelledby="toolsTitle">
         <div class="intro-panel">
           <h2 id="toolsTitle">Инструменты</h2>
-          <p>Выберите бизнес-задачу. FounderPilot AI использует профиль бизнеса и вернет результат в удобной структуре.</p>
+          <p>Выберите задачу и заполните короткую форму.</p>
         </div>
         <div class="tools-grid" id="toolsGrid"></div>
       </section>
@@ -136,7 +123,7 @@
       <section class="view" id="view-history" aria-labelledby="historyTitle">
         <div class="intro-panel">
           <h2 id="historyTitle">История</h2>
-          <p>Диалоги, результаты инструментов и сохраненные материалы в одном месте.</p>
+          <p>Диалоги, расчеты и сохраненные ответы.</p>
         </div>
         <div class="segmented" id="historyFilters" role="tablist" aria-label="Фильтр истории">
           <button class="active" type="button" data-filter="all">Все</button>
@@ -243,7 +230,7 @@
             <h3>Пригласить друга</h3>
             <span class="status-pill">Бонусы</span>
           </div>
-          <p class="muted">Поделитесь кодом или ссылкой. За приглашенного пользователя начисляются бонусные запросы.</p>
+          <p class="muted">Ссылка для приглашения и бонусные запросы.</p>
           <div class="copy-box">
             <input id="referralLink" readonly value="" />
             <button class="icon-btn" id="copyReferralBtn" type="button" aria-label="Скопировать">
@@ -276,7 +263,7 @@
 
         <article class="info-card">
           <h3>О продукте</h3>
-          <p>FounderPilot AI помогает предпринимателям, селлерам WB/Ozon и маркетологам быстрее готовить коммерческие материалы, считать экономику, сохранять полезные ответы и возвращаться к истории решений.</p>
+          <p>Чат и инструменты для продаж, карточек товаров, рекламы и расчетов.</p>
         </article>
       </section>
     </main>
@@ -284,7 +271,6 @@
 
   <nav class="bottom-nav" aria-label="Навигация">
     <button class="nav-btn active" data-view="home" type="button"><span data-icon="home"></span><span>Главная</span></button>
-    <button class="nav-btn" data-view="chat" type="button"><span data-icon="chat"></span><span>AI Chat</span></button>
     <button class="nav-btn" data-view="tools" type="button"><span data-icon="tools"></span><span>Инструменты</span></button>
     <button class="nav-btn" data-view="history" type="button"><span data-icon="history"></span><span>История</span></button>
     <button class="nav-btn" data-view="profile" type="button"><span data-icon="user"></span><span>Профиль</span></button>
@@ -310,7 +296,7 @@
         <span></span>
         <span></span>
       </div>
-      <h2 id="onboardingTitle">Кто вы?</h2>
+      <h2 id="onboardingTitle">Чем вы занимаетесь?</h2>
       <div id="onboardingBody"></div>
       <p class="form-error" id="onboardingError" hidden></p>
       <div class="modal-actions">

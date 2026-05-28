@@ -1,72 +1,46 @@
 # FounderPilot AI
 
-FounderPilot AI - Telegram-бот, FastAPI backend, SQLite и Telegram Mini App для предпринимателей, селлеров WB/Ozon, маркетологов и владельцев малого бизнеса.
+FounderPilot AI — Telegram-бот, FastAPI backend, SQLite и Telegram Mini App для предпринимателей, селлеров WB/Ozon, маркетологов и малого бизнеса.
 
-Mini App работает как AI-кабинет внутри Telegram: AI Chat, готовые бизнес-инструменты, история, сохраненные результаты, бизнес-профиль, обратная связь, рефералка и лимиты Free/Pro/Business.
+Главный экран теперь сделан как рабочий чат: минимум рекламного текста, быстрые действия сверху и AI Chat прямо на главной.
 
-## Что добавлено
+## Что внутри
 
-- мобильный Telegram-like Mini App на vanilla HTML/CSS/JS;
-- нижняя навигация: Главная, AI Chat, Инструменты, История, Профиль;
-- AI Chat с историей диалогов, copy/save, feedback и улучшением ответов;
-- 11 инструментов: WB/Ozon карточка, маржа, идея товара, описание, реклама, отзыв, конкурент, SWOT, контент-план, план продаж, проверка идеи;
-- серверный расчет маржи: прибыль, маржа, ROI, ориентир безубыточной цены;
-- onboarding первого запуска и бизнес-профиль;
-- сохраненные результаты и feedback;
-- простая реферальная система с bonus_requests;
-- Free-лимит 20 запросов в день и заготовка под подписки/платежи;
-- админ-статистика `GET /api/admin/stats`;
-- безопасное расширение SQLite через `CREATE TABLE IF NOT EXISTS` и миграции колонок.
+- Telegram-бот на aiogram;
+- FastAPI backend;
+- SQLite база с пользователями, диалогами, инструментами, историей, сохранёнными результатами и feedback;
+- Telegram Mini App на vanilla HTML/CSS/JS;
+- AI Chat на главной странице;
+- бизнес-инструменты: маржа, WB/Ozon карточка, оффер, конкурент, SWOT, контент-план, план продаж и другое;
+- бизнес-профиль пользователя;
+- онбординг первого запуска;
+- рефералка и лимиты;
+- admin stats endpoint;
+- Railway config: `railway.json`, `Procfile`, `/health`, `.railwayignore`.
 
 ## Структура
 
 ```text
 app/
   bot.py                # Telegram bot: /start, /app, /help, admin commands
-  config.py             # настройки .env
+  config.py             # настройки .env / Railway env variables
   db.py                 # SQLite schema, миграции, история, лимиты
-  main.py               # FastAPI endpoints и запуск сервера
+  main.py               # FastAPI endpoints и запуск сервера + bot polling
   openrouter_client.py  # OpenRouter Chat Completions
   prompts.py            # system prompts и список инструментов
   rate_limit.py         # дневной лимит и антиспам
   telegram_auth.py      # Telegram WebApp initData validation
 static/
-  index.html
-  styles.css
-  app.js
+  index.html            # Mini App
+  styles.css            # Telegram-style UI
+  app.js                # frontend логика
 tests/
+railway.json
+Procfile
+.env.example
 ```
 
-## .env
-
-Создайте `.env` из `.env.example`:
-
-```env
-BOT_TOKEN=123456:YOUR_TELEGRAM_BOT_TOKEN
-OPENROUTER_API_KEY=sk-or-v1-xxxxxxxxxxxxxxxx
-OPENROUTER_MODEL=openrouter/free
-WEBAPP_PUBLIC_URL=https://your-ngrok-url.ngrok-free.app
-ADMIN_SECRET=change-this-admin-secret
-DEV_MODE=false
-DATABASE_PATH=founderpilot.sqlite3
-FREE_TRIAL_REQUESTS=20
-SUBSCRIBER_MONTHLY_LIMIT=300
-PER_MINUTE_LIMIT=6
-ADMIN_TELEGRAM_IDS=
-HOST=127.0.0.1
-PORT=8000
-```
-
-Для локальной проверки в браузере без Telegram initData:
-
-```env
-DEV_MODE=true
-WEBAPP_PUBLIC_URL=http://127.0.0.1:8000
-```
-
-В production оставьте `DEV_MODE=false`: Mini App API будет требовать валидный Telegram `initData`.
-
-## Локальный запуск
+## Локальный запуск Windows
 
 ```powershell
 cd D:\founderpilot_ai_bot
@@ -74,16 +48,50 @@ python -m venv .venv
 .venv\Scripts\activate
 pip install -r requirements.txt
 copy .env.example .env
+notepad .env
 python run.py
 ```
 
-Mini App локально:
+Для локальной проверки в браузере поставьте в `.env`:
+
+```env
+DEV_MODE=true
+WEBAPP_PUBLIC_URL=http://127.0.0.1:8000
+HOST=0.0.0.0
+PORT=8000
+```
+
+Откройте:
 
 ```text
 http://127.0.0.1:8000/app
 ```
 
-## Ngrok и Telegram Mini App
+## .env
+
+Минимум:
+
+```env
+BOT_TOKEN=123456:YOUR_TELEGRAM_BOT_TOKEN
+OPENROUTER_API_KEY=sk-or-v1-xxxxxxxxxxxxxxxx
+OPENROUTER_MODEL=openrouter/free
+WEBAPP_PUBLIC_URL=https://your-app.up.railway.app
+ADMIN_SECRET=change-this-admin-secret
+APP_SECRET=change-this-app-secret
+DATABASE_PATH=founderpilot.sqlite3
+DEV_MODE=false
+DEV_SKIP_TELEGRAM_AUTH=false
+HOST=0.0.0.0
+PORT=8000
+FREE_TRIAL_REQUESTS=20
+SUBSCRIBER_MONTHLY_LIMIT=300
+PER_MINUTE_LIMIT=6
+ADMIN_TELEGRAM_IDS=
+```
+
+Секреты храните только в `.env` или Railway Variables. В архиве `.env` не поставляется.
+
+## Telegram Mini App через ngrok
 
 Telegram Web App кнопка работает только с публичным HTTPS URL.
 
@@ -92,30 +100,68 @@ python run.py
 ngrok http 8000
 ```
 
-Скопируйте HTTPS адрес ngrok и вставьте без `/app`:
+Скопируйте HTTPS адрес без `/app`:
 
 ```env
 WEBAPP_PUBLIC_URL=https://abc123.ngrok-free.app
 ```
 
-Перезапустите проект и отправьте боту `/start` или `/app`. Кнопка откроет:
+Перезапустите проект и отправьте боту `/start` или `/app`.
 
-```text
-https://abc123.ngrok-free.app/app
+## Railway deployment
+
+Проект подготовлен под Railway:
+
+- `railway.json` использует Nixpacks;
+- start command: `python run.py`;
+- healthcheck: `/health`;
+- приложение слушает `0.0.0.0` и порт из `PORT`;
+- `.railwayignore` исключает `.env`, `.venv`, SQLite и мусорные файлы.
+
+Шаги:
+
+1. Загрузите проект в GitHub.
+2. В Railway создайте New Project → Deploy from GitHub repo.
+3. В Variables добавьте:
+
+```env
+BOT_TOKEN=...
+OPENROUTER_API_KEY=...
+OPENROUTER_MODEL=openrouter/free
+WEBAPP_PUBLIC_URL=https://your-app.up.railway.app
+ADMIN_SECRET=...
+APP_SECRET=...
+DEV_MODE=false
+HOST=0.0.0.0
 ```
+
+4. После первого деплоя скопируйте публичный домен Railway и поставьте его в `WEBAPP_PUBLIC_URL` без `/app`.
+5. Redeploy.
+6. Откройте бота в Telegram и отправьте `/start`.
+
+Для постоянной SQLite базы на Railway лучше подключить Volume и поставить:
+
+```env
+DATABASE_PATH=/data/founderpilot.sqlite3
+```
+
+Без volume SQLite может потерять данные после redeploy/rebuild.
 
 ## AI Chat
 
-`POST /api/chat` принимает сообщение и optional `conversation_id`. Backend создает или продолжает диалог, добавляет бизнес-профиль в system/context prompt и отправляет в OpenRouter последние 10-20 сообщений.
+Главная страница сразу открывает чат. Пользователь может написать задачу обычным текстом:
 
-В Mini App доступны:
+```text
+Посчитай маржу: закупка 430, продажа 990, комиссия 18%, логистика 95, реклама 120.
+```
 
-- новый чат;
-- продолжение старого чата;
-- copy/save у ответов AI;
-- кнопки: Сделай короче, Сделай подробнее, Добавь примеры, Сделай продающе;
-- feedback thumbs up/down;
-- история диалогов.
+Backend создаёт или продолжает диалог, добавляет бизнес-профиль в контекст и отправляет в OpenRouter последние сообщения.
+
+Endpoint:
+
+```http
+POST /api/chat
+```
 
 ## Инструменты
 
@@ -143,65 +189,28 @@ POST /api/tools/run
 }
 ```
 
-Для `margin_calc` backend сам считает экономику и передает расчет AI для пояснений, рисков и рекомендаций.
-
-## Бизнес-профиль и onboarding
-
-Первый запуск показывает onboarding:
-
-1. Кто вы?
-2. Что хотите улучшить?
-3. Короткое описание бизнеса.
-
-Данные сохраняются в `business_profiles` и используются в AI Chat и инструментах. Профиль можно редактировать или очистить в разделе `Профиль`.
-
-## Сохраненное и feedback
-
-Ответы AI и результаты инструментов можно сохранить через `POST /api/saved`. Список доступен в профиле и в истории. Feedback сохраняется через `POST /api/feedback`; для негативной оценки Mini App открывает поле "Что улучшить?".
-
-## Рефералка
-
-У каждого пользователя есть `referral_code`. Если новый пользователь приходит через `/start <referral_code>`, backend сохраняет связь и добавляет бонусные запросы пригласившему. Статистика доступна в профиле через `GET /api/referral`.
-
-## Админ-статистика
-
-Endpoint:
-
-```http
-GET /api/admin/stats
-X-Admin-Secret: <ADMIN_SECRET>
-```
-
-Возвращает пользователей, запросы за день, chat/tool активность, популярные инструменты, сохраненные результаты, негативный feedback, ошибки и активных пользователей. При неверном секрете возвращается `403`.
-
-## Команды бота
-
-- `/start` - описание продукта и кнопка Mini App;
-- `/app` - открыть Mini App;
-- `/help` - что умеет бот и как открыть Mini App;
-- `/stats` - лимиты и статус доступа;
-- любой текст - быстрый AI-ответ в Telegram-чате.
+Для `margin_calc` backend сам считает прибыль, маржу, ROI и ориентир безубыточной цены, а AI даёт пояснения и рекомендации.
 
 ## Проверка
 
 ```powershell
-python -m compileall .
+python -m compileall app run.py tests
 pytest
 ```
 
-Дополнительно проверьте:
+Проверьте вручную:
 
+- `/health` возвращает `{"status":"ok"}`;
 - `/app` открывает Mini App;
-- нижняя навигация переключает разделы;
-- AI Chat виден и показывает error state без alert, если нет токена;
-- инструменты открываются и валидируют формы;
-- бизнес-профиль сохраняется;
-- saved и feedback пишутся в SQLite;
+- чат на главной странице виден сразу;
+- быстрые действия открывают инструменты;
+- история и сохранённые результаты отображаются;
 - `/api/admin/stats` требует `X-Admin-Secret`.
 
 ## Частые ошибки
 
-- Mini App кнопка не появляется: `WEBAPP_PUBLIC_URL` должен быть публичным HTTPS и проект нужно перезапустить.
-- API возвращает ошибку initData: для браузера включите `DEV_MODE=true`, для Telegram проверьте `BOT_TOKEN`.
+- Mini App кнопка не появляется: `WEBAPP_PUBLIC_URL` должен быть публичным HTTPS.
+- API возвращает ошибку initData: локально включите `DEV_MODE=true`, в Telegram проверьте `BOT_TOKEN`.
 - AI не отвечает: проверьте `OPENROUTER_API_KEY`, `OPENROUTER_MODEL` и доступ модели.
-- Лимит исчерпан: Free дает 20 запросов в день плюс бонусные запросы за рефералов.
+- Railway healthcheck падает: проверьте, что `HOST=0.0.0.0`, а `PORT` не забит неверным значением.
+- SQLite не сохраняет данные между деплоями: подключите Railway Volume и используйте `DATABASE_PATH=/data/founderpilot.sqlite3`.

@@ -94,7 +94,6 @@ const promptSuggestions = [
   "Посчитай маржу",
   "Улучши карточку",
   "Сделай оффер",
-  "Придумай рекламу",
   "Разбери конкурента",
   "Почему нет продаж?",
 ];
@@ -363,7 +362,6 @@ function showToast(message) {
 function setPageTitle(view) {
   const titles = {
     home: "Главная",
-    chat: "AI Chat",
     tools: "Инструменты",
     tool: "Инструмент",
     history: "История",
@@ -373,6 +371,7 @@ function setPageTitle(view) {
 }
 
 function setView(view) {
+  if (view === "chat") view = "home";
   state.previousView = state.currentView;
   state.currentView = view;
   document.querySelectorAll(".view").forEach((node) => node.classList.toggle("active", node.id === `view-${view}`));
@@ -385,7 +384,7 @@ function setView(view) {
     if (view === "tool") tg.BackButton.show();
     else tg.BackButton.hide();
   }
-  if (view === "chat") setTimeout(scrollChatToBottom, 40);
+  if (view === "home") setTimeout(scrollChatToBottom, 40);
   else window.scrollTo({ top: 0, behavior: "smooth" });
 }
 
@@ -790,7 +789,8 @@ async function newChat() {
   state.chatMessages = [];
   els.chatSubtitle.textContent = "Новый диалог";
   renderChat();
-  setView("chat");
+  setView("home");
+  els.chatInput?.focus();
   haptic();
 }
 
@@ -801,7 +801,7 @@ async function loadConversation(conversationId) {
     state.chatMessages = (data.messages || []).filter((message) => ["user", "assistant"].includes(message.role));
     els.chatSubtitle.textContent = data.conversation.title || "Диалог";
     renderChat();
-    setView("chat");
+    setView("home");
   } catch (error) {
     showToast(error.message);
   }
@@ -1040,7 +1040,7 @@ function renderHomeHistory() {
   const items = historyItems().slice(0, 3);
   els.homeHistory.innerHTML = "";
   if (!items.length) {
-    renderEmpty(els.homeHistory, "Здесь появятся последние AI-ответы, расчеты и сохраненные результаты.", "history");
+    renderEmpty(els.homeHistory, "Здесь появятся последние результаты.", "history");
     return;
   }
   items.forEach((item) => els.homeHistory.appendChild(renderHistoryCard(item)));
@@ -1051,7 +1051,7 @@ function renderHistory() {
   const items = historyItems().filter((item) => filter === "all" || item.kind === filter);
   els.historyList.innerHTML = "";
   if (!items.length) {
-    renderEmpty(els.historyList, "Истории пока нет. Откройте AI Chat или запустите инструмент.", "history");
+    renderEmpty(els.historyList, "Истории пока нет.", "history");
     return;
   }
   items.forEach((item) => els.historyList.appendChild(renderHistoryCard(item)));
@@ -1060,7 +1060,7 @@ function renderHistory() {
 function renderSaved() {
   els.savedList.innerHTML = "";
   if (!state.saved.length) {
-    renderEmpty(els.savedList, "Сохраненные ответы появятся после нажатия кнопки Сохранить.", "save");
+    renderEmpty(els.savedList, "Здесь будут сохраненные ответы.", "save");
     return;
   }
   state.saved.forEach((item) => {
@@ -1150,7 +1150,7 @@ function renderOnboarding() {
   document.querySelectorAll(".progress-row span").forEach((node, index) => node.classList.toggle("active", index <= step));
 
   if (step === 0) {
-    els.onboardingTitle.textContent = "Кто вы?";
+    els.onboardingTitle.textContent = "Чем вы занимаетесь?";
     renderOnboardingOptions("user_type", ["Селлер WB/Ozon", "Предприниматель", "Маркетолог", "Новичок", "Другое"]);
   } else if (step === 1) {
     els.onboardingTitle.textContent = "Что хотите улучшить?";
@@ -1262,7 +1262,7 @@ function bindEvents() {
   });
 
   $("headerProfileBtn").addEventListener("click", () => setView("profile"));
-  $("openChatBtn").addEventListener("click", () => setView("chat"));
+  $("openChatBtn").addEventListener("click", () => newChat());
   $("newChatBtn").addEventListener("click", newChat);
   $("backToToolsBtn").addEventListener("click", () => setView("tools"));
   $("closeDetailBtn").addEventListener("click", closeDetail);

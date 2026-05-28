@@ -322,6 +322,11 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         await db.init()
         logger.info("Database initialized at %s", settings.database_path)
 
+
+    @app.get("/health", include_in_schema=False)
+    async def health() -> dict[str, str]:
+        return {"status": "ok"}
+
     @app.get("/", include_in_schema=False)
     async def root() -> RedirectResponse:
         return RedirectResponse(url="/app")

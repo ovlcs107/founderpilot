@@ -1008,3 +1008,154 @@ textarea:focus {
     grid-template-columns: 1fr;
   }
 }
+
+/* Product-focused home: chat is the main screen, marketing text is intentionally minimal. */
+.home-chat-view.active {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-height: calc(100vh - var(--nav-height) - 76px - env(safe-area-inset-top) - env(safe-area-inset-bottom));
+}
+
+.home-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 2px 0 0;
+}
+
+.home-head h2 {
+  margin-top: 2px;
+  font-size: 24px;
+}
+
+.compact-btn {
+  min-width: 112px;
+  white-space: nowrap;
+}
+
+.quick-strip {
+  display: flex;
+  gap: 8px;
+  overflow-x: auto;
+  padding: 2px 0 4px;
+  scrollbar-width: none;
+}
+
+.quick-strip::-webkit-scrollbar {
+  display: none;
+}
+
+.quick-strip .quick-action {
+  flex: 0 0 auto;
+  min-height: 42px;
+  display: inline-flex;
+  grid-template-columns: none;
+  gap: 8px;
+  align-items: center;
+  padding: 8px 11px;
+  border-radius: 999px;
+  box-shadow: none;
+}
+
+.quick-strip .card-icon {
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  background: transparent;
+  border: 0;
+}
+
+.quick-strip .card-icon svg {
+  width: 19px;
+  height: 19px;
+}
+
+.quick-strip .quick-action strong {
+  font-size: 13px;
+  white-space: nowrap;
+}
+
+.main-chat-card {
+  flex: 1 1 auto;
+  min-height: 430px;
+  display: flex;
+  flex-direction: column;
+  background: var(--app-surface);
+  border: 1px solid var(--app-line);
+  border-radius: 18px;
+  box-shadow: var(--shadow);
+  overflow: hidden;
+}
+
+.main-chat-card .chat-topbar {
+  margin: 0;
+  padding: 12px 12px 8px;
+  border-bottom: 1px solid color-mix(in srgb, var(--app-line) 55%, transparent);
+}
+
+.chat-topbar.compact h3 {
+  font-size: 17px;
+}
+
+.chat-topbar.compact p {
+  margin-top: 2px;
+  font-size: 13px;
+}
+
+.main-chat-card .chat-scroll {
+  flex: 1 1 auto;
+  min-height: 235px;
+  padding: 12px;
+  overflow-y: auto;
+}
+
+.main-chat-card .chat-empty {
+  margin: 10px auto;
+  padding: 20px 10px;
+}
+
+.main-chat-card .chat-empty h2 {
+  font-size: 19px;
+}
+
+.main-chat-card .chat-empty p {
+  max-width: 340px;
+  margin-left: auto;
+  margin-right: auto;
+}
+
+.main-chat-card .chat-composer {
+  position: sticky;
+  bottom: 0;
+  margin: 0;
+  padding: 9px 10px 10px;
+  border-top: 1px solid var(--app-line);
+  border-radius: 0;
+  box-shadow: none;
+}
+
+.section-head.slim {
+  margin: 2px 0 4px;
+}
+
+.bottom-nav {
+  grid-template-columns: repeat(4, 1fr);
+}
+
+.assistant-card,
+.hero-panel {
+  box-shadow: none;
+}
+
+@media (max-width: 380px) {
+  .home-head {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .compact-btn {
+    width: 100%;
+  }
+}

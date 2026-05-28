@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+from pathlib import Path
 from datetime import datetime, timedelta, timezone
 from typing import Any
 from uuid import uuid4
@@ -291,6 +292,9 @@ class Database:
         self.path = path
 
     async def init(self) -> None:
+        db_path = Path(self.path)
+        if db_path.parent and str(db_path.parent) != ".":
+            db_path.parent.mkdir(parents=True, exist_ok=True)
         async with aiosqlite.connect(self.path) as db:
             await db.execute("PRAGMA foreign_keys=OFF")
             await db.executescript(SCHEMA)
