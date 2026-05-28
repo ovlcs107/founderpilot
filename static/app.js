@@ -16,7 +16,7 @@ const iconPaths = {
   close: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>',
   back: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="19" y1="12" x2="5" y2="12"/><polyline points="12 19 5 12 12 5"/></svg>',
   copy: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>',
-  save: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyitalic points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>',
+  save: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>',
   edit: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 1 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>',
   trash: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>',
   check: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>',
@@ -741,13 +741,15 @@ function renderOnboardingStep() {
   
   // Прогресс бар бар-линии
   const progressRow = $("onboardingProgressRow");
-  progressRow.innerHTML = "";
-  onboardingStepsConfig.forEach((_, idx) => {
-    const span = document.createElement("span");
-    span.style.width = `calc(${100 / onboardingStepsConfig.length}% - 4px)`;
-    if (idx <= state.onboardingStep) span.className = "active";
-    progressRow.appendChild(span);
-  });
+  if (progressRow) {
+    progressRow.innerHTML = "";
+    onboardingStepsConfig.forEach((_, idx) => {
+      const span = document.createElement("span");
+      span.style.width = `calc(${100 / onboardingStepsConfig.length}% - 4px)`;
+      if (idx <= state.onboardingStep) span.className = "active";
+      progressRow.appendChild(span);
+    });
+  }
   
   const body = $("onboardingBody");
   body.innerHTML = "";
@@ -845,81 +847,127 @@ async function submitFeedback() {
 // Привязка слушателей событий и обработчиков элементов
 function bindEvents() {
   // Навигационный бар
-  document.querySelectorAll(".app-nav .nav-item").forEach(item => {
-    item.addEventListener("click", () => switchView(item.dataset.view));
+  document.querySelectorAll(".app-nav .nav-item").forEach(btn => {
+    btn.onclick = () => {
+      const targetView = btn.getAttribute("data-view");
+      if (targetView) switchView(targetView);
+    };
   });
-  
-  // Клик по аватару в шапке открывает профиль
-  $("headerProfileBtn")?.addEventListener("click", () => switchView("profile"));
-  
-  // Быстрые подсказки-chips на главном экране
-  $("quickStrip")?.addEventListener("click", (e) => {
-    const actionBtn = e.target.closest(".quick-action");
-    if (actionBtn && actionBtn.dataset.prompt) {
-      sendChatMessage(actionBtn.dataset.prompt);
-    }
-  });
-  
-  // Логика авторесайза и отправки по Enter (без Shift)
-  const chatInput = $("homeChatInput");
-  if (chatInput) {
-    chatInput.addEventListener("input", () => {
-      autoResizeTextarea(chatInput);
-      updateSendButton();
-    });
-    chatInput.addEventListener("keydown", (e) => {
-      if (e.key === "Enter" && !e.shiftKey) {
-        e.preventDefault();
-        const txt = chatInput.value.trim();
-        if (txt && !state.isSending) sendChatMessage(txt);
-      }
+
+  // Переход на вкладку инструментов при клике на "Все" в Быстрых действиях
+  const seeAllToolsBtn = $("shortcutSeeAllToolsBtn");
+  if (seeAllToolsBtn) {
+    seeAllToolsBtn.onclick = () => switchView("tools");
+  }
+
+  // Клик по карточке быстрого промпта (Интеграция шорткатов в строку ввода чата)
+  const quickStrip = $("quickStrip");
+  if (quickStrip) {
+    quickStrip.querySelectorAll(".strip-card").forEach(card => {
+      card.onclick = () => {
+        const promptText = card.getAttribute("data-prompt");
+        if (promptText && $("homeChatInput")) {
+          $("homeChatInput").value = promptText;
+          $("homeChatInput").focus();
+          autoResizeTextarea($("homeChatInput"));
+          updateSendButton();
+        }
+      };
     });
   }
-  
-  $("homeChatSendBtn")?.addEventListener("click", () => {
-    const txt = $("homeChatInput")?.value.trim();
-    if (txt) sendChatMessage(txt);
-  });
-  
-  // Фильтры экрана истории
-  $("historyFilters")?.addEventListener("click", (e) => {
-    const btn = e.target.closest("button[data-filter]");
-    if (btn) setHistoryFilter(btn.dataset.filter);
-  });
-  
-  // Кнопки управления биллингом
-  $("openBillingBtn")?.addEventListener("click", openBillingModal);
-  $("closeBillingBtn")?.addEventListener("click", closeBillingModal);
-  $("backToPlansBtn")?.addEventListener("click", renderBillingPlans);
-  
-  $("billingPlanList")?.addEventListener("click", (e) => {
-    const card = e.target.closest("[data-plan-key]");
-    if (card) selectPlan(card.dataset.planKey);
-  });
-  
-  $("providerList")?.addEventListener("click", (e) => {
-    const row = e.target.closest("[data-provider]");
-    if (row) checkout(row.dataset.provider);
-  });
-  
-  // События онбординга
-  $("onboardingNextBtn")?.addEventListener("click", nextOnboarding);
-  $("onboardingBackBtn")?.addEventListener("click", previousOnboarding);
-  
-  // События кнопок в профиле
-  $("saveProfileBtn")?.addEventListener("click", saveBusinessProfile);
-  $("submitAppFeedbackBtn")?.addEventListener("click", submitFeedback);
+
+  // Быстрые ссылки перехода в Профиль/Настройки
+  const headerBtn = $("headerProfileBtn");
+  if (headerBtn) {
+    headerBtn.onclick = () => switchView("profile");
+  }
+
+  // Настройка инпутов чата
+  const homeInput = $("homeChatInput");
+  if (homeInput) {
+    homeInput.oninput = () => {
+      autoResizeTextarea(homeInput);
+      updateSendButton();
+    };
+  }
+
+  const homeSendBtn = $("homeChatSendBtn");
+  if (homeSendBtn) {
+    homeSendBtn.onclick = () => {
+      if (homeInput && homeInput.value.trim()) {
+        sendChatMessage(homeInput.value.trim());
+      }
+    };
+  }
+
+  // Фильтры в истории аккаунта
+  const filterGroup = $("historyFilters");
+  if (filterGroup) {
+    filterGroup.querySelectorAll(".filter-btn").forEach(btn => {
+      btn.onclick = () => {
+        const f = btn.getAttribute("data-filter");
+        if (f) setHistoryFilter(f);
+      };
+    });
+  }
+
+  // Логика модального окна биллинга
+  const openBillBtn = $("openBillingBtn");
+  if (openBillBtn) openBillBtn.onclick = openBillingModal;
+
+  const closeBillBtn = $("closeBillingModal");
+  if (closeBillBtn) closeBillBtn.onclick = closeBillingModal;
+
+  const backPlansBtn = $("backToPlansBtn");
+  if (backPlansBtn) backPlansBtn.onclick = renderBillingPlans;
+
+  const planList = $("billingPlanList");
+  if (planList) {
+    planList.onclick = (e) => {
+      const card = e.target.closest("[data-plan-key]");
+      if (card) {
+        const pk = card.getAttribute("data-plan-key");
+        if (pk) selectPlan(pk);
+      }
+    };
+  }
+
+  const provList = $("providerList");
+  if (provList) {
+    provList.onclick = (e) => {
+      const card = e.target.closest("[data-provider]");
+      if (card) {
+        const pid = card.getAttribute("data-provider");
+        if (pid) checkout(pid);
+      }
+    };
+  }
+
+  // Привязка кнопок онбординга
+  const obNext = $("onboardingNextBtn");
+  if (obNext) obNext.onclick = nextOnboarding;
+
+  const obBack = $("onboardingBackBtn");
+  if (obBack) obBack.onclick = previousOnboarding;
+
+  // Формы сохранения настроек профиля
+  const saveProfBtn = $("saveProfileBtn");
+  if (saveProfBtn) saveProfBtn.onclick = saveBusinessProfile;
+
+  const subFeedbackBtn = $("submitAppFeedbackBtn");
+  if (subFeedbackBtn) subFeedbackBtn.onclick = submitFeedback;
 }
 
-// Точка входа boot приложения
+// Запуск инициализации приложения (Платформенный Boot-скрипт)
 (async function boot() {
-  injectIcons();
   initTelegram();
   bindEvents();
+  injectIcons();
+  updateSendButton();
   
-  // Конкурентный параллельный асинхронный запуск без блокировки интерфейса (Resilient Boot)
+  // Параллельный прогрев базовых кэшей
   await Promise.all([
-    loadMe().then(() => renderProfile()),
+    loadMe(),
     loadTools(),
     loadBillingPlans()
   ]);
