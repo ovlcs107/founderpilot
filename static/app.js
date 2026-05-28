@@ -677,7 +677,11 @@ function openOnboarding() {
   state.onboardingStep = 0;
   state.onboardingData = {};
   const m = $("onboardingModal");
-  if (m) { m.hidden = false; renderOnboardingStep(); }
+  if (m) {
+    m.removeAttribute("hidden");
+    m.style.display = "flex";
+    renderOnboardingStep();
+  }
 }
 
 function renderOnboardingStep() {
@@ -686,8 +690,10 @@ function renderOnboardingStep() {
 
   $("onboardingTitle").textContent = cfg.title;
   $("onboardingError").hidden = true;
+  $("onboardingError").style.display = "none";
 
-  const dots = $("onboardingProgressRow")?.querySelectorAll("span");
+  // Исправленный поиск индикаторов шага (.dot вместо абстрактных span)
+  const dots = $("onboardingProgressRow")?.querySelectorAll(".dot");
   if (dots) {
     dots.forEach((d, i) => d.classList.toggle("active", i <= state.onboardingStep));
   }
@@ -702,16 +708,23 @@ function renderOnboardingStep() {
     ta.rows = 4;
     ta.placeholder = cfg.placeholder || "";
     ta.value = state.onboardingData[cfg.id] || "";
+    ta.style.width = "100%";
+    ta.style.color = "#f4f4f5";
     ta.oninput = () => { state.onboardingData[cfg.id] = ta.value; };
     body.appendChild(ta);
   } else {
-    // Безопасный рендер кнопок выбора
     if (Array.isArray(cfg.options)) {
       cfg.options.forEach(o => {
         const b = document.createElement("button");
         b.type = "button";
+        // Принудительно задаем класс и инлайновые стили для видимости текста
         b.className = `choice-btn ${state.onboardingData[cfg.id] === o.key ? 'active' : ''}`;
         b.textContent = o.label;
+        b.style.display = "block";
+        b.style.width = "100%";
+        b.style.marginBottom = "8px";
+        b.style.color = "#f4f4f5";
+
         b.onclick = () => {
           state.onboardingData[cfg.id] = o.key;
           renderOnboardingStep();

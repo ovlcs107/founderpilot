@@ -982,6 +982,8 @@ svg {
   display: flex;
   flex-direction: column;
   gap: 8px;
+  width: 100%;
+  min-height: 50px; /* Гарантирует, что контейнер не схлопнется */
 }
 
 .onboarding-interactive-body .form-textarea {
@@ -989,19 +991,20 @@ svg {
 }
 
 .choice-btn {
-  background-color: var(--bg-surface-elevated);
-  border: 1px solid var(--border-muted);
-  padding: 14px;
-  border-radius: 10px;
-  text-align: left;
-  font-weight: 500;
-  font-size: 14px;
-  cursor: pointer;
-  transition: border-color 0.15s, background-color 0.15s;
+  background-color: var(--bg-surface-elevated) !important;
+  border: 1px solid var(--border-muted) !important;
+  padding: 14px 16px !important;
+  border-radius: 10px !important;
+  text-align: left !important;
+  font-weight: 500 !important;
+  font-size: 14px !important;
+  color: #f4f4f5 !important; /* Принудительный контрастный белый цвет текста */
+  cursor: pointer !important;
+  transition: border-color 0.15s, background-color 0.15s !important;
 }
 .choice-btn.active {
-  border-color: var(--accent);
-  background-color: rgba(255, 255, 255, 0.04);
+  border-color: var(--accent) !important;
+  background-color: rgba(255, 255, 255, 0.08) !important;
 }
 
 .modal-footer-actions {
