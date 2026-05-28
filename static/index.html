@@ -1,15 +1,18 @@
 <!DOCTYPE html>
 <html lang="ru">
+
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+  <meta name="viewport"
+    content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
   <title>FounderPilot AI</title>
   <link rel="stylesheet" href="styles.css">
 </head>
+
 <body>
 
   <div class="app-container">
-    
+
     <aside class="sidebar">
       <div class="sidebar-brand">
         <div class="brand-logo" data-icon="stars"></div>
@@ -45,7 +48,7 @@
     </aside>
 
     <main class="main-content">
-      
+
       <header class="mobile-header">
         <div class="header-left">
           <h1 id="pageTitle">Главная</h1>
@@ -61,7 +64,8 @@
         <div class="view-scroll-container">
           <header class="workspace-intro">
             <h2 id="homeGreeting">Здравствуйте</h2>
-            <p class="section-subtitle">Ваш персональный AI-ассистент для развития бизнеса и оптимизации маркетплейсов.</p>
+            <p class="section-subtitle">Ваш персональный AI-ассистент для развития бизнеса и оптимизации маркетплейсов.
+            </p>
           </header>
 
           <div class="metrics-grid">
@@ -88,10 +92,12 @@
           <div class="quick-suggestions-wrapper">
             <span class="tiny-label">Быстрые запросы</span>
             <div class="quick-strip" id="quickStrip">
-              <button class="quick-pill" data-prompt="Посчитай юнит-экономику для товара с себестоимостью 450р и ценой продажи 1200р">
+              <button class="quick-pill"
+                data-prompt="Посчитай юнит-экономику для товара с себестоимостью 450р и ценой продажи 1200р">
                 <span data-icon="calculator"></span> Юнит-экономика
               </button>
-              <button class="quick-pill" data-prompt="Напиши продающее SEO-описание для карточки товара: Чехол для iPhone">
+              <button class="quick-pill"
+                data-prompt="Напиши продающее SEO-описание для карточки товара: Чехол для iPhone">
                 <span data-icon="edit"></span> SEO Карточки
               </button>
               <button class="quick-pill" data-prompt="Проанализируй сильные стороны конкурентов в нише автотоваров">
@@ -113,7 +119,8 @@
 
             <div class="chat-composer-zone">
               <div class="composer-inner">
-                <textarea id="homeChatInput" rows="1" placeholder="Задайте вопрос AI или выберите инструмент..."></textarea>
+                <textarea id="homeChatInput" rows="1"
+                  placeholder="Задайте вопрос AI или выберите инструмент..."></textarea>
                 <button id="homeChatSendBtn" class="send-btn" disabled>
                   <span data-icon="send"></span>
                 </button>
@@ -130,7 +137,7 @@
             <p class="section-subtitle">Готовые узкоспециализированные AI-ассистенты для рутинных бизнес-задач.</p>
           </header>
           <div class="tools-grid" id="toolsGrid">
-            </div>
+          </div>
         </div>
       </section>
 
@@ -151,7 +158,7 @@
           </div>
 
           <div class="history-list" id="historyList">
-            </div>
+          </div>
         </div>
       </section>
 
@@ -205,8 +212,10 @@
 
           <div class="cabinet-block-title">Бизнес-контекст</div>
           <div class="settings-card">
-            <p class="field-description">Информация о вашем бизнесе автоматически подмешивается к ответам ИИ, делая их точными и персонализированными.</p>
-            <textarea id="profileBusinessDescription" class="form-textarea" placeholder="Например: Магазин автотоваров на Wildberries, оборот 1.5м. Основная цель — поднять маржинальность и настроить внутреннюю рекламу."></textarea>
+            <p class="field-description">Информация о вашем бизнесе автоматически подмешивается к ответам ИИ, делая их
+              точными и персонализированными.</p>
+            <textarea id="profileBusinessDescription" class="form-textarea"
+              placeholder="Например: Магазин автотоваров на Wildberries, оборот 1.5м. Основная цель — поднять маржинальность и настроить внутреннюю рекламу."></textarea>
             <div class="action-row-right">
               <button class="btn-primary" id="saveProfileBtn">
                 <span data-icon="save"></span> Сохранить контекст
@@ -216,8 +225,10 @@
 
           <div class="cabinet-block-title">Обратная связь</div>
           <div class="settings-card">
-            <p class="field-description">Столкнулись с проблемой или хотите предложить функцию? Напишите напрямую разработчикам.</p>
-            <textarea id="appFeedbackText" class="form-textarea" placeholder="Опишите ваше предложение или баг..."></textarea>
+            <p class="field-description">Столкнулись с проблемой или хотите предложить функцию? Напишите напрямую
+              разработчикам.</p>
+            <textarea id="appFeedbackText" class="form-textarea"
+              placeholder="Опишите ваше предложение или баг..."></textarea>
             <div class="action-row-right">
               <button class="btn-secondary" id="submitAppFeedbackBtn">Отправить отзыв</button>
             </div>
@@ -256,17 +267,17 @@
           <span data-icon="close"></span>
         </button>
       </div>
-      
+
       <div class="modal-scroll-content">
         <div id="billingError" class="error-banner-zone" hidden></div>
 
         <div id="billingPlanList" class="plans-layout-stack">
-          </div>
+        </div>
 
         <div id="paymentProviderBox" class="providers-layout-zone" hidden>
           <p class="provider-intro-text">Выберите удобный способ проведения безопасного платежа:</p>
           <div id="providerList" class="providers-stack">
-            </div>
+          </div>
           <button id="backToPlansBtn" class="btn-text-back">
             <span data-icon="back"></span> Вернуться к выбору тарифов
           </button>
@@ -284,13 +295,13 @@
           <span class="dot"></span>
         </div>
       </div>
-      
+
       <div class="modal-scroll-content">
         <h2 class="onboarding-step-title" id="onboardingTitle">Чем вы занимаетесь?</h2>
         <div id="onboardingError" class="error-banner-zone mb-16" hidden></div>
-        
+
         <div id="onboardingBody" class="onboarding-interactive-body">
-          </div>
+        </div>
       </div>
 
       <div class="modal-footer-actions">
@@ -301,6 +312,7 @@
   </div>
 
   <div id="toast" class="toast-component">Повещение</div>
-
+  <script src="app.js"></script>
 </body>
+
 </html>
