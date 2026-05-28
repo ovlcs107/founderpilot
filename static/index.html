@@ -4,17 +4,19 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
   <title>FounderPilot AI</title>
-  <link rel="stylesheet" href="/static/styles.css?v=reborn-3">
+  <link rel="stylesheet" href="/static/styles.css?v=business-inn-2">
   <script src="https://telegram.org/js/telegram-web-app.js"></script>
 </head>
 <body>
 
   <div id="appPreloader" class="app-preloader">
     <div class="preloader-content">
-      <div class="preloader-logo-zone" data-icon="stars"></div>
+      <div class="preloader-logo-sphere">
+        <div class="logo-svg-wrapper" data-icon="stars"></div>
+      </div>
       <h2 class="preloader-title">FounderPilot</h2>
-      <p class="preloader-subtitle">Синхронизация бизнес-контекста...</p>
-      <div class="preloader-bar"><div class="preloader-progress"></div></div>
+      <p class="preloader-tagline">Ваш AI-напарник для старта и роста бизнеса</p>
+      <div class="preloader-track"><div class="preloader-thumb"></div></div>
     </div>
   </div>
 
@@ -22,8 +24,12 @@
     
     <aside class="sidebar">
       <div class="sidebar-brand">
-        <div class="brand-logo" data-icon="stars"></div>
-        <span class="brand-name">FounderPilot</span>
+        <div class="brand-logo-icon" data-icon="stars"></div>
+        <span class="brand-logo-text">FounderPilot</span>
+      </div>
+      <div class="legal-identity-pill sidebar-legal" title="Реквизиты сервиса">
+        <span data-icon="credit-card"></span>
+        <span data-legal-inn>ИНН 713304603876</span>
       </div>
       <nav class="sidebar-nav">
         <button class="nav-item active" data-target="home">
@@ -48,7 +54,7 @@
           <div class="avatar" id="headerUserAvatar">F</div>
           <div class="meta">
             <span class="username">Мой аккаунт</span>
-            <span class="sub">Настройки & Лимиты</span>
+            <span class="sub">Настройки и лимиты</span>
           </div>
         </button>
       </div>
@@ -59,6 +65,7 @@
       <header class="mobile-header">
         <div class="header-left">
           <h1 id="pageTitle">Главная</h1>
+          <span class="mobile-legal-line" data-legal-inn>ИНН 713304603876</span>
         </div>
         <div class="header-right">
           <div class="avatar-clickable" data-target="profile" onclick="switchView('profile')">
@@ -69,76 +76,86 @@
 
       <section id="view-home" class="view active">
         <div class="view-scroll-container">
+          
           <header class="workspace-intro">
-            <h2 id="homeGreeting">Здравствуйте</h2>
-            <p class="section-subtitle">Интеллектуальная рабочая среда управления маркетплейсами и оптимизации бизнес-процессов.</p>
+            <h2 id="homeGreeting">Доброе утро, Александр</h2>
+            <p class="section-subtitle">Курс на ясность, фокус и рост.</p>
+            <div class="identity-ribbon">
+              <span data-owner-name>FounderPilot</span>
+              <span class="dot-separator"></span>
+              <button type="button" class="inline-copy-btn" data-copy-inn><span data-legal-inn>ИНН 713304603876</span></button>
+            </div>
           </header>
 
-          <div class="metrics-grid">
-            <div class="metric-card">
-              <div class="metric-header">
-                <span class="metric-title">Лимит запросов на сегодня</span>
-                <span class="metric-badge" id="creditsTodayText">0 / 0</span>
-              </div>
-              <div class="progress-bar">
-                <div class="progress-fill" id="creditsTodayFill" style="width: 0%"></div>
-              </div>
+          <div class="ref-metrics-card">
+            <div class="ref-metric-row">
+              <span class="ref-metric-label">Использование сегодня</span>
+              <span class="ref-metric-value" id="creditsTodayText">0 / 0</span>
             </div>
-            <div class="metric-card">
-              <div class="metric-header">
-                <span class="metric-title">Лимиты текущего периода</span>
-                <span class="metric-badge" id="creditsMonthText">0 / 0</span>
-              </div>
-              <div class="progress-bar">
-                <div class="progress-fill" id="creditsMonthFill" style="width: 0%"></div>
+            <div class="ref-progress-bar">
+              <div class="ref-progress-fill" id="creditsTodayFill" style="width: 0%"></div>
+            </div>
+            <div class="ref-metric-footer">
+              <span id="creditsMonthText">Лимит на месяц: 0 / 0</span>
+              <div class="ref-progress-bar mini-bar">
+                <div class="ref-progress-fill" id="creditsMonthFill" style="width: 0%"></div>
               </div>
             </div>
           </div>
 
-          <div class="quick-suggestions-wrapper">
-            <span class="tiny-label">Рекомендуемые сценарии</span>
-            <div class="quick-strip" id="quickStrip">
-              <button class="quick-pill" data-prompt="Рассчитай юнит-экономику: себестоимость 450₽, логистика 80₽, хранение 40₽, комиссия 15%, розничная цена 1200₽. Покажи чистую прибыль и ROI.">
-                <span data-icon="calculator"></span> Юнит-экономика
-              </button>
-              <button class="quick-pill" data-prompt="Сгенерируй оптимизированное SEO-описание по правилам алгоритмов 2026 года для карточки товара: Чехол для iPhone. Включи высокочастотные ключи.">
-                <span data-icon="edit"></span> SEO Карточки товара
-              </button>
-              <button class="quick-pill" data-prompt="Проведи глубокий аудит рыночной ниши автотоваров. Выдели топ-3 критических фактора упущенной выручки у конкурентов.">
-                <span data-icon="search"></span> Анализ ниши
-              </button>
-            </div>
-          </div>
-
+          <div class="ref-chat-block-title">Чем займёмся сегодня?</div>
+          
           <div class="chat-container">
             <div class="chat-scroll" id="homeChatScroll">
               <div class="chat-empty-state" id="chatEmptyState">
                 <div class="empty-icon-hexagon">
-                  <span data-icon="stars"></span>
+                  <span data-icon="message"></span>
                 </div>
-                <h3>Ассистент готов к работе</h3>
-                <p>Задайте прямой вопрос бизнес-аналитику или выберите необходимый шаблон во вкладке готовых инструментов.</p>
+                <h3>Спросите что угодно о вашем бизнесе</h3>
+                <p>Стратегия, воронки, аудит карточек или юнит-экономика — ИИ готов к вычислениям.</p>
               </div>
             </div>
 
             <div class="chat-composer-zone">
               <div class="composer-inner">
-                <textarea id="homeChatInput" rows="1" placeholder="Задайте вопрос AI или выберите инструмент..."></textarea>
+                <textarea id="homeChatInput" rows="1" placeholder="Задайте вопрос AI или выберите готовое действие..."></textarea>
                 <button id="homeChatSendBtn" class="send-btn" disabled>
                   <span data-icon="send"></span>
                 </button>
               </div>
             </div>
           </div>
+
+          <div class="quick-suggestions-wrapper">
+            <span class="tiny-label">Быстрые действия</span>
+            <div class="quick-strip" id="quickStrip">
+              <button class="quick-pill" data-prompt="Посчитай юнит-экономику товара: себестоимость 450р, логистика 80р, комиссия 15%, розничная цена 1200р.">
+                <span data-icon="calculator"></span> Юнит-экономика
+              </button>
+              <button class="quick-pill" data-prompt="Напиши продающее SEO-описание для карточки товара: Чехол для iPhone">
+                <span data-icon="edit"></span> SEO Карточки
+              </button>
+              <button class="quick-pill" data-prompt="Проанализируй сильные и слабые стороны конкурентов в нише автотоваров">
+                <span data-icon="search"></span> Анализ ниши
+              </button>
+            </div>
+          </div>
+
         </div>
       </section>
 
       <section id="view-tools" class="view">
         <div class="view-scroll-container">
           <header class="section-header-block">
-            <h2>Инструменты автоматизации</h2>
-            <p class="section-subtitle">Специализированные микро-модели, настроенные на выполнение регламентных бизнес-задач.</p>
+            <h2>Инструменты</h2>
+            <p class="section-subtitle">Подберите нужный ИИ-инструмент под вашу текущую задачу.</p>
           </header>
+          
+          <div class="ref-search-box">
+            <span class="search-icon" data-icon="search"></span>
+            <input type="text" id="toolsSearchInput" placeholder="Поиск инструментов...">
+          </div>
+
           <div class="tools-grid" id="toolsGrid"></div>
         </div>
       </section>
@@ -146,16 +163,26 @@
       <section id="view-history" class="view">
         <div class="view-scroll-container">
           <header class="section-header-block">
-            <h2>Протоколы генерации</h2>
-            <p class="section-subtitle">Архив выполненных вычислений, ответов ИИ и сохраненных операционных шаблонов.</p>
+            <h2>История</h2>
+            <p class="section-subtitle">Ваши запросы и результаты операционной работы с ИИ.</p>
           </header>
+
+          <div class="history-actions-panel">
+            <div class="ref-search-box compact-search">
+              <span class="search-icon" data-icon="search"></span>
+              <input type="text" id="historySearchInput" placeholder="Поиск по истории...">
+            </div>
+            <button type="button" class="ref-btn-outline slim" id="exportHistoryBtn">
+              <span data-icon="save"></span> Экспорт TXT
+            </button>
+          </div>
 
           <div class="filters-container">
             <div class="history-filters" id="historyFilters">
-              <button class="chip active" data-filter="all">Все записи</button>
-              <button class="chip" data-filter="favorites">Закладки</button>
+              <button class="chip active" data-filter="all">Все</button>
+              <button class="chip" data-filter="chat">Чаты</button>
               <button class="chip" data-filter="tools">Инструменты</button>
-              <button class="chip" data-filter="chat">Прямой чат</button>
+              <button class="chip" data-filter="favorites">Сохранённое</button>
             </div>
           </div>
 
@@ -166,70 +193,146 @@
       <section id="view-profile" class="view">
         <div class="view-scroll-container">
           <header class="section-header-block">
-            <h2>Личный кабинет</h2>
+            <h2>Профиль</h2>
+            <p class="section-subtitle">Управление аккаунтом, подпиской и юридическими параметрами.</p>
           </header>
 
-          <div class="profile-account-card">
-            <div class="profile-avatar-row">
-              <div class="avatar large-avatar" id="profileUserAvatar">F</div>
-              <div class="profile-identity">
-                <h3 id="profileUserTitle">Пользователь</h3>
-                <span class="user-id-badge" id="profileUserSubtitle">ID: --</span>
+          <div class="ref-profile-user-card">
+            <div class="ref-avatar-large" id="profileUserAvatar">F</div>
+            <div class="ref-user-meta">
+              <h3 id="profileUserTitle">Пользователь</h3>
+              <span id="profileUserSubtitle">ID: --</span>
+            </div>
+          </div>
+
+          <div class="legal-summary-card">
+            <div>
+              <span class="micro-label">Реквизиты сервиса</span>
+              <strong data-legal-inn>ИНН 713304603876</strong>
+              <small>Показывается на всех экранах и используется для ЮKassa/документов.</small>
+            </div>
+            <button type="button" class="ref-btn-outline slim" data-copy-inn>Скопировать</button>
+          </div>
+
+          <div class="ref-settings-block-title">Рабочее пространство</div>
+          <div class="ref-card-settings workspace-card">
+            <p class="field-description">Создавайте отдельные проекты, чтобы FounderPilot давал ответы с нужным бизнес-контекстом.</p>
+            <div class="workspace-form-grid">
+              <input type="text" id="projectTitleInput" class="ref-form-input" placeholder="Название проекта, например WB магазин">
+              <input type="text" id="projectNicheInput" class="ref-form-input" placeholder="Ниша / сфера">
+              <input type="text" id="projectGoalInput" class="ref-form-input wide" placeholder="Главная цель: поднять маржу, проверить рекламу, найти товар...">
+            </div>
+            <div class="ref-action-row mt-12">
+              <button class="ref-btn-black" id="saveWorkspaceBtn" type="button"><span data-icon="save"></span> Сохранить проект</button>
+            </div>
+            <div class="workspace-list" id="projectList"></div>
+          </div>
+
+          <div class="ref-settings-block-title">Память AI</div>
+          <div class="ref-card-settings">
+            <p class="field-description">Факты из памяти автоматически подмешиваются в ответы: товар, ЦА, маржа, позиционирование, ограничения.</p>
+            <div class="inline-input-action">
+              <input type="text" id="memoryInput" class="ref-form-input" placeholder="Например: основной товар — автодержатели для телефона">
+              <button type="button" id="addMemoryBtn" class="ref-btn-black compact">Добавить</button>
+            </div>
+            <div class="memory-list" id="memoryList"></div>
+          </div>
+
+          <div class="ref-settings-block-title">Мои шаблоны</div>
+          <div class="ref-card-settings">
+            <p class="field-description">Сохраните свои частые промпты и запускайте их одним нажатием.</p>
+            <div class="workspace-form-grid">
+              <input type="text" id="templateTitleInput" class="ref-form-input" placeholder="Название шаблона">
+              <input type="text" id="templatePromptInput" class="ref-form-input wide" placeholder="Текст промпта">
+            </div>
+            <div class="ref-action-row mt-12">
+              <button type="button" id="saveTemplateBtn" class="ref-btn-outline">Сохранить шаблон</button>
+            </div>
+            <div class="template-list" id="templateList"></div>
+          </div>
+
+          <div class="ref-settings-block-title">Тарифный план</div>
+          <div class="ref-premium-status-card">
+            <div class="status-top">
+              <div class="status-title-box">
+                <span class="status-plan-name" id="profilePlanLabel">FounderPilot Pro</span>
+                <span class="status-badge-active">Активен</span>
+              </div>
+              <button class="btn-premium-action" id="openBillingBtn">Управление подпиской</button>
+            </div>
+            
+            <div class="status-quota-inside">
+              <div class="quota-text-row">
+                <span>Доступно сегодня:</span>
+                <strong id="profileCreditsTodayText">0 / 0</strong>
+              </div>
+              <div class="ref-progress-bar">
+                <div class="ref-progress-fill" id="profileCreditsTodayFill" style="width: 0%"></div>
+              </div>
+              <div class="quota-text-row mt-8">
+                <span>Доступно в этом месяце:</span>
+                <strong id="profileCreditsMonthText">0 / 0</strong>
+              </div>
+              <div class="ref-progress-bar">
+                <div class="ref-progress-fill" id="profileCreditsMonthFill" style="width: 0%"></div>
               </div>
             </div>
+          </div>
 
-            <div class="plan-status-row">
-              <div class="plan-badge-zone">
-                <span class="plan-label-tag">Текущий тариф</span>
-                <span class="plan-value" id="profilePlanLabel">FREE</span>
-              </div>
-              <button class="btn-premium" id="openBillingBtn">
-                <span data-icon="stars"></span> Изменить тариф
+          <div class="ref-settings-block-title">Докупка кредитов</div>
+          <div class="ref-card-settings">
+            <p class="field-description">Пакеты нужны, если подписки не хватает, но тариф повышать пока не хочется.</p>
+            <div class="credit-pack-list" id="creditPackList"></div>
+          </div>
+
+          <div class="ref-settings-block-title">Мини-аналитика</div>
+          <div class="ref-card-settings analytics-card" id="analyticsMini">
+            <div><span>Пользователи</span><strong>—</strong></div>
+            <div><span>Оплатившие</span><strong>—</strong></div>
+            <div><span>Запросы сегодня</span><strong>—</strong></div>
+          </div>
+
+          <div class="ref-settings-block-title">Уведомления</div>
+          <div class="ref-card-settings settings-list-card">
+            <label class="toggle-row"><span><strong>Лимиты</strong><small>Сообщать, когда кредиты почти закончились</small></span><input type="checkbox" id="notifyLimitToggle" checked></label>
+            <label class="toggle-row"><span><strong>Оплата</strong><small>Платежи, подписки и начисления</small></span><input type="checkbox" id="notifyBillingToggle" checked></label>
+            <label class="toggle-row"><span><strong>Обновления</strong><small>Новые функции без спама</small></span><input type="checkbox" id="notifyProductToggle"></label>
+            <div class="ref-action-row mt-12"><button type="button" id="saveNotificationsBtn" class="ref-btn-outline">Сохранить уведомления</button></div>
+          </div>
+
+          <div class="ref-settings-block-title">Бизнес-профиль и реквизиты</div>
+          <div class="ref-card-settings">
+            <div class="ref-input-group">
+              <label class="ref-input-label">Наименование организации / ИП</label>
+              <input type="text" id="profileCompanyName" class="ref-form-input" placeholder="ООО Компания или ИП Иванов">
+            </div>
+            <div class="ref-input-group mt-12">
+              <label class="ref-input-label">ИНН для подключения ЮKassa</label>
+              <input type="text" id="profileInn" class="ref-form-input" placeholder="Укажите 10 или 12-значный ИНН" value="713304603876">
+              <small class="input-hint">Текущий ИНН: <span data-legal-inn>ИНН 713304603876</span></small>
+            </div>
+            <div class="ref-input-group mt-12">
+              <label class="ref-input-label">Контекст компании для ИИ</label>
+              <textarea id="profileBusinessDescription" class="ref-form-textarea" placeholder="Опишите нишу, товары, обороты..."></textarea>
+            </div>
+            <div class="ref-action-row mt-12">
+              <button class="ref-btn-black" id="saveProfileBtn">
+                <span data-icon="save"></span> Сохранить параметры
               </button>
             </div>
           </div>
 
-          <div class="cabinet-block-title">Расход лимитов (кредиты)</div>
-          <div class="metrics-grid">
-            <div class="metric-card">
-              <div class="metric-header">
-                <span class="metric-title">Доступно сегодня</span>
-                <span class="metric-badge" id="profileCreditsTodayText">0 / 0</span>
-              </div>
-              <div class="progress-bar">
-                <div class="progress-fill" id="profileCreditsTodayFill" style="width: 0%"></div>
-              </div>
+          <div class="ref-settings-block-title">Техническая поддержка</div>
+          <div class="ref-card-settings">
+            <div class="ref-input-group">
+              <label class="ref-input-label">Обратная связь</label>
+              <textarea id="appFeedbackText" class="ref-form-textarea" placeholder="Опишите ваше предложение или баг..."></textarea>
             </div>
-            <div class="metric-card">
-              <div class="metric-header">
-                <span class="metric-title">Доступно в этом месяце</span>
-                <span class="metric-badge" id="profileCreditsMonthText">0 / 0</span>
-              </div>
-              <div class="progress-bar">
-                <div class="progress-fill" id="profileCreditsMonthFill" style="width: 0%"></div>
-              </div>
+            <div class="ref-action-row mt-12">
+              <button class="ref-btn-outline" id="submitAppFeedbackBtn">Отправить отзыв</button>
             </div>
           </div>
 
-          <div class="cabinet-block-title">Глобальный контекст компании</div>
-          <div class="settings-card">
-            <p class="field-description">Эти данные автоматически интегрируются во все запросы к нейросети, гарантируя экспертные ответы без постоянного ввода базовых вводных.</p>
-            <textarea id="profileBusinessDescription" class="form-textarea" placeholder="Укажите: Обороты, нишу, маркетплейсы, цели продвижения, чтобы ИИ давал кастомизированные ответы..."></textarea>
-            <div class="action-row-right">
-              <button class="btn-primary" id="saveProfileBtn">
-                <span data-icon="save"></span> Обновить контекст
-              </button>
-            </div>
-          </div>
-
-          <div class="cabinet-block-title">Техническая поддержка</div>
-          <div class="settings-card">
-            <p class="field-description">Столкнулись с проблемой или хотите предложить функцию? Опишите детали.</p>
-            <textarea id="appFeedbackText" class="form-textarea" placeholder="Опишите ваше предложение или баг..."></textarea>
-            <div class="action-row-right">
-              <button class="btn-secondary" id="submitAppFeedbackBtn">Отправить отзыв</button>
-            </div>
-          </div>
         </div>
       </section>
 
@@ -260,21 +363,15 @@
     <div class="modal-sheet">
       <div class="modal-header">
         <h3 id="billingTitle">Выбор тарифа</h3>
-        <button id="closeBillingBtn" class="modal-close-btn">
-          <span data-icon="close"></span>
-        </button>
+        <button id="closeBillingBtn" class="modal-close-btn"><span data-icon="close"></span></button>
       </div>
-
       <div class="modal-scroll-content">
         <div id="billingError" class="error-banner-zone" hidden></div>
         <div id="billingPlanList" class="plans-layout-stack"></div>
-
         <div id="paymentProviderBox" class="providers-layout-zone" hidden>
-          <p class="provider-intro-text">Выберите способ проведения безопасного платежа:</p>
+          <p class="provider-intro-text">Выберите удобный шлюз оплаты:</p>
           <div id="providerList" class="providers-stack"></div>
-          <button id="backToPlansBtn" class="btn-text-back">
-            <span data-icon="back"></span> Вернуться к выбору тарифов
-          </button>
+          <button id="backToPlansBtn" class="btn-text-back"><span data-icon="back"></span> К выбору тарифов</button>
         </div>
       </div>
     </div>
@@ -289,13 +386,11 @@
           <span class="dot"></span>
         </div>
       </div>
-
       <div class="modal-scroll-content">
         <h2 class="onboarding-step-title" id="onboardingTitle">Конфигурация окружения</h2>
         <div id="onboardingError" class="error-banner-zone mb-16" hidden></div>
         <div id="onboardingBody" class="onboarding-interactive-body"></div>
       </div>
-
       <div class="modal-footer-actions">
         <button id="onboardingBackBtn" class="btn-secondary" disabled type="button">Назад</button>
         <button id="onboardingNextBtn" class="btn-primary" type="button">Продолжить</button>
@@ -305,6 +400,6 @@
 
   <div id="toast" class="toast-component">Оповещение</div>
 
-  <script src="/static/app.js?v=reborn-3"></script>
+  <script src="/static/app.js?v=business-inn-2"></script>
 </body>
 </html>

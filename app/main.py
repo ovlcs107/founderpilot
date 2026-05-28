@@ -126,6 +126,7 @@ class TonVerifyRequest(BaseModel):
 
 
 class BusinessProfileRequest(BaseModel):
+    inn: str | None = Field(default=None, max_length=32)
     user_type: str | None = None
     main_goal: str | None = None
     business_name: str | None = None
@@ -456,6 +457,11 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     async def mini_app() -> FileResponse:
         return FileResponse("static/index.html")
 
+    @app.get("/legal", include_in_schema=False)
+    @app.get("/requisites", include_in_schema=False)
+    async def legal_page() -> FileResponse:
+        return FileResponse("static/legal.html")
+
     @app.get("/api/modes")
     async def modes() -> dict[str, Any]:
         return {
@@ -530,7 +536,9 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     async def profile_save(request: Request, user: TelegramUser = Depends(current_user)) -> dict[str, Any]:
         raw = await request.json()
         description = raw.get("business_profile") or raw.get("description") or raw.get("text")
-        payload = {"description": description}
+        company_name = raw.get("company_name") or raw.get("company") or raw.get("business_name")
+        inn = raw.get("inn")
+        payload = {"description": description, "business_name": company_name, "inn": inn}
         profile_data = await db.upsert_business_profile(user.id, payload)
         return {"ok": True, "profile": profile_data}
 

@@ -130,6 +130,7 @@ CREATE TABLE IF NOT EXISTS business_profiles (
     average_price TEXT,
     description TEXT,
     main_problem TEXT,
+    inn TEXT,
     created_at TEXT NOT NULL,
     updated_at TEXT NOT NULL
 );
@@ -367,6 +368,7 @@ BUSINESS_PROFILE_ADD_COLUMNS = {
     "average_price": "ALTER TABLE business_profiles ADD COLUMN average_price TEXT",
     "description": "ALTER TABLE business_profiles ADD COLUMN description TEXT",
     "main_problem": "ALTER TABLE business_profiles ADD COLUMN main_problem TEXT",
+    "inn": "ALTER TABLE business_profiles ADD COLUMN inn TEXT",
     "updated_at": "ALTER TABLE business_profiles ADD COLUMN updated_at TEXT",
 }
 
@@ -1346,6 +1348,7 @@ class Database:
             "average_price",
             "description",
             "main_problem",
+            "inn",
         }
         data = {key: (str(payload.get(key)).strip() if payload.get(key) is not None else None) for key in allowed}
         async with aiosqlite.connect(self.path) as db:
@@ -1353,9 +1356,9 @@ class Database:
                 """
                 INSERT INTO business_profiles (
                     telegram_user_id, user_type, main_goal, business_name, niche, marketplace,
-                    target_audience, average_price, description, main_problem, created_at, updated_at
+                    target_audience, average_price, description, main_problem, inn, created_at, updated_at
                 )
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 ON CONFLICT(telegram_user_id) DO UPDATE SET
                     user_type=excluded.user_type,
                     main_goal=excluded.main_goal,
@@ -1366,6 +1369,7 @@ class Database:
                     average_price=excluded.average_price,
                     description=excluded.description,
                     main_problem=excluded.main_problem,
+                    inn=excluded.inn,
                     updated_at=excluded.updated_at
                 """,
                 (
@@ -1379,6 +1383,7 @@ class Database:
                     data["average_price"],
                     data["description"],
                     data["main_problem"],
+                    data["inn"],
                     now,
                     now,
                 ),
