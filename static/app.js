@@ -47,23 +47,27 @@ const state = {
   onboardingData: {},
   orderPollTimer: null,
   toastTimer: null,
-  
+
   onboardingConfig: [
-    { id: "role", title: "Чем вы занимаетесь?", type: "choices", options: [
-      { key: "wb_seller", label: "Селлер WB/Ozon" },
-      { key: "entrepreneur", label: "Предприниматель" },
-      { key: "marketer", label: "Маркетолог" },
-      { key: "beginner", label: "Новичок" },
-      { key: "other", label: "Другое" }
-    ]},
-    { id: "pain", title: "Что хотите улучшить?", type: "choices", options: [
-      { key: "sales", label: "Продажи" },
-      { key: "cards", label: "Карточки товара" },
-      { key: "ads", label: "Рекламу" },
-      { key: "ideas", label: "Идеи товара" },
-      { key: "strategy", label: "Стратегию" },
-      { key: "unit", label: "Расчёты" }
-    ]},
+    {
+      id: "role", title: "Чем вы занимаетесь?", type: "choices", options: [
+        { key: "wb_seller", label: "Селлер WB/Ozon" },
+        { key: "entrepreneur", label: "Предприниматель" },
+        { key: "marketer", label: "Маркетолог" },
+        { key: "beginner", label: "Новичок" },
+        { key: "other", label: "Другое" }
+      ]
+    },
+    {
+      id: "pain", title: "Что хотите улучшить?", type: "choices", options: [
+        { key: "sales", label: "Продажи" },
+        { key: "cards", label: "Карточки товара" },
+        { key: "ads", label: "Рекламу" },
+        { key: "ideas", label: "Идеи товара" },
+        { key: "strategy", label: "Стратегию" },
+        { key: "unit", label: "Расчёты" }
+      ]
+    },
     { id: "desc", title: "Коротко опишите бизнес", type: "textarea", placeholder: "Например: продаю автотовары на WB, хочу поднять маржу" }
   ]
 };
@@ -106,12 +110,12 @@ function getTelegramUserId() {
 async function apiRequest(url, options = {}) {
   const headers = { "Content-Type": "application/json" };
   if (tg?.initData) headers["X-Telegram-Init-Data"] = tg.initData;
-  
+
   const res = await fetch(url, { ...options, headers: { ...headers, ...options.headers } });
   const text = await res.text();
   let data = null;
   try { data = JSON.parse(text); } catch { data = { detail: text }; }
-  
+
   if (!res.ok || data?.ok === false) {
     throw new Error(data?.error || data?.detail || data?.message || "Ошибка сервера");
   }
@@ -146,7 +150,7 @@ function normalizeUserResponse(data) {
   if (root.remaining_credits_month !== undefined && monthlyLimit) {
     monthlyUsed = Math.max(0, monthlyLimit - Number(root.remaining_credits_month));
   }
-  
+
   return {
     telegram_id: root.telegram_id || root.id || tgUser.id || "dev",
     first_name: root.first_name || root.name || tgUser.first_name || "Пользователь",
@@ -237,13 +241,13 @@ function updateSendButton() {
 function switchView(target) {
   document.querySelectorAll(".view").forEach(v => v.classList.remove("active"));
   document.querySelectorAll(".nav-item").forEach(b => b.classList.toggle("active", b.dataset.target === target));
-  
+
   const v = $(`view-${target}`);
   if (v) v.classList.add("active");
-  
+
   const titles = { home: "Главная", tools: "Инструменты", history: "История", profile: "Профиль" };
   if ($("pageTitle")) $("pageTitle").textContent = titles[target] || "FounderPilot";
-  
+
   state.activeView = target;
   if (target === "tools" && !state.tools.length) loadTools();
   if (target === "history" && !state.history.length) loadHistory();
@@ -252,13 +256,13 @@ function switchView(target) {
 function updateCreditsUI() {
   if (!state.user) return;
   const u = state.user;
-  
+
   const format = (used, limit) => {
     if (!limit) return "Безлимит";
     const remain = Math.max(0, limit - used);
     return `${remain} / ${limit}`;
   };
-  
+
   const calcPct = (used, limit) => limit ? Math.min(100, (used / limit) * 100) : 0;
 
   const tTxt = format(u.daily_used, u.daily_limit);
@@ -268,13 +272,13 @@ function updateCreditsUI() {
 
   if ($("creditsTodayText")) $("creditsTodayText").textContent = tTxt;
   if ($("creditsTodayFill")) $("creditsTodayFill").style.width = `${tPct}%`;
-  
+
   if ($("creditsMonthText")) $("creditsMonthText").textContent = mTxt;
   if ($("creditsMonthFill")) $("creditsMonthFill").style.width = `${mPct}%`;
-  
+
   if ($("profileCreditsTodayText")) $("profileCreditsTodayText").textContent = tTxt;
   if ($("profileCreditsTodayFill")) $("profileCreditsTodayFill").style.width = `${tPct}%`;
-  
+
   if ($("profileCreditsMonthText")) $("profileCreditsMonthText").textContent = mTxt;
   if ($("profileCreditsMonthFill")) $("profileCreditsMonthFill").style.width = `${mPct}%`;
 }
@@ -283,7 +287,7 @@ function updateProfileUI() {
   if (!state.user) return;
   const u = state.user;
   const initial = u.first_name.charAt(0).toUpperCase() || "F";
-  
+
   if ($("homeGreeting")) $("homeGreeting").textContent = `Здравствуйте, ${u.first_name}`;
   if ($("headerUserAvatar")) $("headerUserAvatar").textContent = initial;
   if ($("mobileHeaderAvatar")) $("mobileHeaderAvatar").textContent = initial;
@@ -292,7 +296,7 @@ function updateProfileUI() {
   if ($("profileUserSubtitle")) $("profileUserSubtitle").textContent = `ID: ${u.telegram_id}`;
   if ($("profilePlanLabel")) $("profilePlanLabel").textContent = String(u.plan).toUpperCase();
   if ($("profileBusinessDescription")) $("profileBusinessDescription").value = u.business_profile;
-  
+
   updateCreditsUI();
 }
 
@@ -306,29 +310,29 @@ function autoResizeTextarea(el) {
 function appendMessage(role, text, id = null) {
   const scroll = $("homeChatScroll");
   if (!scroll) return null;
-  
+
   const empty = $("chatEmptyState");
   if (empty) empty.remove();
-  
+
   const wrap = document.createElement("div");
   wrap.className = `msg ${role}`;
   if (id) wrap.id = id;
-  
+
   const txtDiv = document.createElement("div");
-  txtDiv.textContent = text; 
+  txtDiv.textContent = text;
   wrap.appendChild(txtDiv);
-  
+
   if (role === "bot" && text !== "FounderPilot готовит ответ...") {
     const act = document.createElement("div");
     act.className = "message-actions";
-    
+
     const copyBtn = document.createElement("button");
     copyBtn.type = "button";
     copyBtn.innerHTML = `<span data-icon="copy"></span> Скопировать`;
     copyBtn.addEventListener("click", () => {
       navigator.clipboard.writeText(text).then(() => showToast("Скопировано"));
     });
-    
+
     const saveBtn = document.createElement("button");
     saveBtn.type = "button";
     saveBtn.innerHTML = `<span data-icon="save"></span> Сохранить`;
@@ -345,16 +349,16 @@ function appendMessage(role, text, id = null) {
     shorterBtn.type = "button";
     shorterBtn.innerHTML = `<span data-icon="edit"></span> Короче`;
     shorterBtn.addEventListener("click", () => {
-        const input = $("homeChatInput");
-        if(input) { input.value = "Сделай ответ короче"; input.focus(); autoResizeTextarea(input); updateSendButton(); }
+      const input = $("homeChatInput");
+      if (input) { input.value = "Сделай ответ короче"; input.focus(); autoResizeTextarea(input); updateSendButton(); }
     });
 
     const detailsBtn = document.createElement("button");
     detailsBtn.type = "button";
     detailsBtn.innerHTML = `<span data-icon="search"></span> Подробнее`;
     detailsBtn.addEventListener("click", () => {
-        const input = $("homeChatInput");
-        if(input) { input.value = "Распиши подробнее"; input.focus(); autoResizeTextarea(input); updateSendButton(); }
+      const input = $("homeChatInput");
+      if (input) { input.value = "Распиши подробнее"; input.focus(); autoResizeTextarea(input); updateSendButton(); }
     });
 
     act.appendChild(copyBtn);
@@ -363,7 +367,7 @@ function appendMessage(role, text, id = null) {
     act.appendChild(detailsBtn);
     wrap.appendChild(act);
   }
-  
+
   scroll.appendChild(wrap);
   scroll.scrollTop = scroll.scrollHeight;
   injectIcons(wrap);
@@ -374,34 +378,34 @@ async function handleChatSend() {
   const input = $("homeChatInput");
   const text = input?.value.trim();
   if (!text || state.isSending) return;
-  
+
   state.isSending = true;
   $("homeChatSendBtn").disabled = true;
   input.value = "";
   autoResizeTextarea(input);
-  
+
   appendMessage("user", text);
   const sysId = `sys_${Date.now()}`;
   appendMessage("system", "FounderPilot готовит ответ...", sysId);
-  
+
   try {
     const payload = { telegram_user_id: getTelegramUserId(), message: text, text: text, mode: "chat" };
     const res = await apiTry("/api/chat", "/api/ask", { method: "POST", body: JSON.stringify(payload) });
-    
+
     $(sysId)?.remove();
     const answer = res.answer || res.response || res.result || res.text || "Пустой ответ";
     appendMessage("bot", answer);
-    
+
     if (state.user) {
       if (res.usage?.credits_used_today !== undefined) state.user.daily_used = res.usage.credits_used_today;
       else if (res.used_today !== undefined) state.user.daily_used = res.used_today;
       else if (res.usage?.daily_used !== undefined) state.user.daily_used = res.usage.daily_used;
-      
+
       if (res.usage?.credits_used_month !== undefined) state.user.monthly_used = res.usage.credits_used_month;
       else if (res.credits_used_month !== undefined) state.user.monthly_used = res.credits_used_month;
       else if (res.used_period !== undefined) state.user.monthly_used = res.used_period;
       else if (res.usage?.used_period !== undefined) state.user.monthly_used = res.usage.used_period;
-      
+
       updateCreditsUI();
     }
   } catch (err) {
@@ -472,9 +476,9 @@ async function loadHistory() {
 function renderHistory() {
   const list = $("historyList");
   if (!list) return;
-  
+
   let filtered = state.history;
-  
+
   if (state.historyFilter === "favorites") {
     filtered = state.history.filter(h => h.is_saved || h.is_favorite || h.type === "saved" || h.type === "favorites");
   } else if (state.historyFilter === "tools") {
@@ -485,7 +489,7 @@ function renderHistory() {
   } else if (state.historyFilter !== "all") {
     filtered = state.history.filter(h => String(h.mode || h.type || "").toLowerCase() === state.historyFilter);
   }
-  
+
   if (!filtered.length) {
     list.innerHTML = `
       <div class="loading-state" style="border:none;">
@@ -496,7 +500,7 @@ function renderHistory() {
     injectIcons(list);
     return;
   }
-  
+
   list.innerHTML = filtered.map(h => {
     const type = String(h.mode || h.type || "chat").toUpperCase();
     const title = h.title || h.prompt || h.text || "Запрос";
@@ -534,19 +538,19 @@ function openBillingModal() {
   const m = $("billingModal");
   if (!m) return;
   m.hidden = false;
-  
+
   const list = $("billingPlanList");
   const pBox = $("paymentProviderBox");
   list.hidden = false;
   pBox.hidden = true;
   $("billingTitle").textContent = "Выбор тарифа";
-  
+
   const keys = Object.keys(state.plans || {});
   if (!keys.length) {
     list.innerHTML = `<div class="loading-state">Тарифы временно недоступны.</div>`;
     return;
   }
-  
+
   list.innerHTML = keys.map(k => {
     const p = state.plans[k];
     const isCurrent = state.user && String(state.user.plan).toLowerCase() === k.toLowerCase();
@@ -573,24 +577,24 @@ function selectPlan(key) {
   state.activePlanKey = key;
   const p = state.plans[key];
   if (!p) return;
-  
+
   $("billingPlanList").hidden = true;
   $("paymentProviderBox").hidden = false;
   $("billingTitle").textContent = `Оплата: ${p.title}`;
   $("billingError").hidden = true;
-  
+
   const provList = $("providerList");
   const providers = getPlanProviders(p);
-  
+
   provList.innerHTML = providers.map(pr => {
     const id = String(pr.id || pr.provider).toLowerCase();
-    
+
     let icon = "credit-card";
     if (id.includes("star")) icon = "stars";
     if (id.includes("sbp") || id.includes("yookassa")) icon = "target";
     if (id.includes("ton")) icon = "ton";
     if (id.includes("btc")) icon = "btc";
-    
+
     return `
       <button class="provider-btn" data-provider="${escapeHTML(id)}" type="button">
         <span class="provider-icon" data-icon="${icon}"></span>
@@ -602,7 +606,7 @@ function selectPlan(key) {
       </button>
     `;
   }).join("");
-  
+
   injectIcons(provList);
 }
 
@@ -610,14 +614,14 @@ async function checkout(providerId) {
   const errEl = $("billingError");
   errEl.hidden = true;
   showToast("Создание платежа...");
-  
+
   try {
     const payload = { plan: state.activePlanKey, provider: providerId, telegram_user_id: getTelegramUserId() };
     const res = await apiTry("/api/billing/create-order", "/api/billing/checkout", { method: "POST", body: JSON.stringify(payload) });
-    
+
     const link = res.invoice_link || res.invoice_url || res.payment_url || res.url;
     const orderId = res.order_id || res.id;
-    
+
     if ((providerId.includes("star")) && link && tg?.openInvoice) {
       tg.openInvoice(link, (status) => {
         if (status === "paid") { showToast("Оплата прошла"); loadMe(); $("billingModal").hidden = true; }
@@ -625,7 +629,7 @@ async function checkout(providerId) {
       });
       return;
     }
-    
+
     if (link) {
       if (tg?.openLink) tg.openLink(link);
       else window.open(link, "_blank");
@@ -633,7 +637,7 @@ async function checkout(providerId) {
       $("billingModal").hidden = true;
       return;
     }
-    
+
     if (res.ok || res.success) {
       showToast("Успешно");
       loadMe();
@@ -679,54 +683,68 @@ function openOnboarding() {
 function renderOnboardingStep() {
   const cfg = state.onboardingConfig[state.onboardingStep];
   if (!cfg) return;
-  
+
   $("onboardingTitle").textContent = cfg.title;
   $("onboardingError").hidden = true;
-  
+
   const dots = $("onboardingProgressRow")?.querySelectorAll("span");
-  if (dots) dots.forEach((d, i) => d.classList.toggle("active", i <= state.onboardingStep));
-  
+  if (dots) {
+    dots.forEach((d, i) => d.classList.toggle("active", i <= state.onboardingStep));
+  }
+
   const body = $("onboardingBody");
+  if (!body) return;
   body.innerHTML = "";
-  
+
   if (cfg.type === "textarea") {
     const ta = document.createElement("textarea");
     ta.className = "form-textarea";
     ta.rows = 4;
-    ta.placeholder = cfg.placeholder;
+    ta.placeholder = cfg.placeholder || "";
     ta.value = state.onboardingData[cfg.id] || "";
-    ta.oninput = () => state.onboardingData[cfg.id] = ta.value;
+    ta.oninput = () => { state.onboardingData[cfg.id] = ta.value; };
     body.appendChild(ta);
   } else {
-    cfg.options.forEach(o => {
-      const b = document.createElement("button");
-      b.className = `choice-btn ${state.onboardingData[cfg.id] === o.key ? 'active' : ''}`;
-      b.textContent = o.label;
-      b.onclick = () => { state.onboardingData[cfg.id] = o.key; renderOnboardingStep(); };
-      body.appendChild(b);
-    });
+    // Безопасный рендер кнопок выбора
+    if (Array.isArray(cfg.options)) {
+      cfg.options.forEach(o => {
+        const b = document.createElement("button");
+        b.type = "button";
+        b.className = `choice-btn ${state.onboardingData[cfg.id] === o.key ? 'active' : ''}`;
+        b.textContent = o.label;
+        b.onclick = () => {
+          state.onboardingData[cfg.id] = o.key;
+          renderOnboardingStep();
+        };
+        body.appendChild(b);
+      });
+    }
   }
-  
-  $("onboardingBackBtn").disabled = state.onboardingStep === 0;
-  $("onboardingNextBtn").textContent = state.onboardingStep === state.onboardingConfig.length - 1 ? "Завершить" : "Продолжить";
+
+  if ($("onboardingBackBtn")) {
+    $("onboardingBackBtn").disabled = state.onboardingStep === 0;
+  }
+  if ($("onboardingNextBtn")) {
+    $("onboardingNextBtn").textContent = state.onboardingStep === state.onboardingConfig.length - 1 ? "Завершить" : "Продолжить";
+  }
 }
 
 async function nextOnboarding() {
   const cfg = state.onboardingConfig[state.onboardingStep];
   const val = state.onboardingData[cfg.id];
-  
+
   if (!val || !String(val).trim()) {
     $("onboardingError").textContent = "Пожалуйста, заполните это поле.";
     $("onboardingError").hidden = false;
     return;
   }
-  
+
   if (state.onboardingStep < state.onboardingConfig.length - 1) {
     state.onboardingStep++;
     renderOnboardingStep();
     return;
   }
-  
+
   $("onboardingNextBtn").disabled = true;
   try {
     await apiRequest("/api/onboarding", { method: "POST", body: JSON.stringify(state.onboardingData) });
@@ -748,7 +766,7 @@ function bindEvents() {
     b.addEventListener("click", () => switchView(b.dataset.target));
   });
   $("headerProfileBtn")?.addEventListener("click", () => switchView("profile"));
-  
+
   // Chat
   const chatInput = $("homeChatInput");
   const chatBtn = $("homeChatSendBtn");
@@ -762,7 +780,7 @@ function bindEvents() {
     });
     chatBtn.addEventListener("click", handleChatSend);
   }
-  
+
   // Quick Actions & Tools
   $("quickStrip")?.addEventListener("click", e => {
     const b = e.target.closest(".quick-pill");
@@ -770,9 +788,9 @@ function bindEvents() {
   });
   $("toolsGrid")?.addEventListener("click", e => {
     const r = e.target.closest(".tool-card");
-    if (r) { switchView("home"); if(chatInput) { chatInput.value = r.dataset.prompt; chatInput.focus(); autoResizeTextarea(chatInput); updateSendButton(); } }
+    if (r) { switchView("home"); if (chatInput) { chatInput.value = r.dataset.prompt; chatInput.focus(); autoResizeTextarea(chatInput); updateSendButton(); } }
   });
-  
+
   // History Filters
   $("historyFilters")?.addEventListener("click", e => {
     const b = e.target.closest(".chip");
@@ -782,32 +800,32 @@ function bindEvents() {
     state.historyFilter = b.dataset.filter;
     renderHistory();
   });
-  
+
   // Profile Forms
   $("saveProfileBtn")?.addEventListener("click", async () => {
     const text = $("profileBusinessDescription")?.value.trim();
     try {
       await apiTry("/api/profile/save", "/api/business-profile", { method: "POST", body: JSON.stringify({ telegram_user_id: getTelegramUserId(), business_profile: text, description: text }) });
-      if(state.user) state.user.business_profile = text;
+      if (state.user) state.user.business_profile = text;
       showToast("Контекст сохранён");
-    } catch(err) { showToast(err.message); }
+    } catch (err) { showToast(err.message); }
   });
-  
+
   $("submitAppFeedbackBtn")?.addEventListener("click", async () => {
     const text = $("appFeedbackText")?.value.trim();
-    if(!text) return;
+    if (!text) return;
     try {
       await apiRequest("/api/feedback", { method: "POST", body: JSON.stringify({ telegram_user_id: getTelegramUserId(), message: text, type: "app" }) });
       $("appFeedbackText").value = "";
       showToast("Спасибо за отзыв");
-    } catch(err) { showToast(err.message); }
+    } catch (err) { showToast(err.message); }
   });
-  
+
   // Modals
   $("openBillingBtn")?.addEventListener("click", openBillingModal);
   $("closeBillingBtn")?.addEventListener("click", () => $("billingModal").hidden = true);
-  $("backToPlansBtn")?.addEventListener("click", () => { $("paymentProviderBox").hidden = true; $("billingPlanList").hidden = false; $("billingTitle").textContent = "Выбор тарифа";});
-  
+  $("backToPlansBtn")?.addEventListener("click", () => { $("paymentProviderBox").hidden = true; $("billingPlanList").hidden = false; $("billingTitle").textContent = "Выбор тарифа"; });
+
   $("billingPlanList")?.addEventListener("click", e => {
     const b = e.target.closest(".plan-card");
     if (b) selectPlan(b.dataset.plan);
@@ -816,8 +834,8 @@ function bindEvents() {
     const b = e.target.closest(".provider-btn");
     if (b) checkout(b.dataset.provider);
   });
-  
-  $("onboardingBackBtn")?.addEventListener("click", () => { if(state.onboardingStep > 0) { state.onboardingStep--; renderOnboardingStep(); } });
+
+  $("onboardingBackBtn")?.addEventListener("click", () => { if (state.onboardingStep > 0) { state.onboardingStep--; renderOnboardingStep(); } });
   $("onboardingNextBtn")?.addEventListener("click", nextOnboarding);
 }
 
@@ -830,9 +848,9 @@ async function boot() {
     if (tg.setHeaderColor) tg.setHeaderColor("bg_color");
     if (tg.setBackgroundColor) tg.setBackgroundColor("bg_color");
   }
-  
+
   bindEvents();
-  
+
   await Promise.allSettled([
     loadMe(),
     loadTools(),
