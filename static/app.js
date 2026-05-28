@@ -69,7 +69,6 @@ const state = {
   ]
 };
 
-
 Object.assign(state, {
   projects: [],
   activeProject: null,
@@ -220,12 +219,12 @@ function normalizeHistoryResponse(data) {
 
 function getFallbackTools() {
   return [
-    { id: "margin", title: "Расчёт маржи", description: "Быстрая юнит-экономика и прогноз рентабельности", prompt_template: "Помоги рассчитать маржинальность продукта по следующим критериям: ", icon: "calculator" },
-    { id: "product-card", title: "SEO Оптимизация карточки", description: "Генератор релевантного описания для индексации", prompt_template: "Оптимизируй SEO текстовое ядро под алгоритмы маркетплейса: ", icon: "edit" },
-    { id: "offer", title: "Конверсионный Оффер", description: "Сильное предложение по методике 4P", prompt_template: "Разработай высококонверсионный оффер для следующего продукта: ", icon: "target" },
-    { id: "competitor", title: "Аудит конкурентов", description: "Парсинг уязвимостей в воронках продаж", prompt_template: "Проанализируй стратегические слабости карточек конкурентов: ", icon: "search" },
-    { id: "review", title: "Профессиональный ответ", description: "Нивелирование негатива с сохранением лояльности", prompt_template: "Сгенерируй лояльный ответ на отзыв покупателя: ", icon: "message" },
-    { id: "plan", title: "Маркетинговый медиаплан", description: "Стратегия публикаций и рекламных интеграций", prompt_template: "Составь пошаговый контент-план продвижения для: ", icon: "history" }
+    { id: "margin", title: "Анализ идеи", description: "Оценка идеи по рынку, трендам и потенциалу.", prompt_template: "Проверь коммерческий потенциал следующей бизнес-идеи: ", icon: "calculator" },
+    { id: "market", title: "Проверка рынка", description: "Исследование спроса, конкурентов и аудитории.", prompt_template: "Проведи экспресс-анализ спроса и целевой аудитории для: ", icon: "search" },
+    { id: "competitors", title: "Анализ конкурентов", description: "Глубокий анализ стратегий и сильных сторон.", prompt_template: "Выяви сильные и уязвимые стороны ключевых конкурентов в нише: ", icon: "target" },
+    { id: "mvp", title: "Генератор MVP", description: "Формирование концепции и плана MVP.", prompt_template: "Составь пошаговый план реализации минимально жизнеспособного продукта (MVP) для: ", icon: "edit" },
+    { id: "finance", title: "Финмодель", description: "Финансовая модель и сценарии роста.", prompt_template: "Помоги составить базовую структуру финансовой модели для проекта: ", icon: "chart" },
+    { id: "marketing", title: "Маркетинговая стратегия", description: "Стратегия выхода на рынок и каналы роста.", prompt_template: "Разработай go-to-market стратегию привлечения трафика для: ", icon: "message" }
   ];
 }
 
@@ -267,7 +266,7 @@ function updateCreditsUI() {
   const format = (used, limit) => {
     if (!limit) return "Безлимитно";
     const remain = Math.max(0, limit - used);
-    return `${remain} / ${limit} кр.`;
+    return `${remain} / ${limit}`;
   };
 
   const calcPct = (used, limit) => limit ? Math.min(100, (used / limit) * 100) : 0;
@@ -277,7 +276,7 @@ function updateCreditsUI() {
   const mTxt = format(u.monthly_used, u.monthly_limit);
   const mPct = calcPct(u.monthly_used, u.monthly_limit);
 
-  if ($("creditsTodayText")) $("creditsTodayText").textContent = `Использование сегодня: ${tTxt}`;
+  if ($("creditsTodayText")) $("creditsTodayText").textContent = `${tTxt}`;
   if ($("creditsTodayFill")) $("creditsTodayFill").style.width = `${tPct}%`;
 
   if ($("creditsMonthText")) $("creditsMonthText").textContent = `Лимит на месяц: ${mTxt}`;
@@ -288,6 +287,11 @@ function updateCreditsUI() {
 
   if ($("profileCreditsMonthText")) $("profileCreditsMonthText").textContent = mTxt;
   if ($("profileCreditsMonthFill")) $("profileCreditsMonthFill").style.width = `${mPct}%`;
+  
+  if ($("desktopTopCreditsValue")) {
+    const remaining = Math.max(0, u.daily_limit - u.daily_used);
+    $("desktopTopCreditsValue").textContent = remaining.toLocaleString();
+  }
 }
 
 function updateProfileUI() {
@@ -295,12 +299,12 @@ function updateProfileUI() {
   const u = state.user;
   const initial = u.first_name.charAt(0).toUpperCase() || "F";
 
-  if ($("homeGreeting")) $("homeGreeting").textContent = `Доброе утро, ${u.first_name}`;
+  if ($("homeGreeting")) $("homeGreeting").textContent = `Добро пожаловать, ${u.first_name} 👋`;
   if ($("headerUserAvatar")) $("headerUserAvatar").textContent = initial;
   if ($("mobileHeaderAvatar")) $("mobileHeaderAvatar").textContent = initial;
   if ($("profileUserAvatar")) $("profileUserAvatar").textContent = initial;
-  if ($("profileUserTitle")) $("profileUserTitle").textContent = u.username ? `@${u.username}` : u.first_name;
-  if ($("profileUserSubtitle")) $("profileUserSubtitle").textContent = `ID: ${u.telegram_id}`;
+  if ($("profileUserTitle")) $("profileUserTitle").textContent = u.first_name;
+  if ($("profileUserSubtitle")) $("profileUserSubtitle").textContent = u.username ? `@${u.username}` : `ID: ${u.telegram_id}`;
   if ($("profilePlanLabel")) $("profilePlanLabel").textContent = String(u.plan).toUpperCase();
   if ($("profileBusinessDescription")) $("profileBusinessDescription").value = u.business_profile;
   if ($("profileInn")) $("profileInn").value = u.inn || OWNER_INN;
@@ -309,7 +313,6 @@ function updateProfileUI() {
 
   updateCreditsUI();
 }
-
 
 function getLegalInn() {
   return state.user?.inn || OWNER_INN;
@@ -476,13 +479,14 @@ function renderTools() {
     return;
   }
   grid.innerHTML = items.map(t => {
-    const iconKey = t.icon || "tools";
     return `
       <div class="tool-card" data-prompt="${escapeHTML(t.prompt_template || t.prompt || '')}">
-        <div class="tool-icon-bg"><span data-icon="${escapeHTML(iconKey)}"></span></div>
         <div class="tool-info">
-          <h4>${escapeHTML(t.title || t.name || 'Инструмент')}</h4>
-          <p>${escapeHTML(t.description || t.subtitle || 'Интеграционный сценарий')}</p>
+          <h4>${escapeHTML(t.title || t.name || 'Ассистент')}</h4>
+          <p>${escapeHTML(t.description || t.subtitle || '')}</p>
+        </div>
+        <div class="tool-fit-text-cell">
+          <span>Развитие продукта</span>
         </div>
       </div>
     `;
@@ -649,128 +653,6 @@ function exportHistory() {
   openExternal("/api/export/history.txt");
 }
 
-function autoResizeTextarea(el) {
-  if (!el) return;
-  el.style.height = "auto";
-  el.style.height = `${Math.min(el.scrollHeight, 100)}px`;
-}
-
-function appendMessage(role, text, id = null) {
-  const scroll = $("homeChatScroll");
-  if (!scroll) return null;
-
-  const empty = $("chatEmptyState");
-  if (empty) empty.remove();
-
-  const wrap = document.createElement("div");
-  wrap.className = `msg ${role}`;
-  if (id) wrap.id = id;
-
-  const txtDiv = document.createElement("div");
-  txtDiv.textContent = text;
-  wrap.appendChild(txtDiv);
-
-  if (role === "bot" && text !== "FounderPilot готовит ответ...") {
-    const act = document.createElement("div");
-    act.className = "message-actions";
-
-    const copyBtn = document.createElement("button");
-    copyBtn.type = "button";
-    copyBtn.innerHTML = `<span data-icon="copy"></span> Скопировать`;
-    copyBtn.addEventListener("click", () => {
-      navigator.clipboard.writeText(text).then(() => showToast("Текст скопирован"));
-    });
-
-    const saveBtn = document.createElement("button");
-    saveBtn.type = "button";
-    saveBtn.innerHTML = `<span data-icon="save"></span> Сохранить`;
-    saveBtn.addEventListener("click", async () => {
-      try {
-        await apiRequest("/api/saved", { method: "POST", body: JSON.stringify({ telegram_user_id: getTelegramUserId(), content: text }) });
-        showToast("Сохранено в историю");
-      } catch {
-        showToast("Не удалось зафиксировать ответ");
-      }
-    });
-
-    act.appendChild(copyBtn);
-    act.appendChild(saveBtn);
-    wrap.appendChild(act);
-  }
-
-  scroll.appendChild(wrap);
-  scroll.scrollTop = scroll.scrollHeight;
-  injectIcons(wrap);
-  return wrap;
-}
-
-async function handleChatSend() {
-  const input = $("homeChatInput");
-  const text = input?.value.trim();
-  if (!text || state.isSending) return;
-
-  state.isSending = true;
-  $("homeChatSendBtn").disabled = true;
-  input.value = "";
-  autoResizeTextarea(input);
-
-  appendMessage("user", text);
-  const sysId = `sys_${Date.now()}`;
-  appendMessage("system", "FounderPilot готовит ответ...", sysId);
-
-  try {
-    const payload = { telegram_user_id: getTelegramUserId(), message: text, text: text, mode: "chat" };
-    const res = await apiTry("/api/chat", "/api/ask", { method: "POST", body: JSON.stringify(payload) });
-
-    $(sysId)?.remove();
-    const answer = res.answer || res.response || res.result || res.text || "Аналитический модуль вернул пустой результат.";
-    appendMessage("bot", answer);
-
-    if (state.user) {
-      if (res.usage?.credits_used_today !== undefined) state.user.daily_used = res.usage.credits_used_today;
-      else if (res.used_today !== undefined) state.user.daily_used = res.used_today;
-      else if (res.usage?.daily_used !== undefined) state.user.daily_used = res.usage.daily_used;
-
-      if (res.usage?.credits_used_month !== undefined) state.user.monthly_used = res.usage.credits_used_month;
-      else if (res.credits_used_month !== undefined) state.user.monthly_used = res.credits_used_month;
-      else if (res.used_period !== undefined) state.user.monthly_used = res.used_period;
-      else if (res.usage?.used_period !== undefined) state.user.monthly_used = res.usage.used_period;
-
-      updateCreditsUI();
-    }
-  } catch (err) {
-    const sys = $(sysId);
-    if (sys) sys.textContent = "Ошибка: " + err.message;
-    else showToast(err.message);
-  } finally {
-    state.isSending = false;
-    updateSendButton();
-  }
-}
-
-async function loadMe() {
-  try {
-    const data = await apiRequest("/api/me");
-    state.user = normalizeUserResponse(data);
-    updateProfileUI();
-    
-    const preloader = $("appPreloader");
-    const container = $("appContainer");
-    if (preloader && container) {
-      preloader.style.opacity = "0";
-      container.style.opacity = "1";
-      setTimeout(() => { preloader.style.display = "none"; }, 350);
-    }
-    
-    if (state.user.onboarding_required) openOnboarding();
-  } catch (err) {
-    console.error("loadMe fail:", err);
-    const preloader = $("appPreloader");
-    const container = $("appContainer");
-    if(preloader && container) { preloader.style.display = "none"; container.style.opacity = "1"; }
-  }
-}
-
 async function loadTools() {
   const grid = $("toolsGrid");
   try {
@@ -780,7 +662,6 @@ async function loadTools() {
   } catch {
     state.tools = getFallbackTools();
   }
-
   renderTools();
 }
 
@@ -821,26 +702,27 @@ function renderHistory() {
   if (!filtered.length) {
     list.innerHTML = `
       <div class="loading-state" style="border:none;">
-        <div style="margin-bottom:12px; opacity:0.5;"><span data-icon="history" style="width:24px;height:24px;"></span></div>
         <h3>Архив пуст</h3>
         <p class="muted">Записи сессий отсутствуют в данном фильтре.</p>
       </div>`;
-    injectIcons(list);
     return;
   }
 
   list.innerHTML = filtered.map(h => {
     const type = String(h.mode || h.type || "chat").toUpperCase();
     const title = h.title || h.prompt || h.text || "Запрос";
-    const preview = h.answer || h.content || h.result || "";
+    const dateStr = h.created_at || "24.05.2024";
+    const project = h.project_name || "Основной";
     return `
-      <article class="history-item">
-        <div class="item-meta">
-          <span class="badge">${escapeHTML(type)}</span>
-        </div>
+      <div class="history-item">
         <h4>${escapeHTML(title)}</h4>
-        <p>${escapeHTML(preview)}</p>
-      </article>
+        <div>${escapeHTML(type)}</div>
+        <div>${escapeHTML(project)}</div>
+        <div>${escapeHTML(dateStr)}</div>
+        <div class="item-meta">
+          <span class="badge">Завершён</span>
+        </div>
+      </div>
     `;
   }).join("");
 }
@@ -1082,7 +964,7 @@ async function nextOnboarding() {
     loadMe();
   } catch {
     $("onboardingModal").classList.remove("active");
-    showToast("Профиль зафиксирован");
+    showToast("Профиль зафиксирован локально.");
   } finally {
     $("onboardingNextBtn").disabled = false;
   }
@@ -1111,6 +993,14 @@ function bindEvents() {
     const b = e.target.closest(".quick-pill");
     if (b && chatInput) { chatInput.value = b.dataset.prompt; chatInput.focus(); autoResizeTextarea(chatInput); updateSendButton(); }
   });
+
+  document.querySelectorAll(".sidebar-link-btn").forEach(btn => {
+    btn.addEventListener("click", () => {
+      switchView("home");
+      if (chatInput) { chatInput.value = btn.dataset.prompt; chatInput.focus(); autoResizeTextarea(chatInput); updateSendButton(); }
+    });
+  });
+
   $("toolsGrid")?.addEventListener("click", e => {
     const r = e.target.closest(".tool-card");
     if (r) { switchView("home"); if (chatInput) { chatInput.value = r.dataset.prompt; chatInput.focus(); autoResizeTextarea(chatInput); updateSendButton(); } }
@@ -1153,7 +1043,7 @@ function bindEvents() {
     const text = $("appFeedbackText")?.value.trim();
     if (!text) return;
     try {
-      await apiRequest("/api/feedback", { method: "POST", body: JSON.stringify({ telegram_user_id: getTelegramUserId(), message: text, type: "app" }) });
+      apiRequest("/api/feedback", { method: "POST", body: JSON.stringify({ telegram_user_id: getTelegramUserId(), message: text, type: "app" }) });
       $("appFeedbackText").value = "";
       showToast("Спасибо за отзыв");
     } catch (err) { showToast(err.message); }
