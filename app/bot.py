@@ -4,8 +4,9 @@ from html import escape
 
 from aiogram import Dispatcher, F, Router
 from aiogram.filters import Command, CommandObject
-from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup, Message, WebAppInfo
+from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup, Message, PreCheckoutQuery, WebAppInfo
 
+from app.billing import activate_subscription, plan_catalog
 from app.config import Settings
 from app.db import Database
 from app.openrouter_client import AIClientError, OpenRouterClient
@@ -74,6 +75,60 @@ def build_dispatcher(
 ) -> Dispatcher:
     router = Router()
 
+    @router.pre_checkout_query()
+    async def pre_checkout(query: PreCheckoutQuery) -> None:
+        payload = query.invoice_payload or ""
+        order = await db.get_billing_order(payload) if payload.startswith("ord_") else None
+        if not order or order.get("status") not in {"pending", "failed"}:
+            await query.answer(ok=False, error_message="Заказ не найден или уже обработан.")
+            return
+        await query.answer(ok=True)
+
+    @router.message(F.successful_payment)
+    async def successful_payment(message: Message) -> None:
+        payment = message.successful_payment
+        if not payment or not message.from_user:
+            return
+        order_id = payment.invoice_payload
+        order = await db.get_billing_order(order_id) if order_id else None
+        if not order:
+            await message.answer("Платёж получен, но заказ не найден. Напишите администратору.")
+            return
+        plans = plan_catalog(settings)
+        plan = plans.get(str(order.get("plan")))
+        if not plan:
+            await message.answer("Платёж получен, но тариф не найден. Напишите администратору.")
+            return
+        result = await activate_subscription(
+            db,
+            message.from_user.id,
+            plan.key,
+            "telegram_stars",
+            order_id,
+            plan.daily_limit,
+        )
+        await db.record_payment(
+            order_id=order_id,
+            telegram_id=message.from_user.id,
+            provider="telegram_stars",
+            plan=plan.key,
+            amount=float(order.get("amount") or 0),
+            currency="XTR",
+            status="paid",
+            external_payment_id=getattr(payment, "telegram_payment_charge_id", None),
+            external_charge_id=getattr(payment, "provider_payment_charge_id", None),
+            payload=order_id,
+            raw_event=payment.model_dump() if hasattr(payment, "model_dump") else {},
+        )
+        await message.answer(
+            f"<b>Подписка активирована</b>\n"
+            f"Тариф: <b>{html(plan.title)}</b>\n"
+            f"Лимит: <b>{plan.daily_limit}</b> запросов в день.\n"
+            f"Действует до: <code>{html(result['expires_at'])}</code>",
+            parse_mode=TELEGRAM_PARSE_MODE,
+            reply_markup=build_main_keyboard(settings),
+        )
+
     @router.message(Command("start"))
     async def start(message: Message, command: CommandObject) -> None:
         user = message.from_user
@@ -90,12 +145,14 @@ def build_dispatcher(
             )
         text = (
             "<b>FounderPilot AI</b>\n"
-            "Чат и инструменты для продаж, карточек WB/Ozon, рекламы и расчетов.\n\n"
-            "<b>Примеры:</b>\n"
-            "- посчитать маржу;\n"
-            "- улучшить карточку товара;\n"
-            "- сделать оффер или ответ на отзыв.\n\n"
-            f"{action_hint}"
+            "FounderPilot AI - помощник для предпринимателей и селлеров WB/Ozon. "
+            "Поможет собрать оффер, карточку товара, рекламу, SWOT, план продаж, контент и расчет маржи.\n\n"
+            "<b>Примеры задач:</b>\n"
+            "- улучшить карточку товара для WB/Ozon;\n"
+            "- посчитать маржу и риски цены;\n"
+            "- написать ответ на отзыв или рекламный оффер.\n\n"
+            "<b>Как начать:</b>\n"
+            f"{action_hint} Чем точнее вводные, тем практичнее результат."
         )
         await message.answer(text, parse_mode=TELEGRAM_PARSE_MODE, reply_markup=build_main_keyboard(settings))
 

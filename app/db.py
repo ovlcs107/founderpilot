@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import json
-from pathlib import Path
 from datetime import datetime, timedelta, timezone
 from typing import Any
 from uuid import uuid4
@@ -151,17 +150,52 @@ CREATE TABLE IF NOT EXISTS subscriptions (
     expires_at TEXT,
     daily_limit INTEGER,
     monthly_limit INTEGER,
-    created_at TEXT NOT NULL
+    provider TEXT,
+    order_id TEXT,
+    created_at TEXT NOT NULL,
+    updated_at TEXT
 );
 
 CREATE TABLE IF NOT EXISTS payments (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
+    order_id TEXT,
     telegram_user_id TEXT NOT NULL,
     provider TEXT,
+    plan TEXT,
     amount REAL,
     currency TEXT,
     status TEXT,
     external_payment_id TEXT,
+    external_charge_id TEXT,
+    payload TEXT,
+    raw_event_json TEXT,
+    created_at TEXT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS billing_orders (
+    id TEXT PRIMARY KEY,
+    telegram_user_id TEXT NOT NULL,
+    plan TEXT NOT NULL,
+    provider TEXT NOT NULL,
+    amount REAL NOT NULL,
+    currency TEXT NOT NULL,
+    status TEXT NOT NULL DEFAULT 'pending',
+    payment_url TEXT,
+    external_payment_id TEXT,
+    payload TEXT,
+    metadata_json TEXT,
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL,
+    expires_at TEXT
+);
+
+CREATE TABLE IF NOT EXISTS payment_events (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    provider TEXT NOT NULL,
+    event_type TEXT,
+    order_id TEXT,
+    external_payment_id TEXT,
+    raw_json TEXT NOT NULL,
     created_at TEXT NOT NULL
 );
 
@@ -217,6 +251,34 @@ ON referrals(referrer_telegram_user_id);
 
 CREATE INDEX IF NOT EXISTS idx_error_logs_created_at
 ON error_logs(created_at);
+
+CREATE INDEX IF NOT EXISTS idx_billing_orders_user
+ON billing_orders(telegram_user_id);
+
+CREATE INDEX IF NOT EXISTS idx_billing_orders_status
+ON billing_orders(status);
+
+CREATE INDEX IF NOT EXISTS idx_billing_orders_provider
+ON billing_orders(provider);
+
+CREATE INDEX IF NOT EXISTS idx_billing_orders_external_payment_id
+ON billing_orders(external_payment_id);
+
+CREATE INDEX IF NOT EXISTS idx_subscriptions_user
+ON subscriptions(telegram_user_id);
+
+CREATE INDEX IF NOT EXISTS idx_subscriptions_status
+ON subscriptions(status);
+
+CREATE INDEX IF NOT EXISTS idx_payments_user
+ON payments(telegram_user_id);
+
+CREATE INDEX IF NOT EXISTS idx_payments_order
+ON payments(order_id);
+
+CREATE INDEX IF NOT EXISTS idx_payment_events_order
+ON payment_events(order_id);
+
 """
 
 
@@ -236,6 +298,7 @@ USER_ADD_COLUMNS = {
     "monthly_limit": "ALTER TABLE users ADD COLUMN monthly_limit INTEGER",
     "subscription_started_at": "ALTER TABLE users ADD COLUMN subscription_started_at TEXT",
     "subscription_until": "ALTER TABLE users ADD COLUMN subscription_until TEXT",
+    "subscription_expires_at": "ALTER TABLE users ADD COLUMN subscription_expires_at TEXT",
     "unlimited_access": "ALTER TABLE users ADD COLUMN unlimited_access INTEGER NOT NULL DEFAULT 0",
     "blocked": "ALTER TABLE users ADD COLUMN blocked INTEGER NOT NULL DEFAULT 0",
     "admin_note": "ALTER TABLE users ADD COLUMN admin_note TEXT",
@@ -260,6 +323,24 @@ BUSINESS_PROFILE_ADD_COLUMNS = {
 FEEDBACK_ADD_COLUMNS = {
     "source_type": "ALTER TABLE feedback ADD COLUMN source_type TEXT",
     "source_id": "ALTER TABLE feedback ADD COLUMN source_id TEXT",
+}
+
+USER_BILLING_ADD_COLUMNS = {
+    "subscription_expires_at": "ALTER TABLE users ADD COLUMN subscription_expires_at TEXT",
+}
+
+SUBSCRIPTION_ADD_COLUMNS = {
+    "provider": "ALTER TABLE subscriptions ADD COLUMN provider TEXT",
+    "order_id": "ALTER TABLE subscriptions ADD COLUMN order_id TEXT",
+    "updated_at": "ALTER TABLE subscriptions ADD COLUMN updated_at TEXT",
+}
+
+PAYMENT_ADD_COLUMNS = {
+    "order_id": "ALTER TABLE payments ADD COLUMN order_id TEXT",
+    "plan": "ALTER TABLE payments ADD COLUMN plan TEXT",
+    "external_charge_id": "ALTER TABLE payments ADD COLUMN external_charge_id TEXT",
+    "payload": "ALTER TABLE payments ADD COLUMN payload TEXT",
+    "raw_event_json": "ALTER TABLE payments ADD COLUMN raw_event_json TEXT",
 }
 
 
@@ -292,9 +373,6 @@ class Database:
         self.path = path
 
     async def init(self) -> None:
-        db_path = Path(self.path)
-        if db_path.parent and str(db_path.parent) != ".":
-            db_path.parent.mkdir(parents=True, exist_ok=True)
         async with aiosqlite.connect(self.path) as db:
             await db.execute("PRAGMA foreign_keys=OFF")
             await db.executescript(SCHEMA)
@@ -303,6 +381,9 @@ class Database:
             await self._migrate_chat_messages_table(db)
             await self._migrate_simple_add_columns(db, "business_profiles", BUSINESS_PROFILE_ADD_COLUMNS)
             await self._migrate_simple_add_columns(db, "feedback", FEEDBACK_ADD_COLUMNS)
+            await self._migrate_simple_add_columns(db, "users", USER_BILLING_ADD_COLUMNS)
+            await self._migrate_simple_add_columns(db, "subscriptions", SUBSCRIPTION_ADD_COLUMNS)
+            await self._migrate_simple_add_columns(db, "payments", PAYMENT_ADD_COLUMNS)
             await db.executescript(INDEXES)
             await db.commit()
             await db.execute("PRAGMA foreign_keys=ON")
@@ -354,6 +435,7 @@ class Database:
                     monthly_limit INTEGER,
                     subscription_started_at TEXT,
                     subscription_until TEXT,
+                    subscription_expires_at TEXT,
                     unlimited_access INTEGER NOT NULL DEFAULT 0,
                     blocked INTEGER NOT NULL DEFAULT 0,
                     admin_note TEXT,
@@ -390,7 +472,7 @@ class Database:
                     telegram_user_id, telegram_id, username, first_name, last_name, language_code,
                     plan, daily_limit, bonus_requests, referral_code, referred_by, onboarding_completed,
                     free_limit, monthly_limit, subscription_started_at,
-                    subscription_until, unlimited_access, blocked, admin_note, access_updated_at,
+                    subscription_until, subscription_expires_at, unlimited_access, blocked, admin_note, access_updated_at,
                     created_at, updated_at, last_seen_at
                 )
                 SELECT
@@ -410,6 +492,7 @@ class Database:
                     {expr("monthly_limit")},
                     {expr("subscription_started_at")},
                     {expr("subscription_until")},
+                    {expr("subscription_expires_at")},
                     {expr("unlimited_access", "0")},
                     {expr("blocked", "0")},
                     {expr("admin_note")},
@@ -667,7 +750,7 @@ class Database:
         monthly_limit = int(monthly_limit) if monthly_limit is not None else int(monthly_limit_default)
 
         subscription_started_at = parse_iso_datetime(profile.get("subscription_started_at"))
-        subscription_until = parse_iso_datetime(profile.get("subscription_until"))
+        subscription_until = parse_iso_datetime(profile.get("subscription_until") or profile.get("subscription_expires_at"))
         subscription_active = bool(subscription_until and subscription_until >= now)
 
         month_start = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
@@ -753,7 +836,7 @@ class Database:
             "used_total": used_total,
             "used_period": used_for_limit,
             "subscription_started_at": profile.get("subscription_started_at"),
-            "subscription_until": profile.get("subscription_until"),
+            "subscription_until": profile.get("subscription_until") or profile.get("subscription_expires_at"),
             "unlimited": unlimited,
             "blocked": blocked,
             "admin_note": profile.get("admin_note"),
@@ -1241,6 +1324,256 @@ class Database:
             await db.commit()
             return cursor.rowcount > 0
 
+    async def create_billing_order(
+        self,
+        order_id: str,
+        telegram_id: int,
+        plan: str,
+        provider: str,
+        amount: float,
+        currency: str,
+        metadata: dict[str, Any] | None = None,
+        expires_at: str | None = None,
+    ) -> dict[str, Any]:
+        now = utc_now_iso()
+        metadata_json = json.dumps(metadata or {}, ensure_ascii=False, separators=(",", ":"))
+        async with aiosqlite.connect(self.path) as db:
+            await db.execute(
+                """
+                INSERT INTO billing_orders (
+                    id, telegram_user_id, plan, provider, amount, currency, status,
+                    metadata_json, created_at, updated_at, expires_at
+                )
+                VALUES (?, ?, ?, ?, ?, ?, 'pending', ?, ?, ?, ?)
+                """,
+                (order_id, tg_text_id(telegram_id), plan, provider, amount, currency, metadata_json, now, now, expires_at),
+            )
+            await db.commit()
+        order = await self.get_billing_order(order_id)
+        if not order:
+            raise RuntimeError("Billing order was not created")
+        return order
+
+    async def get_billing_order(self, order_id: str) -> dict[str, Any] | None:
+        async with aiosqlite.connect(self.path) as db:
+            db.row_factory = aiosqlite.Row
+            cursor = await db.execute("SELECT * FROM billing_orders WHERE id = ?", (order_id,))
+            row = await cursor.fetchone()
+            return dict(row) if row else None
+
+    async def find_billing_order_by_external_id(self, external_payment_id: str) -> dict[str, Any] | None:
+        async with aiosqlite.connect(self.path) as db:
+            db.row_factory = aiosqlite.Row
+            cursor = await db.execute(
+                "SELECT * FROM billing_orders WHERE external_payment_id = ? ORDER BY created_at DESC LIMIT 1",
+                (external_payment_id,),
+            )
+            row = await cursor.fetchone()
+            return dict(row) if row else None
+
+    async def update_billing_order(
+        self,
+        order_id: str,
+        *,
+        status: str | None = None,
+        payment_url: str | None = None,
+        external_payment_id: str | None = None,
+        payload: str | None = None,
+        metadata: dict[str, Any] | None = None,
+    ) -> dict[str, Any] | None:
+        order = await self.get_billing_order(order_id)
+        if not order:
+            return None
+        new_status = status or order.get("status")
+        new_payment_url = payment_url if payment_url is not None else order.get("payment_url")
+        new_external = external_payment_id if external_payment_id is not None else order.get("external_payment_id")
+        new_payload = payload if payload is not None else order.get("payload")
+        metadata_json = order.get("metadata_json")
+        if metadata is not None:
+            metadata_json = json.dumps(metadata, ensure_ascii=False, separators=(",", ":"))
+        now = utc_now_iso()
+        async with aiosqlite.connect(self.path) as db:
+            await db.execute(
+                """
+                UPDATE billing_orders
+                SET status = ?, payment_url = ?, external_payment_id = ?, payload = ?,
+                    metadata_json = ?, updated_at = ?
+                WHERE id = ?
+                """,
+                (new_status, new_payment_url, new_external, new_payload, metadata_json, now, order_id),
+            )
+            await db.commit()
+        return await self.get_billing_order(order_id)
+
+    async def record_payment_event(
+        self,
+        provider: str,
+        raw: dict[str, Any],
+        event_type: str | None = None,
+        order_id: str | None = None,
+        external_payment_id: str | None = None,
+    ) -> int:
+        now = utc_now_iso()
+        async with aiosqlite.connect(self.path) as db:
+            cursor = await db.execute(
+                """
+                INSERT INTO payment_events (provider, event_type, order_id, external_payment_id, raw_json, created_at)
+                VALUES (?, ?, ?, ?, ?, ?)
+                """,
+                (provider, event_type, order_id, external_payment_id, json.dumps(raw, ensure_ascii=False), now),
+            )
+            await db.commit()
+            return int(cursor.lastrowid)
+
+    async def record_payment(
+        self,
+        *,
+        order_id: str | None,
+        telegram_id: int,
+        provider: str,
+        plan: str | None,
+        amount: float | None,
+        currency: str | None,
+        status: str,
+        external_payment_id: str | None = None,
+        external_charge_id: str | None = None,
+        payload: str | None = None,
+        raw_event: dict[str, Any] | None = None,
+    ) -> int:
+        now = utc_now_iso()
+        async with aiosqlite.connect(self.path) as db:
+            cursor = await db.execute(
+                """
+                INSERT INTO payments (
+                    order_id, telegram_user_id, provider, plan, amount, currency, status,
+                    external_payment_id, external_charge_id, payload, raw_event_json, created_at
+                )
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    order_id,
+                    tg_text_id(telegram_id),
+                    provider,
+                    plan,
+                    amount,
+                    currency,
+                    status,
+                    external_payment_id,
+                    external_charge_id,
+                    payload,
+                    json.dumps(raw_event, ensure_ascii=False) if raw_event is not None else None,
+                    now,
+                ),
+            )
+            await db.commit()
+            return int(cursor.lastrowid)
+
+    async def activate_paid_subscription(
+        self,
+        telegram_id: int,
+        plan: str,
+        provider: str,
+        order_id: str,
+        daily_limit: int,
+        days: int = 30,
+    ) -> dict[str, Any]:
+        await self.ensure_user(telegram_id)
+        now_dt = datetime.now(timezone.utc)
+        expires_dt = now_dt + timedelta(days=days)
+        now = now_dt.isoformat()
+        expires_at = expires_dt.isoformat()
+        async with aiosqlite.connect(self.path) as db:
+            await db.execute(
+                """
+                UPDATE users
+                SET plan = ?, daily_limit = ?, free_limit = ?, monthly_limit = ?,
+                    subscription_started_at = ?, subscription_until = ?, subscription_expires_at = ?,
+                    unlimited_access = 0, blocked = 0, access_updated_at = ?, updated_at = ?, last_seen_at = ?
+                WHERE telegram_id = ? OR telegram_user_id = ?
+                """,
+                (plan, daily_limit, daily_limit, daily_limit, now, expires_at, expires_at, now, now, now, telegram_id, tg_text_id(telegram_id)),
+            )
+            await db.execute(
+                """
+                UPDATE subscriptions
+                SET status = 'expired', updated_at = ?
+                WHERE telegram_user_id = ? AND status = 'active'
+                """,
+                (now, tg_text_id(telegram_id)),
+            )
+            await db.execute(
+                """
+                INSERT INTO subscriptions (
+                    telegram_user_id, plan, status, started_at, expires_at, daily_limit,
+                    monthly_limit, provider, order_id, created_at, updated_at
+                )
+                VALUES (?, ?, 'active', ?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                (tg_text_id(telegram_id), plan, now, expires_at, daily_limit, daily_limit, provider, order_id, now, now),
+            )
+            await db.execute(
+                """
+                UPDATE billing_orders
+                SET status = 'paid', updated_at = ?
+                WHERE id = ?
+                """,
+                (now, order_id),
+            )
+            await db.commit()
+        await self.record_access_event(
+            telegram_id,
+            None,
+            "subscription_paid",
+            {"plan": plan, "provider": provider, "order_id": order_id, "daily_limit": daily_limit, "expires_at": expires_at},
+        )
+        return {"plan": plan, "daily_limit": daily_limit, "expires_at": expires_at, "status": "active"}
+
+    async def expire_subscription_if_needed(self, telegram_id: int) -> None:
+        profile = await self.get_user_profile(telegram_id)
+        if not profile:
+            return
+        raw_plan = str(profile.get("plan") or "free")
+        if raw_plan in {"free", "blocked", "unlimited"}:
+            return
+        until = parse_iso_datetime(profile.get("subscription_until") or profile.get("subscription_expires_at"))
+        if not until or until >= datetime.now(timezone.utc):
+            return
+        now = utc_now_iso()
+        async with aiosqlite.connect(self.path) as db:
+            await db.execute(
+                """
+                UPDATE users
+                SET plan = 'free', daily_limit = 20, free_limit = 20, monthly_limit = NULL,
+                    subscription_started_at = NULL, subscription_until = NULL, subscription_expires_at = NULL,
+                    updated_at = ?, access_updated_at = ?
+                WHERE telegram_id = ? OR telegram_user_id = ?
+                """,
+                (now, now, telegram_id, tg_text_id(telegram_id)),
+            )
+            await db.execute(
+                """
+                UPDATE subscriptions
+                SET status = 'expired', updated_at = ?
+                WHERE telegram_user_id = ? AND status = 'active'
+                """,
+                (now, tg_text_id(telegram_id)),
+            )
+            await db.commit()
+
+    async def billing_status(self, telegram_id: int, free_limit_default: int, monthly_limit_default: int) -> dict[str, Any]:
+        await self.expire_subscription_if_needed(telegram_id)
+        access = await self.get_access_state(telegram_id, free_limit_default, monthly_limit_default)
+        return {
+            "plan": access["raw_plan"] if access["raw_plan"] not in {"subscriber"} else "pro",
+            "status": access["status"],
+            "status_label": access["status_label"],
+            "daily_limit": access["current_limit"],
+            "daily_used": access["used_today"],
+            "remaining": access["remaining"],
+            "subscription_expires_at": access["subscription_until"],
+            "bonus_requests": access["bonus_requests"],
+        }
+
     async def log_error(self, source: str, error_text: str, telegram_id: int | None = None) -> None:
         async with aiosqlite.connect(self.path) as db:
             await db.execute(
@@ -1284,6 +1617,23 @@ class Database:
                 "feedback_negative_count": await scalar("SELECT COUNT(*) FROM feedback WHERE rating < 0"),
                 "errors_today": await scalar("SELECT COUNT(*) FROM error_logs WHERE created_at >= ?", (day_start,)),
                 "active_users_today": await scalar("SELECT COUNT(DISTINCT telegram_user_id) FROM usage_logs WHERE created_at >= ?", (day_start,)),
+                "payments_today": await scalar("SELECT COUNT(*) FROM payments WHERE created_at >= ?", (day_start,)),
+                "active_subscriptions": await scalar("SELECT COUNT(*) FROM subscriptions WHERE status = 'active'"),
+                "pending_orders": await scalar("SELECT COUNT(*) FROM billing_orders WHERE status = 'pending'"),
+                "failed_orders": await scalar("SELECT COUNT(*) FROM billing_orders WHERE status IN ('failed', 'canceled', 'expired')"),
+                "revenue_rub_total": await scalar("SELECT CAST(COALESCE(SUM(amount), 0) AS INTEGER) FROM payments WHERE status IN ('paid','succeeded') AND currency = 'RUB'"),
+                "payments_by_provider": [
+                    dict(row)
+                    for row in await (await db.execute(
+                        """
+                        SELECT provider, COUNT(*) AS count, COALESCE(SUM(amount), 0) AS amount
+                        FROM payments
+                        WHERE status IN ('paid','succeeded')
+                        GROUP BY provider
+                        ORDER BY count DESC
+                        """
+                    )).fetchall()
+                ],
             }
 
     async def record_access_event(

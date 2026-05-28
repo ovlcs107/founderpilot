@@ -29,6 +29,36 @@ class Settings(BaseSettings):
     host: str = Field(default="0.0.0.0", alias="HOST")
     port: int = Field(default=8000, alias="PORT")
 
+    billing_enable_stars: bool = Field(default=True, alias="BILLING_ENABLE_STARS")
+    billing_enable_yookassa: bool = Field(default=False, alias="BILLING_ENABLE_YOOKASSA")
+    billing_enable_ton: bool = Field(default=False, alias="BILLING_ENABLE_TON")
+    billing_enable_btcpay: bool = Field(default=False, alias="BILLING_ENABLE_BTCPAY")
+
+    pro_daily_limit: int = Field(default=300, alias="PRO_DAILY_LIMIT")
+    business_daily_limit: int = Field(default=1500, alias="BUSINESS_DAILY_LIMIT")
+    pro_price_rub: str = Field(default="299", alias="PRO_PRICE_RUB")
+    business_price_rub: str = Field(default="999", alias="BUSINESS_PRICE_RUB")
+    pro_price_stars: int = Field(default=299, alias="PRO_PRICE_STARS")
+    business_price_stars: int = Field(default=999, alias="BUSINESS_PRICE_STARS")
+    pro_price_ton: str = Field(default="3", alias="PRO_PRICE_TON")
+    business_price_ton: str = Field(default="10", alias="BUSINESS_PRICE_TON")
+    pro_price_btc: str = Field(default="0.00005", alias="PRO_PRICE_BTC")
+    business_price_btc: str = Field(default="0.00015", alias="BUSINESS_PRICE_BTC")
+
+    yookassa_shop_id: str = Field(default="", alias="YOOKASSA_SHOP_ID")
+    yookassa_secret_key: str = Field(default="", alias="YOOKASSA_SECRET_KEY")
+    yookassa_return_url: str = Field(default="", alias="YOOKASSA_RETURN_URL")
+
+    ton_receiver_address: str = Field(default="", alias="TON_RECEIVER_ADDRESS")
+    ton_manifest_url: str = Field(default="", alias="TON_MANIFEST_URL")
+    ton_api_key: str = Field(default="", alias="TON_API_KEY")
+    ton_network: str = Field(default="mainnet", alias="TON_NETWORK")
+
+    btcpay_url: str = Field(default="", alias="BTCPAY_URL")
+    btcpay_store_id: str = Field(default="", alias="BTCPAY_STORE_ID")
+    btcpay_api_key: str = Field(default="", alias="BTCPAY_API_KEY")
+    btcpay_webhook_secret: str = Field(default="", alias="BTCPAY_WEBHOOK_SECRET")
+
     @field_validator("webapp_public_url")
     @classmethod
     def strip_trailing_slash(cls, value: str) -> str:

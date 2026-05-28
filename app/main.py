@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import json
 import re
 from contextlib import suppress
 from typing import Any
@@ -16,6 +17,21 @@ from fastapi.exceptions import RequestValidationError
 from pydantic import BaseModel, Field
 
 from app.bot import build_dispatcher
+from app.billing import (
+    BillingError,
+    activate_subscription,
+    best_effort_ton_verify,
+    build_ton_transaction,
+    create_btcpay_invoice,
+    create_telegram_stars_invoice,
+    create_yookassa_payment,
+    enabled_providers,
+    make_order_id,
+    plan_catalog,
+    price_for_provider,
+    provider_enabled,
+    verify_btcpay_signature,
+)
 from app.config import Settings, get_settings, require_runtime_settings
 from app.db import Database
 from app.openrouter_client import AIClientError, OpenRouterClient
@@ -92,6 +108,19 @@ class FeedbackRequest(BaseModel):
     source_id: str | None = Field(default=None, max_length=120)
     rating: int = Field(ge=-1, le=1)
     message: str | None = Field(default=None, max_length=2000)
+
+
+class BillingOrderRequest(BaseModel):
+    plan: str = Field(min_length=2, max_length=40)
+    provider: str = Field(min_length=2, max_length=40)
+    telegram_user_id: int | None = None
+
+
+class TonVerifyRequest(BaseModel):
+    order_id: str = Field(min_length=4, max_length=80)
+    telegram_user_id: int | None = None
+    wallet_address: str | None = Field(default=None, max_length=120)
+    tx_hash: str | None = Field(default=None, max_length=160)
 
 
 class BusinessProfileRequest(BaseModel):
@@ -183,6 +212,15 @@ def margin_calculation(input_data: dict[str, Any]) -> dict[str, Any] | None:
         "roi": roi,
         "breakeven_price": breakeven_price,
     }
+
+
+
+def json_loads_safe(raw_body: bytes) -> dict[str, Any]:
+    try:
+        value = json.loads(raw_body.decode("utf-8"))
+        return value if isinstance(value, dict) else {}
+    except Exception:
+        return {}
 
 
 def _money(value: float | None) -> str:
@@ -322,14 +360,21 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         await db.init()
         logger.info("Database initialized at %s", settings.database_path)
 
-
-    @app.get("/health", include_in_schema=False)
-    async def health() -> dict[str, str]:
-        return {"status": "ok"}
-
     @app.get("/", include_in_schema=False)
     async def root() -> RedirectResponse:
         return RedirectResponse(url="/app")
+
+    @app.get("/health")
+    async def health() -> dict[str, Any]:
+        return {"ok": True, "service": "FounderPilot AI"}
+
+    @app.get("/tonconnect-manifest.json", include_in_schema=False)
+    async def ton_manifest() -> dict[str, Any]:
+        return {
+            "url": settings.webapp_public_url,
+            "name": "FounderPilot AI",
+            "iconUrl": f"{settings.webapp_public_url}/static/icon-512.png",
+        }
 
     @app.get("/app", include_in_schema=False)
     async def mini_app() -> FileResponse:
@@ -363,6 +408,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     @app.get("/api/me")
     async def me(start_param: str | None = None, user: TelegramUser = Depends(current_user)) -> dict[str, Any]:
         await db.upsert_user(user.id, user.username, user.first_name, user.last_name)
+        await db.expire_subscription_if_needed(user.id)
         if start_param:
             await db.set_referrer(user.id, start_param.strip())
         access = await db.get_access_state(
@@ -424,6 +470,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     async def generate(payload: GenerateRequest, user: TelegramUser = Depends(current_user)) -> GenerateResponse:
         telegram_id = resolve_telegram_id(user, payload.telegram_user_id)
         await db.upsert_user(telegram_id, user.username, user.first_name, user.last_name)
+        await db.expire_subscription_if_needed(telegram_id)
 
         if payload.tool_id not in MODES:
             return GenerateResponse(ok=False, error="Неизвестный AI-инструмент. Обновите приложение и попробуйте снова.")
@@ -483,6 +530,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     @app.post("/api/tools/run")
     async def tools_run(payload: ToolRunRequest, user: TelegramUser = Depends(current_user)) -> dict[str, Any]:
         telegram_id = resolve_telegram_id(user, payload.telegram_user_id)
+        await db.expire_subscription_if_needed(telegram_id)
         if payload.tool_id not in MODES:
             return {"ok": False, "error": "Неизвестный AI-инструмент."}
 
@@ -537,6 +585,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             return ChatResponse(ok=False, error="Сообщение слишком короткое. Опишите бизнес-задачу чуть подробнее.")
 
         await db.upsert_user(telegram_id, user.username, user.first_name, user.last_name)
+        await db.expire_subscription_if_needed(telegram_id)
 
         try:
             await rate_limiter.check(telegram_id)
@@ -635,6 +684,215 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             source_id=payload.source_id,
         )
         return {"ok": True, "id": feedback_id}
+
+    @app.get("/api/billing/plans")
+    async def billing_plans(user: TelegramUser = Depends(current_user)) -> dict[str, Any]:
+        plans = []
+        for plan in plan_catalog(settings).values():
+            plans.append(
+                {
+                    "id": plan.key,
+                    "title": plan.title,
+                    "daily_limit": plan.daily_limit,
+                    "price_rub": float(plan.price_rub),
+                    "price_stars": plan.price_stars,
+                    "price_ton": str(plan.price_ton),
+                    "price_btc": str(plan.price_btc),
+                    "duration_days": 30 if plan.key != "free" else None,
+                }
+            )
+        return {"ok": True, "plans": plans, "providers": enabled_providers(settings)}
+
+    @app.get("/api/billing/status")
+    async def billing_status(telegram_user_id: int | None = None, user: TelegramUser = Depends(current_user)) -> dict[str, Any]:
+        telegram_id = resolve_telegram_id(user, telegram_user_id)
+        status = await db.billing_status(
+            telegram_id,
+            free_limit_default=settings.free_trial_requests,
+            monthly_limit_default=settings.subscriber_monthly_limit,
+        )
+        return {"ok": True, **status}
+
+    @app.post("/api/billing/create-order")
+    async def billing_create_order(payload: BillingOrderRequest, user: TelegramUser = Depends(current_user)) -> dict[str, Any]:
+        telegram_id = resolve_telegram_id(user, payload.telegram_user_id)
+        await db.upsert_user(telegram_id, user.username, user.first_name, user.last_name)
+        plans = plan_catalog(settings)
+        plan = plans.get(payload.plan)
+        if not plan or plan.key == "free":
+            return {"ok": False, "error": "Выберите платный тариф."}
+        if not provider_enabled(settings, payload.provider):
+            return {"ok": False, "error": "Этот способ оплаты сейчас отключён."}
+
+        amount, currency = price_for_provider(plan, payload.provider)
+        order_id = make_order_id()
+        order = await db.create_billing_order(
+            order_id,
+            telegram_id,
+            plan.key,
+            payload.provider,
+            float(amount),
+            currency,
+            metadata={"plan_title": plan.title},
+        )
+
+        try:
+            if payload.provider == "telegram_stars":
+                bot = Bot(token=settings.bot_token)
+                invoice_link = await create_telegram_stars_invoice(settings, bot, order, plan)
+                await bot.session.close()
+                await db.update_billing_order(order_id, payment_url=invoice_link, payload=order_id)
+                return {"ok": True, "order_id": order_id, "provider": payload.provider, "payment_url": invoice_link}
+            if payload.provider == "yookassa":
+                external_id, payment_url = await create_yookassa_payment(settings, order, plan)
+                await db.update_billing_order(order_id, external_payment_id=external_id, payment_url=payment_url)
+                await db.record_payment(
+                    order_id=order_id,
+                    telegram_id=telegram_id,
+                    provider="yookassa",
+                    plan=plan.key,
+                    amount=float(amount),
+                    currency=currency,
+                    status="pending",
+                    external_payment_id=external_id,
+                )
+                return {"ok": True, "order_id": order_id, "provider": payload.provider, "payment_url": payment_url}
+            if payload.provider == "ton":
+                ton_transaction = build_ton_transaction(settings, order)
+                await db.update_billing_order(order_id, payload=order_id, metadata={"ton_transaction": ton_transaction})
+                return {
+                    "ok": True,
+                    "order_id": order_id,
+                    "provider": payload.provider,
+                    "ton_transaction": ton_transaction,
+                    "payment_url": None,
+                }
+            if payload.provider == "btcpay_btc":
+                external_id, payment_url = await create_btcpay_invoice(settings, order, plan)
+                await db.update_billing_order(order_id, external_payment_id=external_id, payment_url=payment_url)
+                await db.record_payment(
+                    order_id=order_id,
+                    telegram_id=telegram_id,
+                    provider="btcpay_btc",
+                    plan=plan.key,
+                    amount=float(amount),
+                    currency=currency,
+                    status="pending",
+                    external_payment_id=external_id,
+                )
+                return {"ok": True, "order_id": order_id, "provider": payload.provider, "payment_url": payment_url}
+        except BillingError as exc:
+            await db.update_billing_order(order_id, status="failed")
+            await db.log_error("billing_create_order", str(exc), telegram_id)
+            return {"ok": False, "error": str(exc), "order_id": order_id}
+        except Exception as exc:  # noqa: BLE001
+            await db.update_billing_order(order_id, status="failed")
+            await db.log_error("billing_create_order", str(exc), telegram_id)
+            return {"ok": False, "error": f"Не удалось создать оплату: {exc}", "order_id": order_id}
+
+        return {"ok": False, "error": "Способ оплаты пока не поддерживается."}
+
+    @app.get("/api/billing/order/{order_id}")
+    async def billing_order(order_id: str, user: TelegramUser = Depends(current_user)) -> dict[str, Any]:
+        order = await db.get_billing_order(order_id)
+        if not order:
+            raise HTTPException(status_code=404, detail="Заказ не найден.")
+        if not settings.allow_dev_auth and order.get("telegram_user_id") != str(user.id):
+            raise HTTPException(status_code=403, detail="Этот заказ принадлежит другому пользователю.")
+        return {"ok": True, "order": order}
+
+    @app.post("/api/billing/ton/verify")
+    async def ton_verify(payload: TonVerifyRequest, user: TelegramUser = Depends(current_user)) -> dict[str, Any]:
+        telegram_id = resolve_telegram_id(user, payload.telegram_user_id)
+        order = await db.get_billing_order(payload.order_id)
+        if not order or order.get("provider") != "ton":
+            return {"ok": False, "error": "TON-заказ не найден."}
+        if order.get("telegram_user_id") != str(telegram_id):
+            return {"ok": False, "error": "Этот заказ принадлежит другому пользователю."}
+        if order.get("status") == "paid":
+            return {"ok": True, "status": "paid"}
+        ok, message = await best_effort_ton_verify(settings, order, payload.tx_hash)
+        if not ok:
+            return {"ok": False, "error": message, "status": "pending"}
+        plan = plan_catalog(settings)[str(order["plan"])]
+        result = await activate_subscription(db, telegram_id, plan.key, "ton", order["id"], plan.daily_limit)
+        await db.record_payment(
+            order_id=order["id"],
+            telegram_id=telegram_id,
+            provider="ton",
+            plan=plan.key,
+            amount=float(order["amount"]),
+            currency="TON",
+            status="paid",
+            external_payment_id=payload.tx_hash,
+            raw_event={"wallet_address": payload.wallet_address, "tx_hash": payload.tx_hash},
+        )
+        return {"ok": True, "status": "paid", "subscription": result}
+
+    @app.post("/api/billing/webhooks/yookassa")
+    async def yookassa_webhook(request: Request) -> dict[str, Any]:
+        raw = await request.json()
+        obj = raw.get("object", {}) if isinstance(raw, dict) else {}
+        metadata = obj.get("metadata", {}) or {}
+        order_id = metadata.get("order_id")
+        external_id = obj.get("id")
+        event_type = raw.get("event")
+        await db.record_payment_event("yookassa", raw, event_type, order_id, external_id)
+        order = await db.get_billing_order(order_id) if order_id else None
+        if not order and external_id:
+            order = await db.find_billing_order_by_external_id(external_id)
+        if not order:
+            return {"ok": True, "ignored": True}
+        status = obj.get("status")
+        if event_type == "payment.succeeded" or status == "succeeded":
+            plan = plan_catalog(settings)[str(order["plan"])]
+            await activate_subscription(db, order["telegram_user_id"], plan.key, "yookassa", order["id"], plan.daily_limit)
+            await db.record_payment(
+                order_id=order["id"],
+                telegram_id=int(order["telegram_user_id"]),
+                provider="yookassa",
+                plan=plan.key,
+                amount=float(order["amount"]),
+                currency=order["currency"],
+                status="succeeded",
+                external_payment_id=external_id,
+                raw_event=raw,
+            )
+        elif status == "canceled" or event_type == "payment.canceled":
+            await db.update_billing_order(order["id"], status="canceled")
+        return {"ok": True}
+
+    @app.post("/api/billing/webhooks/btcpay")
+    async def btcpay_webhook(request: Request, btcpay_sig: str | None = Header(default=None, alias="BTCPay-Sig")) -> dict[str, Any]:
+        raw_body = await request.body()
+        if not verify_btcpay_signature(settings, raw_body, btcpay_sig):
+            raise HTTPException(status_code=403, detail="Неверная подпись BTCPay.")
+        raw = json_loads_safe(raw_body)
+        invoice_id = raw.get("invoiceId") or raw.get("id") or raw.get("data", {}).get("id")
+        event_type = raw.get("type") or raw.get("event")
+        order = await db.find_billing_order_by_external_id(str(invoice_id)) if invoice_id else None
+        await db.record_payment_event("btcpay_btc", raw, event_type, order.get("id") if order else None, str(invoice_id) if invoice_id else None)
+        if not order:
+            return {"ok": True, "ignored": True}
+        event_text = str(event_type or "").lower()
+        status_text = str(raw.get("status") or raw.get("invoiceStatus") or "").lower()
+        if any(word in event_text or word in status_text for word in ["settled", "confirmed", "complete", "paid"]):
+            plan = plan_catalog(settings)[str(order["plan"])]
+            await activate_subscription(db, order["telegram_user_id"], plan.key, "btcpay_btc", order["id"], plan.daily_limit)
+            await db.record_payment(
+                order_id=order["id"],
+                telegram_id=int(order["telegram_user_id"]),
+                provider="btcpay_btc",
+                plan=plan.key,
+                amount=float(order["amount"]),
+                currency=order["currency"],
+                status="paid",
+                external_payment_id=str(invoice_id),
+                raw_event=raw,
+            )
+        elif any(word in event_text or word in status_text for word in ["expired", "invalid", "failed"]):
+            await db.update_billing_order(order["id"], status="expired")
+        return {"ok": True}
 
     @app.get("/api/referral")
     async def referral(user: TelegramUser = Depends(current_user)) -> dict[str, Any]:
