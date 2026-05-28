@@ -1,807 +1,501 @@
-/**
- * FounderPilot AI - Core Frontend Logic
- * Premium Minimal Vanilla JavaScript Engine
- */
-
 const tg = window.Telegram?.WebApp || null;
 
-// Whitelist-словарь всех разрешенных иконок для безопасной вставки в innerHTML
 const iconPaths = {
-  home: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m3 9 9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>',
-  chat: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 11.5a8.4 8.4 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.4 8.4 0 0 1-3.8-.9L3 21l1.9-5.7A8.4 8.4 0 0 1 4 11.5a8.5 8.5 0 0 1 17 0Z"/></svg>',
-  tools: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/></svg>',
-  history: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>',
-  user: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>',
-  send: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>',
-  close: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>',
-  back: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="19" y1="12" x2="5" y2="12"/><polyline points="12 19 5 12 12 5"/></svg>',
-  copy: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>',
-  save: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>',
-  edit: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 1 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>',
-  trash: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>',
-  check: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>',
-  warning: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>',
-  'credit-card': '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="1" y="4" width="22" height="16" rx="2" ry="2"/><line x1="1" y1="10" x2="23" y2="10"/></svg>',
-  tg_stars: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>',
-  ton: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/></svg>',
-  btc: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M8 9h6a2 2 0 0 1 2 2v0a2 2 0 0 1-2 2H8"/><path d="M8 13h7a2 2 0 0 1 2 2v0a2 2 0 0 1-2 2H8"/><line x1="10" y1="6" x2="10" y2="18"/><line x1="12" y1="6" x2="12" y2="18"/></svg>',
-  chart: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>',
-  calculator: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="2" width="16" height="20" rx="2" ry="2"/><line x1="8" y1="6" x2="16" y2="6"/><line x1="16" y1="14" x2="16" y2="18"/><path d="M16 10h.01"/><path d="M12 10h.01"/><path d="M8 10h.01"/><path d="M12 14h.01"/><path d="M8 14h.01"/><path d="M8 18h.01"/><path d="M12 18h.01"/></svg>',
-  search: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>',
-  target: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="6"/><circle cx="12" cy="12" r="2"/></svg>',
-  link: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>'
+  home: '<path d="m3 9 9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/>',
+  chat: '<path d="M21 11.5a8.4 8.4 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.4 8.4 0 0 1-3.8-.9L3 21l1.9-5.7A8.4 8.4 0 0 1 4 11.5a8.5 8.5 0 0 1 17 0Z"/>',
+  tools: '<rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/>',
+  history: '<circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/>',
+  user: '<path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/>',
+  send: '<line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/>',
+  close: '<line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>',
+  back: '<line x1="19" y1="12" x2="5" y2="12"/><polyline points="12 19 5 12 12 5"/>',
+  'credit-card': '<rect x="1" y="4" width="22" height="16" rx="2"/><line x1="1" y1="10" x2="23" y2="10"/>',
+  tg_stars: '<path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/>',
+  ton: '<path d="M12 2L3 9l9 13 9-13L12 2zm0 4.5L17.5 10H6.5L12 6.5zM6.8 12h10.4l-5.2 7.5-5.2-7.5z"/>',
+  btc: '<path d="M12 22c5.523 0 10-4.477 10-10S17.523 2 12 2 2 6.477 2 12s4.477 10 10 10z"/><path d="M10 8h2.5a1.5 1.5 0 0 1 0 3H10V8z"/><path d="M10 13h3a1.5 1.5 0 0 1 0 3h-3v-3z"/><path d="M12 5v2"/><path d="M12 17v2"/>'
 };
 
-// Единый глобальный стейт
 const state = {
   user: null,
   tools: [],
   plans: {},
   history: [],
-  messages: [],
-  activeView: "home",
+  currentMode: "strategy",
+  historyFilter: "all",
   activePlanKey: null,
   activePlan: null,
-  historyFilter: "all",
   isSending: false,
+  messages: [],
+  pollingTimers: new Set(),
   onboardingStep: 0,
   onboardingData: {},
-  toastTimer: null
+  onboardingConfig: [
+    {
+      id: "role",
+      title: "Кто вы?",
+      type: "choices",
+      options: [
+        { key: "wb_seller", label: "Селлер Wildberries" },
+        { key: "ozon_seller", label: "Селлер Ozon" },
+        { key: "multi_seller", label: "Мультиселлер" },
+        { key: "beginner", label: "Выбираю нишу" },
+        { key: "other", label: "Другое" }
+      ]
+    },
+    {
+      id: "pain",
+      title: "Что хотите улучшить?",
+      type: "choices",
+      options: [
+        { key: "sales", label: "Продажи" },
+        { key: "cards", label: "Карточки товара" },
+        { key: "ads", label: "Рекламу" },
+        { key: "ideas", label: "Идеи товара" },
+        { key: "strategy", label: "Стратегию" },
+        { key: "unit", label: "Расчёты" }
+      ]
+    },
+    {
+      id: "business_description",
+      title: "Коротко опишите бизнес",
+      type: "textarea",
+      placeholder: "Например: продаю товары для кухни на Ozon, хочу улучшить карточки и рекламу"
+    }
+  ]
 };
 
-// Хелпер быстрого выбора элементов
-const $ = (id) => document.getElementById(id);
+function $(id) {
+  return document.getElementById(id);
+}
 
-// Экранирование HTML (Защита от XSS атак)
 function escapeHTML(value) {
-  if (!value) return "";
-  return String(value)
+  return String(value ?? "")
     .replace(/&/g, "&amp;")
     .replace(/</g, "&lt;")
     .replace(/>/g, "&gt;")
     .replace(/"/g, "&quot;")
-    .replace(/'/g, "&#x27;")
-    .replace(/\//g, "&#x2F;");
+    .replace(/'/g, "&#039;");
 }
 
-// Получить валидный inline SVG по имени
-function icon(name) {
-  return iconPaths[name] || "";
+function normalizeErrorPayload(payload) {
+  if (!payload) return "Системная ошибка";
+  return payload.error || payload.detail || payload.message || "Системная ошибка";
 }
 
-// Инъекция безопасных иконок
 function injectIcons(root = document) {
   root.querySelectorAll("[data-icon]").forEach((el) => {
-    const key = el.dataset.icon;
-    if (iconPaths[key]) {
-      el.innerHTML = iconPaths[key];
+    const name = el.dataset.icon;
+    if (iconPaths[name] && !el.querySelector("svg")) {
+      el.innerHTML = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${iconPaths[name]}</svg>`;
     }
   });
 }
 
-// Инициализация Telegram WebApp среды
 function initTelegram() {
-  if (tg) {
-    tg.ready();
-    tg.expand();
-    if (tg.setHeaderColor) tg.setHeaderColor(tg.themeParams?.bg_color || "#0a0a0c");
-    document.body.classList.add("tg-theme");
-  }
+  if (!tg) return;
+  tg.ready?.();
+  tg.expand?.();
+  if (tg.setHeaderColor) tg.setHeaderColor("secondary_bg_color");
+  document.body.classList.add("tg-theme");
 }
 
-// Получение инфо о текущем ТГ-юзере
 function getTelegramUser() {
-  if (tg && tg.initDataUnsafe && tg.initDataUnsafe.user) {
-    return tg.initDataUnsafe.user;
-  }
-  return { id: 12345678, first_name: "Предприниматель", username: "founder" };
+  return tg?.initDataUnsafe?.user || null;
 }
 
-// Устойчивая обертка для сетевых запросов
-async function apiRequest(url, options = {}) {
-  const initData = tg ? tg.initData : "";
-  options.headers = {
-    ...options.headers,
-    "Content-Type": "application/json",
-    "X-Telegram-Init-Data": initData
-  };
-  
-  const response = await fetch(url, options);
-  if (!response.ok) {
-    throw new Error(`HTTP Error: ${response.status}`);
-  }
-  return await response.json();
+function showToast(text) {
+  const el = $("toast");
+  if (!el) return;
+  el.textContent = text;
+  el.classList.add("visible");
+  clearTimeout(showToast._timer);
+  showToast._timer = setTimeout(() => el.classList.remove("visible"), 2500);
 }
 
-// Защищенный вызов API с подавлением фатальных ошибок (Graceful Degradation)
-async function apiTry(url, options = {}, fallbackValue = null) {
+async function request(url, options = {}) {
+  const initData = tg?.initData || "";
+  const headers = { ...(options.headers || {}) };
+  if (!(options.body instanceof FormData)) headers["Content-Type"] = "application/json";
+  if (initData) headers["X-Telegram-Init-Data"] = initData;
+
+  const res = await fetch(url, { ...options, headers });
+  const text = await res.text();
+  let data = null;
+  if (text) {
+    try { data = JSON.parse(text); } catch { data = { detail: text }; }
+  }
+  if (!res.ok || data?.ok === false) {
+    throw new Error(normalizeErrorPayload(data));
+  }
+  return data ?? {};
+}
+
+async function requestMaybe(url, options = {}, fallback = null) {
   try {
-    return await apiRequest(url, options);
+    return await request(url, options);
   } catch (err) {
-    console.error(`Ошибка при запросе к ${url}:`, err);
-    return fallbackValue;
+    return fallback;
   }
 }
 
-// Нативная система Toast уведомлений вместо alert()
-function showToast(message, type = "info") {
-  const toastNode = $("toast");
-  if (!toastNode) return;
-  
-  clearTimeout(state.toastTimer);
-  toastNode.className = `toast visible ${type}`;
-  toastNode.textContent = message;
-  
-  state.toastTimer = setTimeout(() => {
-    toastNode.classList.remove("visible");
-  }, 3500);
+function normalizeUser(data) {
+  const tgUser = getTelegramUser();
+  const root = data?.user || data || {};
+  const dailyLimit = root.daily_limit ?? root.limit_today ?? root.dailyLimit ?? 20;
+  const dailyUsed = root.daily_used ?? root.used_today ?? root.usedToday ?? 0;
+  const remaining = root.remaining ?? (Number.isFinite(Number(dailyLimit)) ? Math.max(0, Number(dailyLimit) - Number(dailyUsed)) : null);
+
+  return {
+    ...root,
+    telegram_id: root.telegram_id || root.telegram_user_id || tgUser?.id || "dev",
+    first_name: root.first_name || root.name || tgUser?.first_name || "пользователь",
+    username: root.username || tgUser?.username || "",
+    plan: root.plan || root.plan_name || "free",
+    daily_limit: dailyLimit,
+    used_today: dailyUsed,
+    remaining,
+    business_profile: root.business_profile || root.description || root.business_description || "",
+    onboarding_required: Boolean(data?.onboarding_required ?? root.onboarding_required)
+  };
 }
 
-// Переключение вкладок приложения (Внутренний роутинг)
+function getTelegramUserId() {
+  return String(state.user?.telegram_id || state.user?.telegram_user_id || getTelegramUser()?.id || "dev");
+}
+
+function normalizeTools(data) {
+  const raw = Array.isArray(data) ? data : (Array.isArray(data?.tools) ? data.tools : []);
+  return raw.map((tool, index) => ({
+    id: tool.id || tool.tool_id || `tool_${index}`,
+    title: tool.title || tool.name || "Инструмент",
+    description: tool.description || tool.subtitle || "",
+    prompt_template: tool.prompt_template || tool.prompt || tool.template || ""
+  }));
+}
+
+function normalizePlans(data) {
+  const fallback = {
+    free: { title: "Free", description: "Базовый доступ", price_monthly: 0, providers: [] },
+    pro: { title: "Pro", description: "Для регулярной работы", price_monthly: 299, providers: [] },
+    business: { title: "Business", description: "Для активной работы", price_monthly: 999, providers: [] }
+  };
+
+  const providerPool = Array.isArray(data?.providers) ? data.providers : [];
+  const normalizeProvider = (provider) => {
+    const id = provider.id || provider.provider || provider.key || "yookassa";
+    return {
+      id,
+      title: provider.title || provider.name || provider.label || providerTitle(id),
+      description: provider.description || provider.subtitle || "",
+      price_formatted: provider.price_formatted || provider.price_text || provider.price || ""
+    };
+  };
+
+  if (Array.isArray(data?.plans)) {
+    return data.plans.reduce((acc, plan) => {
+      const key = plan.key || plan.id || plan.plan;
+      if (!key) return acc;
+      const planProviders = Array.isArray(plan.providers) ? plan.providers : providerPool;
+      acc[key] = {
+        title: plan.title || plan.name || key.toUpperCase(),
+        description: plan.description || "",
+        price_monthly: plan.price_monthly ?? plan.price_rub ?? plan.price ?? 0,
+        price_text: plan.price_text || plan.price_formatted || null,
+        providers: planProviders.map(normalizeProvider)
+      };
+      return acc;
+    }, {});
+  }
+
+  if (data?.plans && typeof data.plans === "object") {
+    return Object.fromEntries(Object.entries(data.plans).map(([key, plan]) => {
+      const planProviders = Array.isArray(plan.providers) ? plan.providers : providerPool;
+      return [key, {
+        title: plan.title || plan.name || key.toUpperCase(),
+        description: plan.description || "",
+        price_monthly: plan.price_monthly ?? plan.price_rub ?? plan.price ?? 0,
+        price_text: plan.price_text || plan.price_formatted || null,
+        providers: planProviders.map(normalizeProvider)
+      }];
+    }));
+  }
+
+  return fallback;
+}
+
+function providerTitle(id) {
+  const titles = {
+    telegram_stars: "Telegram Stars",
+    stars: "Telegram Stars",
+    yookassa: "ЮKassa / ЮMoney",
+    yoo_money: "ЮKassa / ЮMoney",
+    ton: "TON / Tonkeeper",
+    crypto: "TON / Tonkeeper",
+    btc: "Bitcoin",
+    btcpay_btc: "Bitcoin"
+  };
+  return titles[id] || id;
+}
+
+function normalizeHistory(data) {
+  const raw = Array.isArray(data) ? data : (Array.isArray(data?.history) ? data.history : []);
+  return raw.map((item, index) => {
+    const type = item.type || item.mode || "chat";
+    const title = item.title || item.mode || item.tool_id || "Запрос";
+    const text = item.text || item.prompt || item.user_input || item.input || "";
+    const answer = item.answer || item.result || item.result_text || item.content || item.response || "";
+    const ts = item.timestamp || item.created_at || item.date || null;
+    return { ...item, id: item.id || index, type, mode: item.mode || type, title, text, answer, timestamp: ts };
+  });
+}
+
+function formatDate(value) {
+  if (!value) return "";
+  const numeric = Number(value);
+  const date = Number.isFinite(numeric)
+    ? new Date(numeric > 100000000000 ? numeric : numeric * 1000)
+    : new Date(value);
+  return Number.isNaN(date.getTime()) ? String(value) : date.toLocaleDateString("ru-RU");
+}
+
 function switchView(target) {
-  state.activeView = target;
-  
-  document.querySelectorAll(".view").forEach(v => v.classList.remove("active"));
-  document.querySelectorAll(".nav-item").forEach(n => n.classList.remove("active"));
-  
+  document.querySelectorAll(".view").forEach((view) => view.classList.remove("active"));
+  document.querySelectorAll(".nav-item").forEach((btn) => btn.classList.toggle("active", btn.dataset.target === target));
+
   const targetView = $(`view-${target}`);
   if (targetView) targetView.classList.add("active");
-  
-  const navBtn = document.querySelector(`.nav-item[data-view="${target}"]`);
-  if (navBtn) navBtn.classList.add("active");
-  
-  // Динамические заголовки
-  const titles = { home: "Главная", tools: "Инструменты", history: "История", profile: "Профиль" };
-  if ($("pageTitle")) $("pageTitle").textContent = titles[target] || "Сервис";
-  
-  if (target === "history") loadHistory();
-  if (target === "tools") loadTools();
-  if (target === "profile") renderProfile();
+
+  const titles = { home: "Главная", chat: "AI Чат", tools: "Инструменты", history: "История", profile: "Профиль" };
+  const title = $("pageTitle");
+  if (title) title.textContent = titles[target] || "FounderPilot AI";
+
+  if (target === "tools") loadTools().catch(() => {});
+  if (target === "history") loadHistory().catch(() => {});
 }
 
-// Управление состоянием лоадинга на кнопках
-function setLoading(button, isLoading) {
-  if (!button) return;
-  if (isLoading) {
-    button.disabled = true;
-    button.dataset.originalText = button.textContent;
-    button.textContent = "Загрузка...";
-  } else {
-    button.disabled = false;
-    if (button.dataset.originalText) {
-      button.textContent = button.dataset.originalText;
-    }
-  }
-}
-
-// Автоматический ресайз textarea чата
 function autoResizeTextarea(textarea) {
   if (!textarea) return;
   textarea.style.height = "auto";
-  textarea.style.height = (textarea.scrollHeight) + "px";
+  textarea.style.height = `${textarea.scrollHeight}px`;
 }
 
-// Обновление состояния кнопки отправки сообщения
-function updateSendButton() {
-  const input = $("homeChatInput");
-  const btn = $("homeChatSendBtn");
-  if (!input || !btn) return;
-  btn.disabled = state.isSending || !input.value.trim();
+function updateChatSendButton(textareaId, buttonId) {
+  const txt = $(textareaId);
+  const btn = $(buttonId);
+  if (txt && btn) btn.disabled = state.isSending || !txt.value.trim();
 }
 
-// Безопасное добавление сообщений в DOM-дерево
-function appendMessage(role, text, actions = false) {
-  const scrollContainer = $("homeChatScroll");
-  if (!scrollContainer) return;
-  
-  const emptyState = $("chatEmptyState");
-  if (emptyState) emptyState.style.display = "none";
-  
-  const msgDiv = document.createElement("div");
-  msgDiv.className = `msg ${role}`;
-  
-  // Вставляем безопасный экранированный текст
-  const contentSpan = document.createElement("span");
-  contentSpan.textContent = text;
-  msgDiv.appendChild(contentSpan);
-  
-  // Кнопки действий для ответов ассистента
-  if (actions && role === "bot") {
-    const actionsDiv = document.createElement("div");
-    actionsDiv.className = "message-actions";
-    
-    const copyBtn = document.createElement("button");
-    copyBtn.textContent = "Скопировать";
-    copyBtn.onclick = () => copyText(text);
-    
-    const saveBtn = document.createElement("button");
-    saveBtn.textContent = "Сохранить";
-    saveBtn.onclick = () => saveResult(text, "Результат генерации");
-    
-    const shorterBtn = document.createElement("button");
-    shorterBtn.textContent = "Короче";
-    shorterBtn.onclick = () => improveLastAnswer("Сделай короче");
-    
-    const longerBtn = document.createElement("button");
-    longerBtn.textContent = "Подробнее";
-    longerBtn.onclick = () => improveLastAnswer("Расскажи подробнее");
-    
-    actionsDiv.appendChild(copyBtn);
-    actionsDiv.appendChild(saveBtn);
-    actionsDiv.appendChild(shorterBtn);
-    actionsDiv.appendChild(longerBtn);
-    
-    msgDiv.appendChild(actionsDiv);
-  }
-  
-  scrollContainer.appendChild(msgDiv);
-  scrollContainer.scrollTop = scrollContainer.scrollHeight;
+function clearChatEmpty(scroll) {
+  scroll?.querySelector(".chat-empty")?.remove();
 }
 
-// Отрисовка всей цепочки чата из стейта
-function renderChat() {
-  const scrollContainer = $("homeChatScroll");
-  if (!scrollContainer) return;
-  
-  // Очистка кроме empty state
-  scrollContainer.querySelectorAll(".msg").forEach(m => m.remove());
-  
-  if (state.messages.length === 0) {
-    if ($("chatEmptyState")) $("chatEmptyState").style.display = "block";
+function appendChatMessage(scrollId, role, text, id = null) {
+  const scroll = $(scrollId);
+  if (!scroll) return null;
+  clearChatEmpty(scroll);
+  const el = document.createElement("div");
+  el.className = role === "user" ? "msg user" : role === "assistant" || role === "bot" ? "msg bot" : "msg bot system-msg";
+  if (id) el.id = id;
+  el.textContent = text;
+  scroll.appendChild(el);
+  scroll.scrollTop = scroll.scrollHeight;
+  return el;
+}
+
+function renderChat(scrollId, messages) {
+  const scroll = $(scrollId);
+  if (!scroll) return;
+  scroll.textContent = "";
+  if (!messages || !messages.length) {
+    scroll.innerHTML = `<div class="chat-empty"><span data-icon="chat"></span><p>История диалога пуста. Введите запрос ниже.</p></div>`;
+    injectIcons(scroll);
     return;
   }
-  
-  if ($("chatEmptyState")) $("chatEmptyState").style.display = "none";
-  
-  state.messages.forEach((m, idx) => {
-    const isLast = idx === state.messages.length - 1;
-    appendMessage(m.role, m.text, isLast);
-  });
+  messages.forEach((message) => appendChatMessage(scrollId, message.role, message.text));
 }
 
-// Отправка сообщений на бэкенд
-async function sendChatMessage(text, options = {}) {
-  if (!text || state.isSending) return;
-  
+async function askAI(text) {
+  const chatPayload = {
+    telegram_user_id: getTelegramUserId(),
+    message: text,
+    mode: state.currentMode
+  };
+
+  try {
+    return await request("/api/chat", { method: "POST", body: JSON.stringify(chatPayload) });
+  } catch (chatError) {
+    return await request("/api/ask", {
+      method: "POST",
+      body: JSON.stringify({ mode: state.currentMode, text, message: text, telegram_user_id: getTelegramUserId() })
+    });
+  }
+}
+
+function extractAnswer(res) {
+  return res?.answer || res?.response || res?.result || res?.text || res?.message || "";
+}
+
+async function handleChatSend(inputId, scrollId, sendBtnId) {
+  const input = $(inputId);
+  const text = input?.value.trim();
+  if (!input || !text || state.isSending) return;
+
   state.isSending = true;
-  updateSendButton();
-  
-  state.messages.push({ role: "user", text: text });
-  renderChat();
-  
-  if ($("homeChatInput")) {
-    $("homeChatInput").value = "";
-    autoResizeTextarea($("homeChatInput"));
-  }
-  
-  // Добавление временного системного сообщения ожидания генерации
-  appendMessage("system", "AI готовит ответ...");
-  
-  // Проверяем доступность /api/chat с автопереходом на /api/ask
-  let result = null;
-  const payload = { prompt: text, context: state.messages, ...options };
-  
+  input.value = "";
+  autoResizeTextarea(input);
+  updateChatSendButton(inputId, sendBtnId);
+
+  state.messages.push({ role: "user", text });
+  appendChatMessage(scrollId, "user", text);
+  const statusId = `status_${Date.now()}`;
+  appendChatMessage(scrollId, "system", "Выполняется анализ...", statusId);
+
   try {
-    result = await apiRequest("/api/chat", { method: "POST", body: JSON.stringify(payload) });
-  } catch (e) {
-    try {
-      result = await apiRequest("/api/ask", { method: "POST", body: JSON.stringify({ message: text, ...options }) });
-    } catch (err) {
-      console.error("Оба эндпоинта отправки недоступны", err);
+    const res = await askAI(text);
+    $(statusId)?.remove();
+    const answer = extractAnswer(res);
+    if (!answer) throw new Error("Пустой ответ от AI");
+    state.messages.push({ role: "assistant", text: answer });
+    appendChatMessage(scrollId, "assistant", answer);
+
+    if (state.user) {
+      const used = res.used_today ?? res.daily_used ?? res.usage?.daily_used;
+      const remaining = res.remaining ?? res.usage?.remaining;
+      if (used !== undefined) state.user.used_today = used;
+      if (remaining !== undefined) state.user.remaining = remaining;
+      updateProfileUI();
     }
-  }
-  
-  // Удаляем сообщение ожидания
-  const scrollContainer = $("homeChatScroll");
-  if (scrollContainer && scrollContainer.lastChild) {
-    scrollContainer.lastChild.remove();
-  }
-  
-  state.isSending = false;
-  updateSendButton();
-  
-  if (result && (result.answer || result.response || result.text)) {
-    const aiText = result.answer || result.response || result.text;
-    state.messages.push({ role: "bot", text: aiText });
-    renderChat();
-  } else {
-    showToast("Не удалось получить ответ от ИИ. Проверьте соединение.", "error");
-    if (state.messages.length > 0) {
-      state.messages.pop(); // Удаляем последнее безответное сообщение
-      renderChat();
+    loadHistory().catch(() => {});
+  } catch (err) {
+    const st = $(statusId);
+    if (st) {
+      st.classList.remove("system-msg");
+      st.classList.add("text-danger");
+      st.textContent = err.message;
     }
+  } finally {
+    state.isSending = false;
+    updateChatSendButton(inputId, sendBtnId);
   }
 }
 
-// Корректировка последнего ответа ИИ
-function improveLastAnswer(instruction) {
-  const lastUserMsg = [...state.messages].reverse().find(m => m.role === "user");
-  if (!lastUserMsg) return;
-  sendChatMessage(lastUserMsg.text, { refinement: instruction });
-}
-
-// Нативное копирование текста в буфер обмена
-function copyText(text) {
-  if (navigator.clipboard && navigator.clipboard.writeText) {
-    navigator.clipboard.writeText(text)
-      .then(() => showToast("Текст скопирован в буфер обмена", "success"))
-      .catch(() => showToast("Не удалось скопировать текст", "error"));
-  } else {
-    // Резервный метод для старых браузеров (Fallback)
-    const area = document.createElement("textarea");
-    area.value = text;
-    area.style.position = "fixed";
-    document.body.appendChild(area);
-    area.select();
-    try {
-      document.execCommand("copy");
-      showToast("Текст скопирован в буфер обмена", "success");
-    } catch (e) {
-      showToast("Не удалось скопировать", "error");
-    }
-    document.body.removeChild(area);
-  }
-}
-
-// Сохранение результатов генерации
-async function saveResult(content, title) {
-  try {
-    await apiRequest("/api/saved", { method: "POST", body: JSON.stringify({ content, title }) });
-    showToast("Результат успешно сохранен", "success");
-  } catch (e) {
-    // Мягкий фоллбэк согласно ТЗ
-    showToast("Сохранение временно недоступно", "info");
-  }
-}
-
-// Загрузка данных аккаунта пользователя
-async function loadMe() {
-  const tgUser = getTelegramUser();
-  const fallbackMe = {
-    name: tgUser.first_name,
-    username: tgUser.username || String(tgUser.id),
-    plan_name: "Free",
-    used_today: 0,
-    limit_today: 10,
-    business_profile: "",
-    onboarding_required: false
-  };
-  
-  state.user = await apiTry("/api/me", { method: "GET" }, fallbackMe);
-  
-  if ($("homeGreeting")) {
-    $("homeGreeting").textContent = `Здравствуйте, ${state.user.name || "предприниматель"}`;
-  }
-  
-  if (state.user.onboarding_required) {
-    openOnboarding();
-  }
-}
-
-// Обновление интерфейса профиля
-function renderProfile() {
+function updateProfileUI() {
   if (!state.user) return;
-  
-  if ($("headerUserAvatar")) $("headerUserAvatar").textContent = (state.user.name || "FP").substring(0, 2).toUpperCase();
-  if ($("profileUserAvatar")) $("profileUserAvatar").textContent = (state.user.name || "FP").substring(0, 2).toUpperCase();
-  if ($("profileUserTitle")) $("profileUserTitle").textContent = state.user.name || "Пользователь";
-  if ($("profilePlanLabel")) $("profilePlanLabel").textContent = state.user.plan_name || "Free";
-  
-  const used = state.user.used_today || 0;
-  const limit = state.user.limit_today || 0;
-  if ($("profileUsageText")) $("profileUsageText").textContent = `${used} / ${limit}`;
-  
-  if ($("profileUsageFill")) {
-    const pct = limit > 0 ? Math.min(100, (used / limit) * 100) : 0;
-    $("profileUsageFill").style.width = `${pct}%`;
+  const firstName = state.user.first_name || "пользователь";
+  const initial = firstName.charAt(0).toUpperCase();
+
+  if ($("homeGreeting")) $("homeGreeting").textContent = `Здравствуйте, ${firstName}`;
+  if ($("profileUserTitle")) {
+    $("profileUserTitle").textContent = state.user.username ? `@${state.user.username}` : `ID: ${state.user.telegram_id}`;
   }
-  
-  if ($("profileBusinessDescription")) {
-    $("profileBusinessDescription").value = state.user.business_profile || "";
+  if ($("headerUserAvatar")) $("headerUserAvatar").textContent = initial;
+  if ($("profileUserAvatar")) $("profileUserAvatar").textContent = initial;
+  if ($("userAvatar")) $("userAvatar").textContent = initial;
+
+  const label = $("profilePlanLabel");
+  if (label) {
+    const p = state.user.plan ? String(state.user.plan).toUpperCase() : "FREE";
+    const rem = state.user.remaining === null || state.user.remaining === undefined ? "Безлимитно" : `Осталось: ${state.user.remaining}`;
+    label.innerHTML = `${escapeHTML(p)} <small style="display:block; font-weight:normal; margin-top:1px; opacity:0.7;">${escapeHTML(rem)}</small>`;
   }
+  if ($("profileBusinessDescription")) $("profileBusinessDescription").value = state.user.business_profile || "";
 }
 
-// Загрузка библиотеки инструментов ИИ
-async function loadTools() {
-  const defaultTools = [
-    { id: "t1", title: "Расчёт маржинальности", description: "Быстрая юнит-экономика товара.", prompt_template: "Помоги рассчитать маржу товара. Вот исходные данные: " },
-    { id: "t2", title: "Оптимизация карточки", description: "Генерация сильного SEO-описания.", prompt_template: "Улучши описание карточки товара для маркетплейса: " },
-    { id: "t3", title: "Анализ конкурентов", description: "Разбор преимуществ и слабых мест.", prompt_template: "Сделай анализ конкурентов для следующей ниши: " }
-  ];
-  
-  state.tools = await apiTry("/api/tools", { method: "GET" }, defaultTools);
-  renderTools();
+async function loadMe() {
+  const data = await request("/api/me");
+  state.user = normalizeUser(data);
+  updateProfileUI();
+  if (data?.onboarding_required || state.user.onboarding_required) openOnboarding();
 }
-
-// Отрисовка сетки инструментов
-function renderTools() {
-  const grid = $("toolsGrid");
-  if (!grid) return;
-  
-  grid.innerHTML = "";
-  if (!state.tools || state.tools.length === 0) {
-    grid.innerHTML = '<div class="empty-state">Инструменты временно недоступны.</div>';
-    return;
-  }
-  
-  state.tools.forEach(tool => {
-    const row = document.createElement("div");
-    row.className = "tool-item-row";
-    
-    // Подбор иконки по типу/id
-    let currentIcon = "calculator";
-    if (tool.id === "t2") currentIcon = "target";
-    if (tool.id === "t3") currentIcon = "chart";
-    
-    row.innerHTML = `
-      <div class="tool-icon-box">${icon(currentIcon)}</div>
-      <div class="tool-text-box">
-        <h4>${escapeHTML(tool.title)}</h4>
-        <p>${escapeHTML(tool.description)}</p>
-      </div>
-    `;
-    
-    row.onclick = () => {
-      switchView("home");
-      if (tool.prompt_template && $("homeChatInput")) {
-        $("homeChatInput").value = tool.prompt_template;
-        $("homeChatInput").focus();
-        autoResizeTextarea($("homeChatInput"));
-        updateSendButton();
-      }
-    };
-    
-    grid.appendChild(row);
-  });
-}
-
-// Загрузка истории генераций
-async function loadHistory() {
-  state.history = await apiTry("/api/history", { method: "GET" }, []);
-  renderHistory();
-}
-
-// Отрисовка списка истории с учетом полифилла форматов
-function renderHistory() {
-  const container = $("historyList");
-  if (!container) return;
-  
-  container.innerHTML = "";
-  
-  // Фильтрация данных по стейту фильтра
-  let list = state.history || [];
-  if (state.historyFilter === "chats") {
-    list = list.filter(h => h.mode === "chat" || h.type === "chat");
-  } else if (state.historyFilter === "tools") {
-    list = list.filter(h => h.mode && h.mode !== "chat" || h.type === "tool");
-  } else if (state.historyFilter === "saved") {
-    list = list.filter(h => h.is_saved || h.type === "saved");
-  }
-  
-  if (list.length === 0) {
-    container.innerHTML = '<div class="empty-state">Здесь появятся ваши результаты.</div>';
-    return;
-  }
-  
-  list.forEach(item => {
-    // Поддержка форматов old format и new format
-    const title = item.title || item.mode || "Генерация";
-    const preview = item.preview || item.text || item.answer || "";
-    const rawDate = item.created_at || item.timestamp || "";
-    
-    let formattedDate = "";
-    if (rawDate) {
-      const d = new Date(rawDate);
-      formattedDate = isNaN(d.getTime()) ? rawDate : d.toLocaleDateString("ru-RU");
-    }
-    
-    const card = document.createElement("div");
-    card.className = "history-row";
-    card.innerHTML = `
-      <h4>${escapeHTML(title)}</h4>
-      <p>${escapeHTML(preview)}</p>
-      <div class="meta">${escapeHTML(formattedDate)}</div>
-    `;
-    
-    card.onclick = () => {
-      // Клик по истории разворачивает элемент в чат
-      switchView("home");
-      state.messages = [
-        { role: "user", text: item.text || item.title || "Исходный запрос" },
-        { role: "bot", text: item.answer || item.content || preview }
-      ];
-      renderChat();
-    };
-    
-    container.appendChild(card);
-  });
-}
-
-// Мутатор фильтров истории
-function setHistoryFilter(filter) {
-  state.historyFilter = filter;
-  document.querySelectorAll("#historyFilters .filter-btn").forEach(btn => {
-    btn.classList.toggle("active", btn.dataset.filter === filter);
-  });
-  renderHistory();
-}
-
-// Загрузка биллинг-планов
-async function loadBillingPlans() {
-  const fallbackPlans = {
-    plans: [
-      { key: "free", title: "Free", description: "Базовые возможности ИИ", price_text: "0 ₽" },
-      { key: "pro", title: "Pro", description: "Расширенный бизнес-анализ", price_text: "990 ₽/мес" },
-      { key: "business", title: "Business", description: "Максимальные лимиты и приоритет", price_text: "2990 ₽/мес" }
-    ],
-    providers: [
-      { id: "telegram_stars", name: "Telegram Stars", icon: "tg_stars" },
-      { id: "yookassa", name: "ЮKassa / ЮMoney", icon: "credit-card" },
-      { id: "ton", name: "TON / Tonkeeper", icon: "ton" },
-      { id: "btc", name: "Bitcoin", icon: "btc" }
-    ]
-  };
-  
-  const res = await apiTry("/api/billing/plans", { method: "GET" }, fallbackPlans);
-  state.plans = res;
-}
-
-// Открытие биллинг окна
-function openBillingModal() {
-  $("billingModal").hidden = false;
-  $("paymentProviderBox").hidden = true;
-  $("billingPlanList").hidden = false;
-  $("billingError").hidden = true;
-  renderBillingPlans();
-}
-
-function closeBillingModal() {
-  $("billingModal").hidden = true;
-}
-
-// Рендер тарифов
-function renderBillingPlans() {
-  const container = $("billingPlanList");
-  if (!container) return;
-  
-  container.innerHTML = "";
-  const plansList = state.plans?.plans || [];
-  
-  if (plansList.length === 0) {
-    container.innerHTML = '<div class="empty-state">Тарифы временно недоступны.</div>';
-    return;
-  }
-  
-  plansList.forEach(plan => {
-    const card = document.createElement("div");
-    card.className = "plan-item-row";
-    card.setAttribute("data-plan-key", plan.key);
-    card.innerHTML = `
-      <h3>${escapeHTML(plan.title)}</h3>
-      <p>${escapeHTML(plan.description)}</p>
-      <div class="plan-price">${escapeHTML(plan.price_text)}</div>
-    `;
-    container.appendChild(card);
-  });
-}
-
-// Клик по тарифу -> выбор шлюза
-function selectPlan(planKey) {
-  state.activePlanKey = planKey;
-  state.activePlan = (state.plans?.plans || []).find(p => p.key === planKey);
-  
-  $("billingPlanList").hidden = true;
-  $("paymentProviderBox").hidden = false;
-  
-  const container = $("providerList");
-  if (!container) return;
-  container.innerHTML = "";
-  
-  const providers = state.plans?.providers || [];
-  providers.forEach(prov => {
-    const row = document.createElement("div");
-    row.className = "provider-item-row";
-    row.setAttribute("data-provider", prov.id);
-    
-    row.innerHTML = `
-      <div class="provider-icon">${icon(prov.icon || "credit-card")}</div>
-      <div class="provider-info">
-        <div class="provider-title">${escapeHTML(prov.name)}</div>
-      </div>
-      <div class="provider-price-tag">${escapeHTML(state.activePlan?.price_text)}</div>
-    `;
-    container.appendChild(row);
-  });
-}
-
-// Запуск оплаты
-async function checkout(providerId) {
-  $("billingError").hidden = true;
-  
-  const payload = { plan: state.activePlanKey, provider: providerId };
-  let orderData = null;
-  
-  try {
-    orderData = await apiRequest("/api/billing/create-order", { method: "POST", body: JSON.stringify(payload) });
-  } catch (e) {
-    try {
-      orderData = await apiRequest("/api/billing/checkout", { method: "POST", body: JSON.stringify(payload) });
-    } catch (err) {
-      $("billingError").textContent = "Не удалось инициировать оплату. Попробуйте позже.";
-      $("billingError").hidden = false;
-      return;
-    }
-  }
-  
-  if (!orderData) return;
-  
-  // Логика TON криптовалюты
-  if (providerId === "ton") {
-    if (orderData.payment_url || orderData.invoice_url) {
-      if (tg) tg.openLink(orderData.payment_url || orderData.invoice_url);
-      else window.open(orderData.payment_url || orderData.invoice_url, "_blank");
-    }
-    showToast("Оплата TON будет подтверждена после проверки транзакции.", "info");
-    closeBillingModal();
-    return;
-  }
-  
-  // Логика Telegram Stars
-  if (providerId === "telegram_stars" && orderData.invoice_link) {
-    if (tg && tg.openInvoice) {
-      tg.openInvoice(orderData.invoice_link, (status) => {
-        if (status === "paid") showToast("Оплата прошла успешно!", "success");
-        else if (status === "cancelled") showToast("Оплата отменена", "info");
-        else showToast("Не удалось проверить оплату", "error");
-        loadMe();
-      });
-    }
-    closeBillingModal();
-    return;
-  }
-  
-  // Логика внешних шлюзов (ЮKassa, BTC)
-  const targetUrl = orderData.invoice_url || orderData.payment_url || orderData.url;
-  if (targetUrl) {
-    if (tg) tg.openLink(targetUrl);
-    else window.open(targetUrl, "_blank");
-  }
-  
-  // Включение поллинга ордера при возврате order_id
-  if (orderData.order_id) {
-    showToast("Ожидаем оплату...", "info");
-    pollOrderStatus(orderData.order_id);
-  }
-  
-  closeBillingModal();
-}
-
-// Поллинг статуса транзакций
-async function pollOrderStatus(orderId) {
-  let counter = 0;
-  const maxAttempts = 30;
-  
-  const timer = setInterval(async () => {
-    counter++;
-    if (counter > maxAttempts) {
-      clearInterval(timer);
-      showToast("Не удалось проверить оплату автоматически. Проверьте профиль.", "warning");
-      return;
-    }
-    
-    const statusData = await apiTry(`/api/billing/order/${orderId}`, { method: "GET" });
-    if (statusData && statusData.status) {
-      if (statusData.status === "paid" || statusData.status === "success") {
-        clearInterval(timer);
-        showToast("Оплата прошла успешно! Ваш тариф обновлен.", "success");
-        loadMe();
-      } else if (statusData.status === "cancelled" || statusData.status === "failed") {
-        clearInterval(timer);
-        showToast("Оплата отменена или отклонена бэкендом", "error");
-      }
-    }
-  }, 4000);
-}
-
-// Онбординг
-const onboardingStepsConfig = [
-  {
-    title: "Чем вы занимаетесь?",
-    type: "select",
-    key: "occupation",
-    options: ["Селлер WB/Ozon", "Предприниматель", "Маркетолог", "Новичок", "Другое"]
-  },
-  {
-    title: "Что хотите улучшить?",
-    type: "select",
-    key: "target",
-    options: ["Продажи", "Карточки товара", "Рекламу", "Идеи товара", "Стратегию", "Расчёты"]
-  },
-  {
-    title: "Коротко опишите бизнес",
-    type: "textarea",
-    key: "description",
-    placeholder: "Ваши основные товары, текущие показатели и проблемы..."
-  }
-];
 
 function openOnboarding() {
   state.onboardingStep = 0;
   state.onboardingData = {};
-  $("onboardingModal").hidden = false;
+  const modal = $("onboardingModal");
+  if (!modal) return;
+  modal.hidden = false;
   renderOnboardingStep();
 }
 
 function renderOnboardingStep() {
-  const currentCfg = onboardingStepsConfig[state.onboardingStep];
-  if (!currentCfg) return;
-  
-  $("onboardingTitle").textContent = currentCfg.title;
-  $("onboardingError").hidden = true;
-  
-  // Прогресс бар бар-линии
-  const progressRow = $("onboardingProgressRow");
-  if (progressRow) {
-    progressRow.innerHTML = "";
-    onboardingStepsConfig.forEach((_, idx) => {
-      const span = document.createElement("span");
-      span.style.width = `calc(${100 / onboardingStepsConfig.length}% - 4px)`;
-      if (idx <= state.onboardingStep) span.className = "active";
-      progressRow.appendChild(span);
-    });
-  }
-  
+  const cfg = state.onboardingConfig[state.onboardingStep];
+  if (!cfg) return;
+  const title = $("onboardingTitle");
+  if (title) title.textContent = cfg.title;
+
+  const dots = $("onboardingModal")?.querySelectorAll(".progress-row span") || [];
+  dots.forEach((dot, idx) => dot.classList.toggle("active", idx <= state.onboardingStep));
+
   const body = $("onboardingBody");
-  body.innerHTML = "";
-  
-  if (currentCfg.type === "select") {
-    currentCfg.options.forEach(opt => {
+  if (!body) return;
+  body.textContent = "";
+
+  if (cfg.type === "textarea") {
+    const textarea = document.createElement("textarea");
+    textarea.className = "profile-textarea";
+    textarea.rows = 4;
+    textarea.placeholder = cfg.placeholder || "";
+    textarea.value = state.onboardingData[cfg.id] || "";
+    textarea.addEventListener("input", () => {
+      state.onboardingData[cfg.id] = textarea.value.trim();
+      const err = $("onboardingError");
+      if (err) err.hidden = true;
+    });
+    body.appendChild(textarea);
+  } else {
+    const savedKey = state.onboardingData[cfg.id];
+    cfg.options.forEach((o) => {
       const btn = document.createElement("button");
-      btn.className = "onboarding-option";
-      if (state.onboardingData[currentCfg.key] === opt) btn.classList.add("active");
-      btn.textContent = opt;
-      btn.onclick = () => {
-        state.onboardingData[currentCfg.key] = opt;
-        renderOnboardingStep();
-      };
+      btn.className = `onboarding-option ${savedKey === o.key ? "active" : ""}`;
+      btn.dataset.key = o.key;
+      btn.type = "button";
+      btn.textContent = o.label;
       body.appendChild(btn);
     });
-  } else if (currentCfg.type === "textarea") {
-    const tx = document.createElement("textarea");
-    tx.className = "profile-textarea";
-    tx.placeholder = currentCfg.placeholder;
-    tx.value = state.onboardingData[currentCfg.key] || "";
-    tx.oninput = (e) => { state.onboardingData[currentCfg.key] = e.target.value; };
-    body.appendChild(tx);
   }
-  
-  $("onboardingBackBtn").style.visibility = state.onboardingStep === 0 ? "hidden" : "visible";
-  $("onboardingNextBtn").textContent = state.onboardingStep === onboardingStepsConfig.length - 1 ? "Готово" : "Далее";
+
+  const err = $("onboardingError");
+  if (err) err.hidden = true;
+  if ($("onboardingBackBtn")) $("onboardingBackBtn").disabled = state.onboardingStep === 0;
+  if ($("onboardingNextBtn")) {
+    $("onboardingNextBtn").disabled = false;
+    $("onboardingNextBtn").textContent = state.onboardingStep === state.onboardingConfig.length - 1 ? "Готово" : "Далее";
+  }
 }
 
 async function nextOnboarding() {
-  const currentCfg = onboardingStepsConfig[state.onboardingStep];
-  if (!state.onboardingData[currentCfg.key]) {
-    $("onboardingError").textContent = "Пожалуйста, заполните или выберите ответ";
-    $("onboardingError").hidden = false;
+  const cfg = state.onboardingConfig[state.onboardingStep];
+  if (!cfg) return;
+  const value = state.onboardingData[cfg.id];
+  if (!value || (typeof value === "string" && !value.trim())) {
+    const err = $("onboardingError");
+    if (err) {
+      err.textContent = cfg.type === "textarea" ? "Заполните поле." : "Выберите один из вариантов.";
+      err.hidden = false;
+    }
     return;
   }
-  
-  if (state.onboardingStep < onboardingStepsConfig.length - 1) {
+
+  if (state.onboardingStep < state.onboardingConfig.length - 1) {
     state.onboardingStep++;
     renderOnboardingStep();
-  } else {
-    // Финал онбординга
-    setLoading($("onboardingNextBtn"), true);
-    try {
-      await apiRequest("/api/onboarding", { method: "POST", body: JSON.stringify(state.onboardingData) });
-      showToast("Профиль успешно настроен", "success");
-    } catch (e) {
-      showToast("Профиль можно заполнить позже.", "info");
-    }
-    setLoading($("onboardingNextBtn"), false);
-    $("onboardingModal").hidden = true;
-    loadMe();
+    return;
+  }
+
+  const nextBtn = $("onboardingNextBtn");
+  if (nextBtn) nextBtn.disabled = true;
+  try {
+    const res = await request("/api/onboarding", { method: "POST", body: JSON.stringify(state.onboardingData) });
+    if (res.user) state.user = normalizeUser(res);
+    else await loadMe().catch(() => {});
+    updateProfileUI();
+    if ($("onboardingModal")) $("onboardingModal").hidden = true;
+    showToast("Готово!");
+  } catch (e) {
+    if ($("onboardingModal")) $("onboardingModal").hidden = true;
+    showToast("Профиль можно заполнить позже.");
+  } finally {
+    if (nextBtn) nextBtn.disabled = false;
   }
 }
 
@@ -812,163 +506,407 @@ function previousOnboarding() {
   }
 }
 
-// Сохранение кастомного контекста бизнес-профиля
-async function saveBusinessProfile() {
-  const desc = $("profileBusinessDescription")?.value || "";
-  setLoading($("saveProfileBtn"), true);
-  try {
-    await apiRequest("/api/profile/save", { method: "POST", body: JSON.stringify({ business_profile: desc }) });
-    showToast("Бизнес-профиль успешно сохранен", "success");
-    if (state.user) state.user.business_profile = desc;
-  } catch (e) {
-    showToast("Не удалось сохранить профиль", "error");
-  }
-  setLoading($("saveProfileBtn"), false);
+async function loadTools() {
+  const data = await requestMaybe("/api/tools", { method: "GET" }, { tools: [] });
+  state.tools = normalizeTools(data);
+  renderTools();
 }
 
-// Отправка формы обратной связи
-async function submitFeedback() {
-  const text = $("appFeedbackText")?.value || "";
-  if (!text.trim()) {
-    showToast("Пожалуйста, введите текст сообщения", "warning");
+function renderTools() {
+  const grid = $("toolsGrid");
+  if (!grid) return;
+  if (!state.tools.length) {
+    grid.innerHTML = `<p class="muted" style="text-align:center; padding:30px 0;">Инструменты временно недоступны.</p>`;
     return;
   }
-  setLoading($("submitAppFeedbackBtn"), true);
-  try {
-    await apiRequest("/api/feedback", { method: "POST", body: JSON.stringify({ text }) });
-    showToast("Отзыв успешно отправлен. Спасибо!", "success");
-    if ($("appFeedbackText")) $("appFeedbackText").value = "";
-  } catch (e) {
-    showToast("Не удалось отправить обратную связь", "error");
-  }
-  setLoading($("submitAppFeedbackBtn"), false);
+
+  grid.innerHTML = state.tools.map((t) => `
+    <div class="tool-item-row" data-prompt="${escapeHTML(t.prompt_template)}">
+      <div class="tool-icon-box"><span data-icon="tools"></span></div>
+      <div class="tool-text-box">
+        <h4>${escapeHTML(t.title)}</h4>
+        <p class="muted">${escapeHTML(t.description)}</p>
+      </div>
+    </div>
+  `).join("");
+  injectIcons(grid);
 }
 
-// Привязка слушателей событий и обработчиков элементов
-function bindEvents() {
-  // Навигационный бар
-  document.querySelectorAll(".app-nav .nav-item").forEach(btn => {
-    btn.onclick = () => {
-      const targetView = btn.getAttribute("data-view");
-      if (targetView) switchView(targetView);
-    };
-  });
+async function loadBillingPlans() {
+  const data = await requestMaybe("/api/billing/plans", { method: "GET" }, { plans: {} });
+  state.plans = normalizePlans(data);
+}
 
-  // Переход на вкладку инструментов при клике на "Все" в Быстрых действиях
-  const seeAllToolsBtn = $("shortcutSeeAllToolsBtn");
-  if (seeAllToolsBtn) {
-    seeAllToolsBtn.onclick = () => switchView("tools");
+function openBillingModal() {
+  const modal = $("billingModal");
+  if (!modal) return;
+  modal.hidden = false;
+  renderBillingPlans();
+}
+
+function closeBillingModal() {
+  const modal = $("billingModal");
+  if (modal) modal.hidden = true;
+}
+
+function renderBillingPlans() {
+  if ($("paymentProviderBox")) $("paymentProviderBox").hidden = true;
+  const planList = $("billingPlanList");
+  if (!planList) return;
+  planList.hidden = false;
+  if ($("billingTitle")) $("billingTitle").textContent = "Тарифные планы";
+
+  const keys = Object.keys(state.plans || {});
+  if (!keys.length) {
+    planList.innerHTML = `<p class="muted" style="text-align:center; padding:16px;">Нет доступных тарифов.</p>`;
+    return;
   }
 
-  // Клик по карточке быстрого промпта (Интеграция шорткатов в строку ввода чата)
-  const quickStrip = $("quickStrip");
-  if (quickStrip) {
-    quickStrip.querySelectorAll(".strip-card").forEach(card => {
-      card.onclick = () => {
-        const promptText = card.getAttribute("data-prompt");
-        if (promptText && $("homeChatInput")) {
-          $("homeChatInput").value = promptText;
-          $("homeChatInput").focus();
-          autoResizeTextarea($("homeChatInput"));
-          updateSendButton();
-        }
-      };
-    });
-  }
+  planList.innerHTML = keys.map((k) => {
+    const p = state.plans[k];
+    const isCurrent = state.user && String(state.user.plan).toLowerCase() === k.toLowerCase();
+    const price = p.price_text || (Number(p.price_monthly || 0) ? `${p.price_monthly} ₽` : "0 ₽");
+    return `
+      <button class="plan-item-row ${isCurrent ? "muted-plan" : ""}" data-plan-key="${escapeHTML(k)}" type="button">
+        <div class="plan-main">
+          <h4>${escapeHTML(p.title)}</h4>
+          <small>${escapeHTML(p.description)}</small>
+        </div>
+        <div class="plan-price">${escapeHTML(price)}</div>
+      </button>
+    `;
+  }).join("");
+}
 
-  // Быстрые ссылки перехода в Профиль/Настройки
-  const headerBtn = $("headerProfileBtn");
-  if (headerBtn) {
-    headerBtn.onclick = () => switchView("profile");
-  }
-
-  // Настройка инпутов чата
-  const homeInput = $("homeChatInput");
-  if (homeInput) {
-    homeInput.oninput = () => {
-      autoResizeTextarea(homeInput);
-      updateSendButton();
-    };
-  }
-
-  const homeSendBtn = $("homeChatSendBtn");
-  if (homeSendBtn) {
-    homeSendBtn.onclick = () => {
-      if (homeInput && homeInput.value.trim()) {
-        sendChatMessage(homeInput.value.trim());
-      }
-    };
-  }
-
-  // Фильтры в истории аккаунта
-  const filterGroup = $("historyFilters");
-  if (filterGroup) {
-    filterGroup.querySelectorAll(".filter-btn").forEach(btn => {
-      btn.onclick = () => {
-        const f = btn.getAttribute("data-filter");
-        if (f) setHistoryFilter(f);
-      };
-    });
-  }
-
-  // Логика модального окна биллинга
-  const openBillBtn = $("openBillingBtn");
-  if (openBillBtn) openBillBtn.onclick = openBillingModal;
-
-  const closeBillBtn = $("closeBillingModal");
-  if (closeBillBtn) closeBillBtn.onclick = closeBillingModal;
-
-  const backPlansBtn = $("backToPlansBtn");
-  if (backPlansBtn) backPlansBtn.onclick = renderBillingPlans;
+function selectPlan(planKey) {
+  state.activePlanKey = planKey;
+  state.activePlan = state.plans[planKey];
+  if (!state.activePlan) return;
 
   const planList = $("billingPlanList");
-  if (planList) {
-    planList.onclick = (e) => {
-      const card = e.target.closest("[data-plan-key]");
-      if (card) {
-        const pk = card.getAttribute("data-plan-key");
-        if (pk) selectPlan(pk);
-      }
-    };
-  }
+  if (planList) planList.hidden = true;
+  if ($("billingTitle")) $("billingTitle").textContent = `Оплата: ${state.activePlan.title}`;
+  if ($("billingError")) $("billingError").hidden = true;
+
+  const box = $("paymentProviderBox");
+  if (box) box.hidden = false;
 
   const provList = $("providerList");
-  if (provList) {
-    provList.onclick = (e) => {
-      const card = e.target.closest("[data-provider]");
-      if (card) {
-        const pid = card.getAttribute("data-provider");
-        if (pid) checkout(pid);
-      }
-    };
+  if (!provList) return;
+  const providers = Array.isArray(state.activePlan.providers) ? state.activePlan.providers : [];
+  if (!providers.length) {
+    provList.innerHTML = `<p class="muted" style="text-align:center; padding:16px;">Способы оплаты временно недоступны.</p>`;
+    return;
   }
 
-  // Привязка кнопок онбординга
-  const obNext = $("onboardingNextBtn");
-  if (obNext) obNext.onclick = nextOnboarding;
+  provList.innerHTML = providers.map((p) => {
+    const id = p.id || p.provider;
+    let iconName = "credit-card";
+    let premiumCls = "";
+    if (id === "telegram_stars" || id === "stars") { iconName = "tg_stars"; premiumCls = "provider-row-stars"; }
+    if (id === "ton" || id === "crypto") { iconName = "ton"; premiumCls = "provider-row-ton"; }
+    if (id === "btc" || id === "btcpay_btc") { iconName = "btc"; premiumCls = "provider-row-btc"; }
+    const price = p.price_formatted || state.activePlan.price_text || (Number(state.activePlan.price_monthly || 0) ? `${state.activePlan.price_monthly} ₽` : "");
 
-  const obBack = $("onboardingBackBtn");
-  if (obBack) obBack.onclick = previousOnboarding;
-
-  // Формы сохранения настроек профиля
-  const saveProfBtn = $("saveProfileBtn");
-  if (saveProfBtn) saveProfBtn.onclick = saveBusinessProfile;
-
-  const subFeedbackBtn = $("submitAppFeedbackBtn");
-  if (subFeedbackBtn) subFeedbackBtn.onclick = submitFeedback;
+    return `
+      <button class="provider-item-row ${premiumCls}" data-provider="${escapeHTML(id)}" type="button">
+        <span class="provider-icon" data-icon="${iconName}"></span>
+        <div class="provider-info">
+          <strong>${escapeHTML(p.title || providerTitle(id))}</strong>
+          <small>${escapeHTML(p.description || "")}</small>
+        </div>
+        <div class="provider-price-tag">${escapeHTML(price)}</div>
+      </button>
+    `;
+  }).join("");
+  injectIcons(provList);
 }
 
-// Запуск инициализации приложения (Платформенный Boot-скрипт)
+async function createPaymentOrder(providerId) {
+  const payload = {
+    plan: state.activePlanKey,
+    provider: providerId,
+    telegram_user_id: getTelegramUserId()
+  };
+  try {
+    return await request("/api/billing/create-order", { method: "POST", body: JSON.stringify(payload) });
+  } catch (err) {
+    return await request("/api/billing/checkout", { method: "POST", body: JSON.stringify(payload) });
+  }
+}
+
+async function checkout(providerId) {
+  const pBox = $("paymentProviderBox");
+  const errEl = $("billingError");
+  if (errEl) errEl.hidden = true;
+
+  try {
+    pBox?.classList.add("loading-state");
+    const res = await createPaymentOrder(providerId);
+    const invoiceLink = res.invoice_link || res.payment_link;
+    const paymentUrl = res.invoice_url || res.payment_url || res.url || res.confirmation_url;
+    const orderId = res.order_id || res.id;
+
+    if ((providerId === "telegram_stars" || providerId === "stars") && invoiceLink) {
+      if (tg?.openInvoice) {
+        tg.openInvoice(invoiceLink, (status) => {
+          if (status === "paid") {
+            showToast("Успешно оплачено!");
+            closeBillingModal();
+            loadMe().catch(() => {});
+          } else if (status === "cancelled") {
+            showToast("Оплата отменена");
+          } else {
+            showToast("Не удалось проверить оплату");
+          }
+        });
+      } else {
+        showToast("Оплата Stars работает внутри Telegram");
+      }
+      return;
+    }
+
+    if (paymentUrl) {
+      if (tg?.openLink) tg.openLink(paymentUrl);
+      else window.open(paymentUrl, "_blank", "noopener,noreferrer");
+      showToast(providerId === "ton" || providerId === "crypto" ? "Оплата TON будет подтверждена после проверки транзакции." : "Ссылка на оплату открыта");
+      if (orderId) pollOrderStatus(orderId);
+      closeBillingModal();
+      return;
+    }
+
+    if (res.success || res.ok || res.status === "paid") {
+      showToast("Подписка активирована!");
+      closeBillingModal();
+      await loadMe();
+      return;
+    }
+
+    throw new Error("Не удалось получить ссылку на оплату");
+  } catch (err) {
+    if (errEl) {
+      errEl.textContent = err.message;
+      errEl.hidden = false;
+    } else {
+      showToast(err.message);
+    }
+  } finally {
+    pBox?.classList.remove("loading-state");
+  }
+}
+
+function pollOrderStatus(orderId) {
+  if (!orderId) return;
+  let attempts = 0;
+  const timer = window.setInterval(async () => {
+    attempts++;
+    if (attempts > 30) {
+      clearInterval(timer);
+      state.pollingTimers.delete(timer);
+      showToast("Не удалось проверить оплату автоматически. Проверьте профиль позже.");
+      return;
+    }
+    const data = await requestMaybe(`/api/billing/order/${encodeURIComponent(orderId)}`, { method: "GET" }, null);
+    const status = String(data?.status || data?.order?.status || "").toLowerCase();
+    if (["paid", "success", "succeeded", "completed", "active"].includes(status)) {
+      clearInterval(timer);
+      state.pollingTimers.delete(timer);
+      showToast("Оплата прошла успешно!");
+      loadMe().catch(() => {});
+    } else if (["failed", "canceled", "cancelled", "expired"].includes(status)) {
+      clearInterval(timer);
+      state.pollingTimers.delete(timer);
+      showToast("Оплата отменена или не прошла");
+    }
+  }, 4000);
+  state.pollingTimers.add(timer);
+}
+
+async function loadHistory() {
+  const data = await requestMaybe("/api/history", { method: "GET" }, { history: [] });
+  state.history = normalizeHistory(data);
+  renderHistory();
+}
+
+function renderHistory() {
+  const list = $("historyList");
+  if (!list) return;
+
+  let filtered = state.history;
+  if (state.historyFilter !== "all") {
+    filtered = state.history.filter((h) => h.mode === state.historyFilter || h.type === state.historyFilter);
+  }
+
+  if (!filtered.length) {
+    list.innerHTML = `<div class="chat-empty"><span data-icon="history"></span><p>Записей нет.</p></div>`;
+    injectIcons(list);
+    return;
+  }
+
+  list.innerHTML = filtered.map((h) => `
+    <article class="history-row">
+      <div class="history-meta-line">
+        <span class="badge">${escapeHTML(String(h.mode || h.type || "AI").toUpperCase())}</span>
+        <time class="muted small">${escapeHTML(formatDate(h.timestamp))}</time>
+      </div>
+      <p class="history-prompt">Запрос: ${escapeHTML(h.text || h.title || "")}</p>
+      <div class="history-answer">${escapeHTML(h.answer || "")}</div>
+    </article>
+  `).join("");
+}
+
+function bindEvents() {
+  document.querySelectorAll(".nav-item").forEach((btn) => {
+    btn.addEventListener("click", () => switchView(btn.dataset.target));
+  });
+
+  document.querySelectorAll("[data-open-view]").forEach((btn) => {
+    btn.addEventListener("click", () => switchView(btn.dataset.openView));
+  });
+
+  const txtHome = $("homeChatInput"), btnHome = $("homeChatSendBtn");
+  if (txtHome && btnHome) {
+    txtHome.addEventListener("input", () => {
+      autoResizeTextarea(txtHome);
+      updateChatSendButton("homeChatInput", "homeChatSendBtn");
+    });
+    btnHome.addEventListener("click", () => handleChatSend("homeChatInput", "homeChatScroll", "homeChatSendBtn"));
+    txtHome.addEventListener("keydown", (e) => {
+      if (e.key === "Enter" && !e.shiftKey) {
+        e.preventDefault();
+        handleChatSend("homeChatInput", "homeChatScroll", "homeChatSendBtn");
+      }
+    });
+  }
+
+  const txtMain = $("mainChatInput"), btnMain = $("mainChatSendBtn");
+  if (txtMain && btnMain) {
+    txtMain.addEventListener("input", () => {
+      autoResizeTextarea(txtMain);
+      updateChatSendButton("mainChatInput", "mainChatSendBtn");
+    });
+    btnMain.addEventListener("click", () => handleChatSend("mainChatInput", "mainChatScroll", "mainChatSendBtn"));
+  }
+
+  document.querySelectorAll(".chat-mode-selector .mode-tab").forEach((tab) => {
+    tab.addEventListener("click", () => {
+      document.querySelectorAll(".chat-mode-selector .mode-tab").forEach((t) => t.classList.remove("active"));
+      tab.classList.add("active");
+      state.currentMode = tab.dataset.mode;
+    });
+  });
+
+  $("quickStrip")?.addEventListener("click", (e) => {
+    const act = e.target.closest(".quick-action");
+    if (!act) return;
+    const targetInput = $("mainChatInput") || $("homeChatInput");
+    if ($("mainChatInput")) switchView("chat");
+    if (targetInput) {
+      targetInput.value = act.dataset.prompt || "";
+      autoResizeTextarea(targetInput);
+      updateChatSendButton(targetInput.id, targetInput.id === "mainChatInput" ? "mainChatSendBtn" : "homeChatSendBtn");
+      targetInput.focus();
+    }
+  });
+
+  $("toolsGrid")?.addEventListener("click", (e) => {
+    const card = e.target.closest(".tool-item-row");
+    if (!card) return;
+    const targetInput = $("mainChatInput") || $("homeChatInput");
+    if ($("mainChatInput")) switchView("chat");
+    if (targetInput) {
+      targetInput.value = card.dataset.prompt || "";
+      autoResizeTextarea(targetInput);
+      updateChatSendButton(targetInput.id, targetInput.id === "mainChatInput" ? "mainChatSendBtn" : "homeChatSendBtn");
+      targetInput.focus();
+    }
+  });
+
+  $("onboardingBody")?.addEventListener("click", (e) => {
+    const opt = e.target.closest(".onboarding-option");
+    if (!opt) return;
+    const cfg = state.onboardingConfig[state.onboardingStep];
+    state.onboardingData[cfg.id] = opt.dataset.key;
+    renderOnboardingStep();
+  });
+
+  $("saveProfileBtn")?.addEventListener("click", async () => {
+    const profileText = $("profileBusinessDescription")?.value.trim() || "";
+    try {
+      let res;
+      try {
+        res = await request("/api/profile/save", { method: "POST", body: JSON.stringify({ business_profile: profileText }) });
+      } catch {
+        res = await request("/api/business-profile", { method: "POST", body: JSON.stringify({ telegram_user_id: getTelegramUserId(), description: profileText }) });
+      }
+      state.user = normalizeUser(res.user ? res : { ...state.user, business_profile: profileText });
+      updateProfileUI();
+      showToast("Сохранено!");
+    } catch (err) {
+      showToast(err.message);
+    }
+  });
+
+  $("submitAppFeedbackBtn")?.addEventListener("click", async () => {
+    const msg = $("appFeedbackText")?.value.trim() || "";
+    if (!msg) {
+      showToast("Напишите текст");
+      return;
+    }
+    try {
+      await request("/api/feedback", { method: "POST", body: JSON.stringify({ message: msg, type: "app", telegram_user_id: getTelegramUserId() }) });
+      $("appFeedbackText").value = "";
+      showToast("Спасибо за отзыв!");
+    } catch (err) {
+      showToast(err.message);
+    }
+  });
+
+  $("openBillingBtn")?.addEventListener("click", openBillingModal);
+  $("closeBillingBtn")?.addEventListener("click", closeBillingModal);
+  $("backToPlansBtn")?.addEventListener("click", renderBillingPlans);
+
+  $("billingModal")?.addEventListener("click", (e) => {
+    if (e.target === $("billingModal")) closeBillingModal();
+  });
+
+  $("billingPlanList")?.addEventListener("click", (e) => {
+    const card = e.target.closest("[data-plan-key]");
+    if (card) selectPlan(card.dataset.planKey);
+  });
+
+  $("providerList")?.addEventListener("click", (e) => {
+    const card = e.target.closest("[data-provider]");
+    if (card) checkout(card.dataset.provider);
+  });
+
+  $("onboardingNextBtn")?.addEventListener("click", nextOnboarding);
+  $("onboardingBackBtn")?.addEventListener("click", previousOnboarding);
+
+  $("historyFilters")?.addEventListener("click", (e) => {
+    const btn = e.target.closest("button[data-filter]");
+    if (!btn) return;
+    state.historyFilter = btn.dataset.filter;
+    $("historyFilters").querySelectorAll("button").forEach((n) => n.classList.toggle("active", n === btn));
+    renderHistory();
+  });
+
+  $("headerProfileBtn")?.addEventListener("click", () => switchView("profile"));
+}
+
 (async function boot() {
+  injectIcons();
   initTelegram();
   bindEvents();
-  injectIcons();
-  updateSendButton();
-  
-  // Параллельный прогрев базовых кэшей
-  await Promise.all([
-    loadMe(),
-    loadTools(),
-    loadBillingPlans()
-  ]);
+  updateChatSendButton("homeChatInput", "homeChatSendBtn");
+  updateChatSendButton("mainChatInput", "mainChatSendBtn");
+
+  await Promise.allSettled([loadTools(), loadBillingPlans(), loadHistory()]);
+  try {
+    await loadMe();
+  } catch (error) {
+    state.user = normalizeUser({});
+    updateProfileUI();
+    showToast(error.message);
+  }
 })();
