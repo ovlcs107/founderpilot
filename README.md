@@ -241,3 +241,78 @@ pip install -r requirements.txt
 - TON verification сделан безопасно: если backend не может подтвердить транзакцию, подписка не активируется автоматически.
 - BTC подписка активируется только по webhook от BTCPay.
 - Секреты нельзя хранить в GitHub. Используйте Railway Variables и `.env` локально.
+
+## FounderPilot system upgrade: projects, memory, credits, anti-abuse
+
+This build keeps the existing Gemini frontend files and adds the product/backend layer for a more complete SaaS system.
+
+### New backend capabilities
+
+- Multi-project workspace API: `/api/projects`, `/api/projects/current`, `/api/projects/{project_id}`
+- Project memory API: `/api/memory`, project-specific AI context injection into chat/tools/generation
+- User templates API: `/api/templates`
+- Credit pack catalog and admin grant flow: `/api/credits/packs`, `/api/credits/packs/order`, `/api/credits/packs/{order_id}/grant`
+- Analytics API: `/api/analytics/summary`
+- Text export: `/api/export/history.txt`
+- Notification preferences API: `/api/notifications/preferences`
+- Admin overview and users API: `/api/admin/overview`, `/api/admin/users`
+- Basic anti-abuse event logging and IP burst protection for AI endpoints
+- Frontend compatibility fixes: `/api/profile/save`, flexible `/api/saved`, flexible `/api/feedback`, `/api/me` now returns credits inside `user` as well as `usage`
+
+### Important notes
+
+The new backend APIs are ready for the interface to use, but the current visual layout was intentionally not redesigned in this patch. The existing Mini App UI remains the Gemini version you provided.
+
+Credit-pack payment is currently prepared as backend order/grant flow. Real external checkout for credit packs can be connected next to the same billing providers used for subscriptions.
+
+### Local launch
+
+```powershell
+python -m venv .venv
+.\.venv\Scripts\activate
+pip install -r requirements-dev.txt
+copy .env.example .env
+```
+
+Edit `.env` and set at minimum:
+
+```env
+BOT_TOKEN=your_telegram_bot_token
+OPENROUTER_API_KEY=your_openrouter_key
+WEBAPP_PUBLIC_URL=https://your-railway-domain.up.railway.app
+APP_SECRET=generate-a-long-random-secret
+ADMIN_SECRET=generate-a-long-random-admin-secret
+DEV_MODE=false
+```
+
+Run locally:
+
+```powershell
+python run.py
+```
+
+Local Mini App URL:
+
+```text
+http://127.0.0.1:8000/app
+```
+
+### Railway deploy
+
+1. Push the project to GitHub.
+2. Connect the repo to Railway.
+3. Add variables from `.env.example` in Railway Variables.
+4. Deploy.
+5. In BotFather, set the Mini App URL to:
+
+```text
+https://your-railway-domain.up.railway.app/app
+```
+
+### Verification commands
+
+```powershell
+python -m compileall app run.py tests
+pytest -q
+node --check static/app.js
+```

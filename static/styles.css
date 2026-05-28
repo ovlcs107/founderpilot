@@ -693,7 +693,7 @@ button.secondary:active { background: var(--surface-2); }
   text-align: left;
 }
 .provider-icon { width: 24px; height: 24px; color: var(--text-primary); }
-.provider-info flex { flex: 1; }
+.provider-info { flex: 1; }
 .provider-info strong { display: block; font-size: 14.5px; font-weight: 600; margin-bottom: 2px; }
 .provider-info small { font-size: 12.5px; color: var(--text-muted); }
 .provider-price-tag { font-size: 14px; font-weight: 500; margin-left: auto; }

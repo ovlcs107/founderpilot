@@ -11,7 +11,7 @@ import uvicorn
 from aiogram import Bot
 from fastapi import Depends, FastAPI, Header, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse, JSONResponse, RedirectResponse
+from fastapi.responses import FileResponse, JSONResponse, RedirectResponse, PlainTextResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.exceptions import RequestValidationError
 from pydantic import BaseModel, Field
@@ -39,6 +39,7 @@ from app.openrouter_client import AIClientError, OpenRouterClient
 from app.prompts import MODES, get_mini_app_tools
 from app.rate_limit import RateLimitError, RateLimiter
 from app.telegram_auth import TelegramAuthError, TelegramUser, dev_user, validate_telegram_init_data
+from app.features import FeatureStore, init_features
 
 logger = logging.getLogger(__name__)
 
@@ -98,8 +99,8 @@ class HistoryResponse(BaseModel):
 
 
 class SaveResultRequest(BaseModel):
-    source_type: str = Field(min_length=1, max_length=40)
-    source_id: str = Field(min_length=1, max_length=120)
+    source_type: str = Field(default="manual", min_length=1, max_length=40)
+    source_id: str = Field(default="frontend", min_length=1, max_length=120)
     title: str | None = Field(default=None, max_length=160)
     content: str = Field(min_length=1, max_length=20000)
 
@@ -107,7 +108,7 @@ class SaveResultRequest(BaseModel):
 class FeedbackRequest(BaseModel):
     source_type: str | None = Field(default=None, max_length=40)
     source_id: str | None = Field(default=None, max_length=120)
-    rating: int = Field(ge=-1, le=1)
+    rating: int = Field(default=0, ge=-1, le=1)
     message: str | None = Field(default=None, max_length=2000)
 
 
@@ -135,6 +136,47 @@ class BusinessProfileRequest(BaseModel):
     description: str | None = None
     main_problem: str | None = None
 
+
+
+
+class ProjectRequest(BaseModel):
+    name: str | None = Field(default=None, max_length=120)
+    business_name: str | None = Field(default=None, max_length=120)
+    niche: str | None = Field(default=None, max_length=160)
+    marketplace: str | None = Field(default=None, max_length=80)
+    target_audience: str | None = Field(default=None, max_length=240)
+    description: str | None = Field(default=None, max_length=3000)
+    tone: str | None = Field(default=None, max_length=120)
+    is_active: bool | None = None
+
+
+class MemoryRequest(BaseModel):
+    project_id: str | None = Field(default=None, max_length=80)
+    category: str | None = Field(default="general", max_length=80)
+    key: str | None = Field(default=None, max_length=120)
+    value: str | None = Field(default=None, max_length=4000)
+    content: str | None = Field(default=None, max_length=4000)
+    confidence: float | None = Field(default=1.0, ge=0, le=1)
+    source: str | None = Field(default="manual", max_length=80)
+
+
+class TemplateRequest(BaseModel):
+    title: str = Field(min_length=1, max_length=120)
+    category: str | None = Field(default="general", max_length=80)
+    content: str = Field(min_length=1, max_length=10000)
+
+
+class CreditPackOrderRequest(BaseModel):
+    pack_key: str = Field(min_length=3, max_length=80)
+    provider: str | None = Field(default=None, max_length=80)
+    telegram_user_id: int | None = None
+
+
+class NotificationPrefsRequest(BaseModel):
+    low_credits: bool | None = None
+    subscription_reminders: bool | None = None
+    product_updates: bool | None = None
+    weekly_digest: bool | None = None
 
 class StatsResponse(BaseModel):
     used_today: int
@@ -252,6 +294,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     db = Database(settings.database_path)
     ai_client = OpenRouterClient(settings)
     rate_limiter = RateLimiter(settings, db)
+    features = FeatureStore(settings.database_path)
 
     app = FastAPI(
         title="FounderPilot AI",
@@ -266,6 +309,28 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         allow_methods=["GET", "POST", "OPTIONS"],
         allow_headers=["*"],
     )
+
+    @app.middleware("http")
+    async def anti_abuse_middleware(request: Request, call_next):
+        protected = request.url.path in {"/api/chat", "/api/ask", "/api/generate", "/api/tools/run"}
+        if protected:
+            ip = request.headers.get("x-forwarded-for") or request.client.host if request.client else "unknown"
+            fingerprint = request.headers.get("x-device-fingerprint") or request.headers.get("x-fingerprint")
+            recent = await features.ip_event_count(ip, settings.app_secret, minutes=10)
+            risk = 25 if recent > 30 else 10 if recent > 12 else 0
+            await features.record_abuse_event(
+                telegram_id=None,
+                ip=ip,
+                fingerprint_hash=fingerprint,
+                path=request.url.path,
+                event_type="api_request",
+                risk_score=risk,
+                metadata={"recent_ip_events_10m": recent, "user_agent": request.headers.get("user-agent", "")[:180]},
+                secret=settings.app_secret,
+            )
+            if recent > 120:
+                return JSONResponse(status_code=429, content={"ok": False, "error": "Слишком много запросов с этого подключения. Попробуйте позже."})
+        return await call_next(request)
 
     app.mount("/static", StaticFiles(directory="static"), name="static")
 
@@ -368,6 +433,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     @app.on_event("startup")
     async def on_startup() -> None:
         await db.init()
+        await init_features(settings.database_path)
         logger.info("Database initialized at %s", settings.database_path)
 
     @app.get("/", include_in_schema=False)
@@ -428,6 +494,8 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         )
         profile_data = await db.get_business_profile(user.id)
         user_profile = await db.get_user_profile(user.id)
+        usage = usage_payload(access)
+        active_project = await features.get_active_project(user.id)
         return {
             "user": {
                 "id": user.id,
@@ -437,9 +505,11 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                 "last_name": user.last_name,
                 "plan": (user_profile or {}).get("plan", "free"),
                 "onboarding_completed": bool((user_profile or {}).get("onboarding_completed")),
+                **usage,
             },
             "profile": profile_data,
-            "usage": usage_payload(access),
+            "active_project": active_project,
+            "usage": usage,
         }
 
     @app.post("/api/onboarding")
@@ -454,6 +524,14 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     @app.post("/api/business-profile")
     async def save_business_profile(payload: BusinessProfileRequest, user: TelegramUser = Depends(current_user)) -> dict[str, Any]:
         profile_data = await db.upsert_business_profile(user.id, payload.model_dump())
+        return {"ok": True, "profile": profile_data}
+
+    @app.post("/api/profile/save")
+    async def profile_save(request: Request, user: TelegramUser = Depends(current_user)) -> dict[str, Any]:
+        raw = await request.json()
+        description = raw.get("business_profile") or raw.get("description") or raw.get("text")
+        payload = {"description": description}
+        profile_data = await db.upsert_business_profile(user.id, payload)
         return {"ok": True, "profile": profile_data}
 
     @app.delete("/api/business-profile")
@@ -477,7 +555,15 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                 monthly_limit_default=settings.subscriber_monthly_limit,
                 metadata={"endpoint": "/api/ask", "reason": estimate.reason},
             )
-            answer = await ai_client.ask_business_ai(payload.mode, payload.text)
+            ask_optional: dict[str, Any] = {}
+            profile_data = await db.get_business_profile(user.id)
+            context = business_context(profile_data)
+            project_context = await features.project_context_text(user.id)
+            if context:
+                ask_optional["business_profile"] = context
+            if project_context:
+                ask_optional["project_memory"] = project_context
+            answer = await ai_client.ask_business_ai(payload.mode, payload.text, ask_optional)
             output_tokens = estimate_output_tokens(answer)
             await db.finalize_credit_charge(
                 user.id,
@@ -517,8 +603,11 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             raw_fields["user_input"] = payload.user_input
             input_text, optional_fields, result_prefix = prepare_tool_context(payload.tool_id, raw_fields)
             context = business_context(profile_data)
+            project_context = await features.project_context_text(telegram_id)
             if context:
                 optional_fields["business_profile"] = context
+            if project_context:
+                optional_fields["project_memory"] = project_context
             estimate = estimate_credits(
                 payload.tool_id,
                 input_text or payload.user_input,
@@ -622,8 +711,11 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         try:
             profile_data = await db.get_business_profile(telegram_id)
             context = business_context(profile_data)
+            project_context = await features.project_context_text(telegram_id)
             if context:
                 optional_fields["business_profile"] = context
+            if project_context:
+                optional_fields["project_memory"] = project_context
             estimate = estimate_credits(
                 payload.tool_id,
                 input_text,
@@ -725,7 +817,8 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                 metadata={"endpoint": "/api/chat", "conversation_id": str(conversation_id), "reason": estimate.reason},
             )
             profile_data = await db.get_business_profile(telegram_id)
-            answer = await ai_client.ask_chat(history, message, business_context(profile_data))
+            context_parts = [business_context(profile_data), await features.project_context_text(telegram_id)]
+            answer = await ai_client.ask_chat(history, message, "\n\n".join(part for part in context_parts if part))
             await db.finalize_credit_charge(
                 telegram_id,
                 estimate.request_id,
@@ -1097,6 +1190,112 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                 "per_minute_limit": settings.per_minute_limit,
             },
         }
+
+
+    @app.get("/api/projects")
+    async def projects(user: TelegramUser = Depends(current_user)) -> dict[str, Any]:
+        return {"ok": True, "items": await features.list_projects(user.id), "active": await features.get_active_project(user.id)}
+
+    @app.post("/api/projects")
+    async def create_project(payload: ProjectRequest, user: TelegramUser = Depends(current_user)) -> dict[str, Any]:
+        project = await features.create_project(user.id, payload.model_dump(exclude_none=True))
+        return {"ok": True, "project": project}
+
+    @app.get("/api/projects/current")
+    async def current_project(user: TelegramUser = Depends(current_user)) -> dict[str, Any]:
+        return {"ok": True, "project": await features.get_active_project(user.id)}
+
+    @app.get("/api/projects/{project_id}")
+    async def get_project(project_id: str, user: TelegramUser = Depends(current_user)) -> dict[str, Any]:
+        project = await features.get_project(user.id, project_id)
+        if not project:
+            raise HTTPException(status_code=404, detail="Проект не найден.")
+        return {"ok": True, "project": project, "memory": await features.list_memory(user.id, project_id)}
+
+    @app.patch("/api/projects/{project_id}")
+    async def update_project(project_id: str, payload: ProjectRequest, user: TelegramUser = Depends(current_user)) -> dict[str, Any]:
+        project = await features.update_project(user.id, project_id, payload.model_dump(exclude_none=True))
+        if not project:
+            raise HTTPException(status_code=404, detail="Проект не найден.")
+        return {"ok": True, "project": project}
+
+    @app.delete("/api/projects/{project_id}")
+    async def delete_project(project_id: str, user: TelegramUser = Depends(current_user)) -> dict[str, Any]:
+        return {"ok": await features.delete_project(user.id, project_id)}
+
+    @app.get("/api/memory")
+    async def memory(project_id: str | None = None, user: TelegramUser = Depends(current_user)) -> dict[str, Any]:
+        return {"ok": True, "items": await features.list_memory(user.id, project_id)}
+
+    @app.post("/api/memory")
+    async def add_memory(payload: MemoryRequest, user: TelegramUser = Depends(current_user)) -> dict[str, Any]:
+        data = payload.model_dump(exclude_none=True)
+        if not (data.get("value") or data.get("content")):
+            return {"ok": False, "error": "Память не может быть пустой."}
+        return {"ok": True, "item": await features.add_memory(user.id, data)}
+
+    @app.delete("/api/memory/{memory_id}")
+    async def delete_memory(memory_id: int, user: TelegramUser = Depends(current_user)) -> dict[str, Any]:
+        return {"ok": await features.delete_memory(user.id, memory_id)}
+
+    @app.get("/api/templates")
+    async def templates(category: str | None = None, user: TelegramUser = Depends(current_user)) -> dict[str, Any]:
+        return {"ok": True, "items": await features.list_templates(user.id, category)}
+
+    @app.post("/api/templates")
+    async def create_template(payload: TemplateRequest, user: TelegramUser = Depends(current_user)) -> dict[str, Any]:
+        return {"ok": True, "template": await features.create_template(user.id, payload.model_dump())}
+
+    @app.delete("/api/templates/{template_id}")
+    async def delete_template(template_id: int, user: TelegramUser = Depends(current_user)) -> dict[str, Any]:
+        return {"ok": await features.delete_template(user.id, template_id)}
+
+    @app.get("/api/credits/packs")
+    async def credit_packs() -> dict[str, Any]:
+        return {"ok": True, "packs": features.credit_packs()}
+
+    @app.post("/api/credits/packs/order")
+    async def create_credit_pack_order(payload: CreditPackOrderRequest, user: TelegramUser = Depends(current_user)) -> dict[str, Any]:
+        telegram_id = resolve_telegram_id(user, payload.telegram_user_id)
+        return await features.create_credit_pack_order(telegram_id, payload.pack_key, payload.provider)
+
+    @app.post("/api/credits/packs/{order_id}/grant")
+    async def grant_credit_pack(order_id: str, telegram_user_id: int, x_admin_secret: str | None = Header(default=None)) -> dict[str, Any]:
+        require_admin(x_admin_secret)
+        return await features.grant_credit_pack(telegram_user_id, order_id, "admin_grant")
+
+    @app.get("/api/analytics/summary")
+    async def analytics_summary(user: TelegramUser = Depends(current_user)) -> dict[str, Any]:
+        return {"ok": True, "summary": await features.analytics_summary(user.id)}
+
+    @app.get("/api/export/history.txt")
+    async def export_history_txt(user: TelegramUser = Depends(current_user)) -> PlainTextResponse:
+        rows = await db.list_recent_requests(user.id, limit=50)
+        lines = ["FounderPilot export", ""]
+        for row in rows:
+            lines.append(f"[{row.get('created_at')}] {row.get('mode')}")
+            lines.append(str(row.get("user_text") or row.get("text") or ""))
+            lines.append(str(row.get("ai_answer") or row.get("answer") or ""))
+            lines.append("---")
+        return PlainTextResponse("\n".join(lines), media_type="text/plain; charset=utf-8")
+
+    @app.get("/api/notifications/preferences")
+    async def notification_preferences(user: TelegramUser = Depends(current_user)) -> dict[str, Any]:
+        return {"ok": True, "preferences": await features.notification_preferences(user.id)}
+
+    @app.post("/api/notifications/preferences")
+    async def update_notification_preferences(payload: NotificationPrefsRequest, user: TelegramUser = Depends(current_user)) -> dict[str, Any]:
+        return {"ok": True, "preferences": await features.update_notification_preferences(user.id, payload.model_dump(exclude_none=True))}
+
+    @app.get("/api/admin/overview")
+    async def admin_overview(x_admin_secret: str | None = Header(default=None)) -> dict[str, Any]:
+        require_admin(x_admin_secret)
+        return {"ok": True, **await features.admin_overview()}
+
+    @app.get("/api/admin/users")
+    async def admin_users(limit: int = 50, x_admin_secret: str | None = Header(default=None)) -> dict[str, Any]:
+        require_admin(x_admin_secret)
+        return {"ok": True, "items": await features.admin_users(limit)}
 
     @app.get("/api/admin/stats")
     async def admin_stats(x_admin_secret: str | None = Header(default=None)) -> dict[str, Any]:

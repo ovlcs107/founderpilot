@@ -20,6 +20,7 @@ CREATE TABLE IF NOT EXISTS users (
     plan TEXT DEFAULT 'free',
     daily_limit INTEGER DEFAULT 20,
     bonus_requests INTEGER DEFAULT 0,
+    purchased_credits INTEGER DEFAULT 0,
     referral_code TEXT UNIQUE,
     referred_by TEXT,
     onboarding_completed INTEGER DEFAULT 0,
@@ -339,6 +340,7 @@ USER_ADD_COLUMNS = {
     "plan": "ALTER TABLE users ADD COLUMN plan TEXT DEFAULT 'free'",
     "daily_limit": "ALTER TABLE users ADD COLUMN daily_limit INTEGER DEFAULT 20",
     "bonus_requests": "ALTER TABLE users ADD COLUMN bonus_requests INTEGER DEFAULT 0",
+    "purchased_credits": "ALTER TABLE users ADD COLUMN purchased_credits INTEGER DEFAULT 0",
     "referral_code": "ALTER TABLE users ADD COLUMN referral_code TEXT",
     "referred_by": "ALTER TABLE users ADD COLUMN referred_by TEXT",
     "onboarding_completed": "ALTER TABLE users ADD COLUMN onboarding_completed INTEGER DEFAULT 0",
@@ -480,6 +482,7 @@ class Database:
                     plan TEXT DEFAULT 'free',
                     daily_limit INTEGER DEFAULT 20,
                     bonus_requests INTEGER DEFAULT 0,
+                    purchased_credits INTEGER DEFAULT 0,
                     referral_code TEXT UNIQUE,
                     referred_by TEXT,
                     onboarding_completed INTEGER DEFAULT 0,
@@ -522,7 +525,7 @@ class Database:
                 f"""
                 INSERT OR IGNORE INTO users_new (
                     telegram_user_id, telegram_id, username, first_name, last_name, language_code,
-                    plan, daily_limit, bonus_requests, referral_code, referred_by, onboarding_completed,
+                    plan, daily_limit, bonus_requests, purchased_credits, referral_code, referred_by, onboarding_completed,
                     free_limit, monthly_limit, subscription_started_at,
                     subscription_until, subscription_expires_at, unlimited_access, blocked, admin_note, access_updated_at,
                     created_at, updated_at, last_seen_at
@@ -537,6 +540,7 @@ class Database:
                     {expr("plan", "'free'")},
                     {expr("daily_limit", "20")},
                     {expr("bonus_requests", "0")},
+                    {expr("purchased_credits", "0")},
                     {expr("referral_code")},
                     {expr("referred_by")},
                     {expr("onboarding_completed", "0")},
@@ -1003,9 +1007,12 @@ class Database:
         profile_daily_limit = profile.get("daily_limit")
         daily_limit = int(profile_daily_limit) if profile_daily_limit not in (None, 20) else int(free_limit_default)
         bonus_requests = int(profile.get("bonus_requests") or 0)
-        free_limit = daily_limit + bonus_requests
+        purchased_credits = int(profile.get("purchased_credits") or 0)
+        free_limit = daily_limit + bonus_requests + purchased_credits
         monthly_limit = profile.get("monthly_limit")
         monthly_limit = int(monthly_limit) if monthly_limit is not None else int(monthly_limit_default)
+        if purchased_credits > 0:
+            monthly_limit += purchased_credits
 
         subscription_started_at = parse_iso_datetime(profile.get("subscription_started_at"))
         subscription_until = parse_iso_datetime(profile.get("subscription_until") or profile.get("subscription_expires_at"))
@@ -1102,6 +1109,7 @@ class Database:
             "free_limit": free_limit,
             "daily_limit": daily_limit,
             "bonus_requests": bonus_requests,
+            "purchased_credits": purchased_credits,
             "monthly_limit": monthly_limit,
             "current_limit": current_limit,
             "remaining": remaining,
