@@ -10,9 +10,7 @@ const iconPaths = {
   close: '<line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>',
   back: '<line x1="19" y1="12" x2="5" y2="12"/><polyline points="12 19 5 12 12 5"/>',
   chevron: '<polyline points="9 18 15 12 9 6"/>',
-  // Премиальная нативная звезда Telegram Stars
   tg_stars: '<path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/>',
-  // Чистый геометрический логотип TON
   ton: '<path d="M12 2L3 9l9 13 9-13L12 2zm0 4.5L17.5 10H6.5L12 6.5zM6.8 12h10.4l-5.2 7.5-5.2-7.5z"/>'
 };
 
@@ -213,16 +211,19 @@ function renderOnboardingStep() {
   const dots = $("onboardingModal").querySelectorAll(".progress-row span");
   dots.forEach((dot, idx) => dot.classList.toggle("active", idx === state.onboardingStep));
   
-  $("onboardingBackBtn").style.visibility = state.onboardingStep === 0 ? "hidden" : "visible";
-  $("onboardingNextBtn").textContent = state.onboardingStep === state.onboardingConfig.length - 1 ? "Завершить" : "Далее";
+  const savedKey = state.onboardingData[cfg.id];
+  const html = cfg.options.map(o => `
+    <button class="onboarding-option ${savedKey === o.key ? 'active' : ''}" data-key="${o.key}" type="button">
+      ${o.label}
+    </button>
+  `).join("");
   
-  let html = "";
-  cfg.options.forEach(opt => {
-    const act = state.onboardingData[cfg.id] === opt.key ? "active" : "";
-    html += `<button class="onboarding-option ${act}" data-key="${opt.key}" type="button">${opt.label}</button>`;
-  });
   $("onboardingBody").innerHTML = html;
   $("onboardingError").hidden = true;
+  $("onboardingBackBtn").disabled = (state.onboardingStep === 0);
+  
+  const isLast = (state.onboardingStep === state.onboardingConfig.length - 1);
+  $("onboardingNextBtn").textContent = isLast ? "Готово" : "Далее";
 }
 
 async function nextOnboarding() {
@@ -233,20 +234,26 @@ async function nextOnboarding() {
     err.hidden = false;
     return;
   }
+  
   if (state.onboardingStep < state.onboardingConfig.length - 1) {
     state.onboardingStep++;
     renderOnboardingStep();
   } else {
     try {
-      const res = await request("/api/onboarding", { method: "POST", body: JSON.stringify(state.onboardingData) });
+      $("onboardingNextBtn").disabled = true;
+      const res = await request("/api/onboarding", {
+        method: "POST",
+        body: JSON.stringify(state.onboardingData)
+      });
       state.user = res.user;
       updateProfileUI();
       $("onboardingModal").hidden = true;
-      showToast("Профиль успешно настроен");
-    } catch (err) {
-      const e = $("onboardingError");
-      e.textContent = err.message;
-      e.hidden = false;
+      showToast("Онбординг успешно завершён!");
+    } catch (e) {
+      const err = $("onboardingError");
+      err.textContent = e.message;
+      err.hidden = false;
+      $("onboardingNextBtn").disabled = false;
     }
   }
 }
@@ -261,58 +268,22 @@ function previousOnboarding() {
 async function loadTools() {
   const data = await request("/api/tools");
   state.tools = data.tools || [];
-  renderTools(state.tools);
-  
-  const row = $("historyFilters");
-  const uniq = [...new Set(state.tools.map(t => t.mode).filter(Boolean))];
-  uniq.forEach(m => {
-    row.insertAdjacentHTML("beforeend", `<button data-filter="${m}" type="button">${m.toUpperCase()}</button>`);
-  });
-}
-
-function renderTools(list) {
   const grid = $("toolsGrid");
   if (!grid) return;
-  if (!list.length) {
-    grid.innerHTML = `<p class="muted" style="text-align:center; padding:20px;">Модули не найдены</p>`;
+  
+  if (!state.tools.length) {
+    grid.innerHTML = `<p class="muted" style="grid-column: 1/-1; text-align: center; padding: 40px 0;">Инструменты временно недоступны.</p>`;
     return;
   }
-  grid.innerHTML = list.map(t => `
-    <button class="tool-card" data-mode="${t.mode}" data-prompt="${t.prompt || ''}" type="button">
-      <span class="card-icon" data-icon="tools"></span>
-      <div class="tool-meta">
-        <h4>${t.title}</h4>
-        <p>${t.description}</p>
-      </div>
-      <span data-icon="chevron" class="chevron"></span>
-    </button>
+  
+  grid.innerHTML = state.tools.map(t => `
+    <div class="tool-card" data-prompt="${t.prompt_template}">
+      <div class="tool-icon-wrapper"><span data-icon="tools"></span></div>
+      <h4>${t.title}</h4>
+      <p class="muted">${t.description}</p>
+    </div>
   `).join("");
   injectIcons(grid);
-}
-
-async function loadHistory() {
-  state.history = await request("/api/history");
-  renderHistory();
-}
-
-function renderHistory() {
-  const list = $("historyList");
-  if (!list) return;
-  const filtered = state.historyFilter === "all" ? state.history : state.history.filter(h => h.mode === state.historyFilter);
-  if (!filtered.length) {
-    list.innerHTML = `<p class="muted" style="text-align:center; padding:20px;">Архив пуст</p>`;
-    return;
-  }
-  list.innerHTML = filtered.map(h => `
-    <article class="history-card">
-      <div class="meta-line">
-        <span>${h.mode}</span>
-        <span>${h.created_at || ""}</span>
-      </div>
-      <p><strong>Запрос:</strong> ${h.request_text}</p>
-      <p style="margin-top:6px; color:var(--app-hint);">- ${h.response_preview || ""}</p>
-    </article>
-  `).join("");
 }
 
 async function loadBillingPlans() {
@@ -327,200 +298,257 @@ function openBillingModal() {
 
 function closeBillingModal() {
   $("billingModal").hidden = true;
-  $("paymentProviderBox").hidden = true;
-  $("billingPlanList").hidden = false;
 }
 
 function renderBillingPlans() {
   $("paymentProviderBox").hidden = true;
-  const container = $("billingPlanList");
-  container.hidden = false;
-  
-  const html = Object.keys(state.plans).map(key => {
-    const p = state.plans[key];
+  const planList = $("billingPlanList");
+  planList.hidden = false;
+  $("billingTitle").textContent = "Доступные тарифы";
+
+  const keys = Object.keys(state.plans);
+  if (!keys.length) {
+    planList.innerHTML = `<p class="muted" style="text-align:center; padding:20px;">Нет доступных тарифов.</p>`;
+    return;
+  }
+
+  planList.innerHTML = keys.map(k => {
+    const p = state.plans[k];
+    const isCurrent = state.user && state.user.plan === k;
     return `
-      <button class="plan-card" data-plan-key="${key}" type="button">
+      <button class="plan-card ${isCurrent ? 'muted-plan' : ''}" data-plan-key="${k}" type="button">
         <div class="plan-main">
-          <span data-icon="user"></span>
           <div>
             <h4>${p.title}</h4>
-            <small>Лимит: ${p.daily_limit} запр./день</small>
+            <small>${p.description}</small>
           </div>
         </div>
-        <span class="plan-price">${p.price_label}</span>
+        <div class="plan-price">${p.price_monthly} ₽</div>
       </button>
     `;
   }).join("");
-  container.innerHTML = html;
-  injectIcons(container);
 }
 
-function selectPlan(key) {
-  state.activePlan = state.plans[key];
+function selectPlan(planKey) {
+  state.activePlan = state.plans[planKey];
   if (!state.activePlan) return;
+
   $("billingPlanList").hidden = true;
+  $("billingTitle").textContent = `Оплата: ${state.activePlan.title}`;
+  $("billingError").hidden = true;
+  
   const box = $("paymentProviderBox");
   box.hidden = false;
-  
-  const list = $("providerList");
-  list.innerHTML = state.activePlan.providers.map(prov => {
-    // Интеллектуальный роутинг кастомных брендовых логотипов
-    let iconName = "chat";
-    let customClass = "";
-    const pid = prov.id.toLowerCase();
-    
-    if (pid.includes("stars") || pid.includes("telegram_stars")) {
-      iconName = "tg_stars";
-      customClass = "provider-icon-stars";
-    } else if (pid.includes("ton") || pid.includes("crypto") || pid.includes("wallet")) {
-      iconName = "ton";
-      customClass = "provider-icon-ton";
-    }
 
+  const provList = $("providerList");
+  provList.innerHTML = state.activePlan.providers.map(p => {
+    let iconName = "credit-card";
+    let extraCls = "";
+    if (p.id === "telegram_stars") { iconName = "tg_stars"; extraCls = "provider-card-stars"; }
+    if (p.id === "ton") { iconName = "ton"; extraCls = "provider-card-ton"; }
+    
     return `
-      <button class="provider-card" data-provider="${prov.id}" type="button">
-        <div class="provider-main">
-          <span class="card-icon ${customClass}" data-icon="${iconName}"></span>
-          <div>
-            <strong>${prov.title}</strong>
-            <small>${prov.description || ""}</small>
-          </div>
+      <button class="provider-card ${extraCls}" data-provider="${p.id}" type="button">
+        <span class="provider-icon" data-icon="${iconName}"></span>
+        <div class="provider-info">
+          <strong>${p.title}</strong>
+          <small>${p.description}</small>
         </div>
-        <span data-icon="chevron" class="chevron"></span>
+        <div class="provider-price-tag">${p.price_formatted}</div>
       </button>
     `;
   }).join("");
-  injectIcons(list);
-  $("billingError").hidden = true;
+  injectIcons(provList);
 }
 
 async function checkout(providerId) {
-  if (!state.activePlan) return;
-  const errBox = $("billingError");
-  errBox.hidden = true;
+  const pBox = $("paymentProviderBox");
+  const errEl = $("billingError");
+  errEl.hidden = true;
+  
   try {
-    const res = await request("/api/billing/order", {
+    pBox.classList.add("loading-state");
+    const planKey = Object.keys(state.plans).find(k => state.plans[k].title === state.activePlan.title);
+    
+    const res = await request("/api/billing/checkout", {
       method: "POST",
-      body: JSON.stringify({ plan: state.activePlan.key, provider: providerId })
+      body: JSON.stringify({ plan: planKey, provider: providerId })
     });
-    if (providerId === "telegram_stars" && res.invoice_url) {
-      if (tg) {
-        tg.openInvoice(res.invoice_url, (status) => {
+
+    if (providerId === "telegram_stars" && res.invoice_link) {
+      if (window.Telegram?.WebApp?.openInvoice) {
+        window.Telegram.WebApp.openInvoice(res.invoice_link, (status) => {
           if (status === "paid") {
-            showToast("Оплата успешно верифицирована");
+            showToast("Оплата успешно проведена!");
             closeBillingModal();
             loadMe().catch(() => {});
-          } else if (status === "failed") {
-            showToast("Ошибка при проведении платежа");
+          } else {
+            showToast("Оплата не завершена");
           }
         });
       } else {
-        window.open(res.invoice_url, "_blank");
+        showToast("Прямая оплата поддерживается только внутри Telegram App");
       }
-    } else if (res.invoice_url) {
-      if (tg) {
-        tg.openLink(res.invoice_url);
+      return;
+    }
+
+    if (res.invoice_url) {
+      if (window.Telegram?.WebApp?.openLink) {
+        window.Telegram.WebApp.openLink(res.invoice_url);
       } else {
         window.open(res.invoice_url, "_blank");
       }
+      showToast("Ссылка на оплату открыта.");
       closeBillingModal();
-    } else {
-      showToast("Заказ сформирован успешно");
+      return;
+    }
+
+    if (res.success) {
+      showToast("Подписка успешно активирована!");
       closeBillingModal();
+      await loadMe();
     }
   } catch (err) {
-    errBox.textContent = err.message;
-    errBox.hidden = false;
+    errEl.textContent = err.message;
+    errEl.hidden = false;
+  } finally {
+    pBox.classList.remove("loading-state");
   }
 }
 
-async function submitFeedback(toolId, type, view, text) {
-  await request("/api/feedback", {
-    method: "POST",
-    body: JSON.stringify({ tool_id: toolId, type, view, message: text })
-  });
-  showToast("Сообщение успешно отправлено");
+async function loadHistory() {
+  const data = await request("/api/history");
+  state.history = data.history || [];
+  renderHistory();
+}
+
+function renderHistory() {
+  const list = $("historyList");
+  if (!list) return;
+
+  let filtered = state.history;
+  if (state.historyFilter !== "all") {
+    filtered = state.history.filter(h => h.mode === state.historyFilter);
+  }
+
+  if (!filtered.length) {
+    list.innerHTML = `<div class="chat-empty"><span data-icon="history"></span><p>Записей не найдено.</p></div>`;
+    injectIcons(list);
+    return;
+  }
+
+  list.innerHTML = filtered.map(h => `
+    <article class="history-card">
+      <div class="history-card-header">
+        <span class="badge badge-${h.mode}">${h.mode.toUpperCase()}</span>
+        <time class="muted small">${new Date(h.timestamp * 1000).toLocaleDateString()}</time>
+      </div>
+      <p class="history-prompt"><strong>Запрос:</strong> ${h.text}</p>
+      <div class="history-answer"><strong>Ответ ИИ:</strong> ${h.answer}</div>
+    </article>
+  `).join("");
 }
 
 function bindEvents() {
-  const textareas = ["homeChatInput", "mainChatInput"];
-  textareas.forEach(id => {
-    const el = $(id);
-    if (!el) return;
-    el.addEventListener("input", () => {
-      autoResizeTextarea(el);
-      const btnId = id === "homeChatInput" ? "homeChatSendBtn" : "mainChatSendBtn";
-      updateChatSendButton(id, btnId);
+  document.querySelectorAll(".nav-item").forEach(btn => {
+    btn.addEventListener("click", () => switchView(btn.dataset.target));
+  });
+
+  document.querySelectorAll("[data-open-view]").forEach(btn => {
+    btn.addEventListener("click", () => switchView(btn.dataset.openView));
+  });
+
+  const txtHome = $("homeChatInput"), btnHome = $("homeChatSendBtn");
+  if (txtHome && btnHome) {
+    txtHome.addEventListener("input", () => {
+      autoResizeTextarea(txtHome);
+      updateChatSendButton("homeChatInput", "homeChatSendBtn");
+    });
+    btnHome.addEventListener("click", () => handleChatSend("homeChatInput", "homeChatScroll", "homeChatSendBtn"));
+  }
+
+  const txtMain = $("mainChatInput"), btnMain = $("mainChatSendBtn");
+  if (txtMain && btnMain) {
+    txtMain.addEventListener("input", () => {
+      autoResizeTextarea(txtMain);
+      updateChatSendButton("mainChatInput", "mainChatSendBtn");
+    });
+    btnMain.addEventListener("click", () => handleChatSend("mainChatInput", "mainChatScroll", "mainChatSendBtn"));
+  }
+
+  document.querySelectorAll(".chat-mode-selector .mode-tab").forEach(tab => {
+    tab.addEventListener("click", () => {
+      document.querySelectorAll(".chat-mode-selector .mode-tab").forEach(t => t.classList.remove("active"));
+      tab.classList.add("active");
+      state.currentMode = tab.dataset.mode;
     });
   });
 
-  $("appNav").addEventListener("click", (e) => {
-    const btn = e.target.closest(".nav-item");
-    if (btn) switchView(btn.dataset.target);
-  });
-
-  $("homeChatSendBtn").addEventListener("click", () => handleChatSend("homeChatInput", "homeChatScroll", "homeChatSendBtn"));
-  $("mainChatSendBtn").addEventListener("click", () => handleChatSend("mainChatInput", "mainChatScroll", "mainChatSendBtn"));
-
-  document.addEventListener("click", (e) => {
-    const action = e.target.closest("[data-prompt]");
-    if (action) {
-      const p = action.dataset.prompt;
-      if (action.classList.contains("tool-card")) {
-        state.currentMode = action.dataset.mode || "strategy";
-        $("chatViewTitle").textContent = action.querySelector("h4").textContent;
-        $("chatViewSubtitle").textContent = "Специализированный режим анализа";
-        switchView("chat");
-        $("mainChatInput").value = p;
-        autoResizeTextarea($("mainChatInput"));
-        updateChatSendButton("mainChatInput", "mainChatSendBtn");
-      } else {
-        state.currentMode = "strategy";
-        $("chatViewTitle").textContent = "Аналитическая сессия";
-        $("chatViewSubtitle").textContent = "Прямой диалог с бизнес-моделью";
-        switchView("chat");
-        $("mainChatInput").value = p;
-        autoResizeTextarea($("mainChatInput"));
-        updateChatSendButton("mainChatInput", "mainChatSendBtn");
-      }
+  $("quickStrip")?.addEventListener("click", (e) => {
+    const act = e.target.closest(".quick-action");
+    if (!act) return;
+    switchView("chat");
+    const mainIn = $("mainChatInput");
+    if (mainIn) {
+      mainIn.value = act.dataset.prompt || "";
+      autoResizeTextarea(mainIn);
+      updateChatSendButton("mainChatInput", "mainChatSendBtn");
+      mainIn.focus();
     }
   });
 
-  $("toolsSearchInput")?.addEventListener("input", (e) => {
-    const q = e.target.value.toLowerCase().trim();
-    const filtered = state.tools.filter(t => t.title.toLowerCase().includes(q) || t.description.toLowerCase().includes(q));
-    renderTools(filtered);
+  $("toolsGrid")?.addEventListener("click", (e) => {
+    const card = e.target.closest(".tool-card");
+    if (!card) return;
+    switchView("chat");
+    const mainIn = $("mainChatInput");
+    if (mainIn) {
+      mainIn.value = card.dataset.prompt || "";
+      autoResizeTextarea(mainIn);
+      updateChatSendButton("mainChatInput", "mainChatSendBtn");
+      mainIn.focus();
+    }
   });
 
-  $("onboardingBody").addEventListener("click", (e) => {
+  $("onboardingBody")?.addEventListener("click", (e) => {
     const opt = e.target.closest(".onboarding-option");
     if (!opt) return;
     const cfg = state.onboardingConfig[state.onboardingStep];
     state.onboardingData[cfg.id] = opt.dataset.key;
-    $("onboardingBody").querySelectorAll(".onboarding-option").forEach(node => node.classList.toggle("active", node === opt));
+    renderOnboardingStep();
   });
 
-  $("profileBusinessForm").addEventListener("submit", async (e) => {
-    e.preventDefault();
-    const desc = $("profileBusinessDescription").value.trim();
+  $("saveProfileBtn")?.addEventListener("click", async () => {
+    const profileText = $("profileBusinessDescription").value.trim();
     try {
-      const res = await request("/api/profile/business", { method: "POST", body: JSON.stringify({ description: desc }) });
+      const res = await request("/api/profile/save", {
+        method: "POST",
+        body: JSON.stringify({ business_profile: profileText })
+      });
       state.user = res.user;
-      showToast("Профиль бизнеса обновлен");
+      updateProfileUI();
+      showToast("Профиль успешно сохранён!");
     } catch (err) {
       showToast(err.message);
     }
   });
 
-  $("appFeedbackForm").addEventListener("submit", async (e) => {
-    e.preventDefault();
-    const message = $("appFeedbackText").value.trim();
-    if (!message) {
-      showToast("Пожалуйста, заполните поле ввода");
+  $("submitAppFeedbackBtn")?.addEventListener("click", async () => {
+    const msg = $("appFeedbackText").value.trim();
+    if (!msg) {
+      showToast("Напишите, что улучшить");
       return;
     }
-    await submitFeedback(-1, "app", "profile", message);
-    $("appFeedbackText").value = "";
+    try {
+      await request("/api/feedback", {
+        method: "POST",
+        body: JSON.stringify({ message: msg, type: "app" })
+      });
+      $("appFeedbackText").value = "";
+      showToast("Спасибо за ваш отзыв!");
+    } catch (err) {
+      showToast(err.message);
+    }
   });
 
   $("openBillingBtn")?.addEventListener("click", openBillingModal);
@@ -565,8 +593,8 @@ function bindEvents() {
   await Promise.all([loadTools(), loadBillingPlans()]);
   try {
     await loadMe();
-  } catch (err) {
-    showToast(err.message);
+  } catch (error) {
+    showToast(error.message);
   }
   await loadHistory().catch(() => {});
 })();
