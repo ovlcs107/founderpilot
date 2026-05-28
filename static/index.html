@@ -67,12 +67,10 @@
       
       <header class="mobile-header">
         <div class="header-left">
-          <h1 id="pageTitle">Главная</h1>
+          <div class="sparkle-icon-header" data-icon="stars"></div>
         </div>
         <div class="header-right">
-          <div class="avatar-clickable" data-target="profile" onclick="switchView('profile')">
-            <div class="avatar compact-avatar" id="mobileHeaderAvatar">F</div>
-          </div>
+          <div class="bell-icon-header" data-icon="history"></div>
         </div>
       </header>
 
@@ -81,29 +79,25 @@
           
           <div class="desktop-home-header-row">
             <header class="workspace-intro">
-              <h2 id="homeGreeting">Добро пожаловать, Алексей 👋</h2>
-              <p class="section-subtitle">Ваш ИИ-помощник для построения и роста технологичных продуктов.</p>
+              <h2 id="homeGreeting">Доброе утро, Александр 👋</h2>
+              <p class="section-subtitle">Курс на ясность, фокус и рост.</p>
             </header>
-            
             <div class="desktop-top-credits-badge">
               <span class="lbl">Доступные кредиты</span>
               <strong id="desktopTopCreditsValue">0</strong>
             </div>
           </div>
 
-          <div class="ref-metrics-card" id="mobileMetricsCard">
+          <div class="ref-metrics-card">
             <div class="ref-metric-row">
-              <span class="ref-metric-label">Использование сегодня</span>
+              <span class="ref-metric-label">Использование в июне</span>
               <span class="ref-metric-value" id="creditsTodayText">0 / 0</span>
             </div>
             <div class="ref-progress-bar">
               <div class="ref-progress-fill" id="creditsTodayFill" style="width: 0%"></div>
             </div>
             <div class="ref-metric-footer">
-              <span id="creditsMonthText">Лимит на месяц: 0 / 0</span>
-              <div class="ref-progress-bar mini-bar">
-                <div class="ref-progress-fill" id="creditsMonthFill" style="width: 0%"></div>
-              </div>
+              <span id="creditsMonthText">Обновится 1 июл.</span>
             </div>
           </div>
 
@@ -112,9 +106,7 @@
           <div class="chat-container">
             <div class="chat-scroll" id="homeChatScroll">
               <div class="chat-empty-state" id="chatEmptyState">
-                <div class="empty-icon-hexagon">
-                  <span data-icon="message"></span>
-                </div>
+                <div class="empty-icon-hexagon"><span data-icon="message"></span></div>
                 <h3>Спросите что угодно о вашем бизнесе</h3>
                 <p>Стратегия, воронки, аудит карточек или юнит-экономика — ИИ готов к вычислениям.</p>
               </div>
@@ -122,15 +114,13 @@
 
             <div class="chat-composer-zone">
               <div class="composer-inner-vertical">
-                <textarea id="homeChatInput" rows="2" placeholder="Задайте вопрос AI или выберите готовое действие..."></textarea>
+                <textarea id="homeChatInput" rows="2" placeholder="Спросите что угодно о вашем бизнесе: стратегия, анализ, идеи..."></textarea>
                 <div class="composer-actions-row">
                   <div class="actions-left-pills">
-                    <button type="button" class="composer-pill-btn"><span data-icon="copy"></span> Прикрепить файл</button>
-                    <button type="button" class="composer-pill-btn"><span data-icon="target"></span> Глубокий анализ</button>
-                    <button type="button" class="composer-pill-btn"><span data-icon="search"></span> Источники</button>
+                    <button type="button" class="composer-action-circle-btn"><span data-icon="copy"></span></button>
+                    <button type="button" class="composer-action-circle-btn"><span data-icon="calculator"></span></button>
                   </div>
                   <div class="actions-right-controls">
-                    <div class="model-select-badge">GPT-4.1</div>
                     <button id="homeChatSendBtn" class="send-btn-circular" disabled>
                       <span data-icon="send"></span>
                     </button>
@@ -139,18 +129,19 @@
               </div>
             </div>
           </div>
+          <div class="ai-disclaimer-label">AI может ошибаться. Проверяйте важное.</div>
 
           <div class="quick-suggestions-wrapper">
             <span class="tiny-label">Быстрые действия</span>
             <div class="quick-strip" id="quickStrip">
               <button class="quick-pill" data-prompt="Посчитай юнит-экономику товара: себестоимость 450р, логистика 80р, комиссия 15%, розничная цена 1200р.">
-                <span data-icon="calculator"></span> Юнит-экономика
+                <span data-icon="calculator"></span> Анализ идеи
               </button>
-              <button class="quick-pill" data-prompt="Напиши продающее SEO-описание для карточки товара: Чехол для iPhone">
-                <span data-icon="edit"></span> SEO Карточки
+              <button class="quick-pill" data-prompt="Напиши бизнес-план для запуска магазина">
+                <span data-icon="edit"></span> Бизнес-план
               </button>
-              <button class="quick-pill" data-prompt="Проанализируй сильные стороны конкурентов в нише автотоваров">
-                <span data-icon="search"></span> Анализ ниши
+              <button class="quick-pill" data-prompt="Разработай маркетинговую стратегию для маркетплейса">
+                <span data-icon="search"></span> Маркетинг
               </button>
             </div>
           </div>
@@ -158,28 +149,21 @@
           <div class="resume-block-section">
             <div class="resume-header-row">
               <h3>Краткое резюме</h3>
-              <span class="resume-timestamp">Обновлено только что</span>
+              <span class="resume-timestamp">Обновлено 2 мин назад</span>
             </div>
             <div class="resume-cards-stack">
               <div class="resume-card-item">
                 <div class="resume-icon-box orange"><span data-icon="chart"></span></div>
                 <div class="resume-body">
                   <h4>Анализ рынка</h4>
-                  <p>Рынок онлайн-коммерции стабильно растёт. Основной драйвер в текущем квартале — нишевые товарные группы.</p>
+                  <p>Рынок онлайн-образования растёт на 14% в год. Основной драйвер — корпоративное обучение.</p>
                 </div>
               </div>
               <div class="resume-card-item">
                 <div class="resume-icon-box blue"><span data-icon="user"></span></div>
                 <div class="resume-body">
-                  <h4>Конкурентная среда</h4>
-                  <p>Выявлена высокая концентрация крупных игроков в топе выдачи. Рекомендуется фокус на SEO длинного хвоста.</p>
-                </div>
-              </div>
-              <div class="resume-card-item">
-                <div class="resume-icon-box green"><span data-icon="target"></span></div>
-                <div class="resume-body">
-                  <h4>Точки роста</h4>
-                  <p>Оптимизация внутренних логистических издержек и точный расчёт юнит-экономики повышают ROI до 28%.</p>
+                  <h4>Конкуренты</h4>
+                  <p>Выявлено 12 ключевых игроков. У Coursera и Udemy сильные бренды, но слабая локализация.</p>
                 </div>
               </div>
             </div>
@@ -190,75 +174,48 @@
 
       <section id="view-tools" class="view">
         <div class="view-scroll-container">
-          <div class="tools-view-header-split">
-            <header class="section-header-block">
-              <h2>Инструменты</h2>
-              <p class="section-subtitle">Подборка ИИ-инструментов для каждого этапа вашего проекта.</p>
-            </header>
-            <div class="ref-desktop-search-box">
-              <span data-icon="search"></span>
-              <input type="text" id="toolsSearchInput" placeholder="Поиск инструментов...">
-            </div>
-          </div>
+          <header class="section-header-block">
+            <h2>Инструменты</h2>
+            <p class="section-subtitle">Подберите нужный инструмент под вашу задачу.</p>
+          </header>
           
-          <div class="ref-table-wrapper">
-            <div class="ref-table-header">
-              <div class="col-name">Инструмент</div>
-              <div class="col-desc">Описание</div>
-              <div class="col-fit">Лучше всего подходит для</div>
-            </div>
-            <div class="tools-grid" id="toolsGrid"></div>
+          <div class="ref-search-container">
+            <span data-icon="search" class="search-input-icon"></span>
+            <input type="text" id="toolsSearchInput" class="ref-search-input" placeholder="Поиск инструментов...">
           </div>
+
+          <div class="ref-table-wrapper select-menu-list" id="toolsGrid"></div>
         </div>
       </section>
 
       <section id="view-history" class="view">
         <div class="view-scroll-container">
-          <div class="tools-view-header-split">
-            <header class="section-header-block">
-              <h2>История</h2>
-              <p class="section-subtitle">Ваши запросы и результаты операционной работы с ИИ.</p>
-            </header>
-            <div class="history-actions-panel">
-              <div class="ref-desktop-search-box compact-search">
-                <span data-icon="search"></span>
-                <input type="text" id="historySearchInput" placeholder="Поиск по истории...">
-              </div>
-              <button type="button" class="ref-btn-outline slim" id="exportHistoryBtn">
-                <span data-icon="save"></span> Экспорт TXT
-              </button>
-            </div>
-          </div>
+          <header class="section-header-block">
+            <h2>История</h2>
+          </header>
 
           <div class="filters-container-row">
             <div class="history-filters" id="historyFilters">
-              <button class="chip active" data-filter="all">Все</button>
-              <button class="chip" data-filter="chat">Чаты</button>
+              <button class="chip active" data-filter="all">Чаты</button>
+              <button class="chip" data-filter="favorites">Документы</button>
               <button class="chip" data-filter="tools">Инструменты</button>
-              <button class="chip" data-filter="favorites">Сохранённое</button>
             </div>
           </div>
 
-          <div class="ref-table-wrapper">
-            <div class="ref-table-header column-history-rules">
-              <div>Запрос</div>
-              <div>Инструмент</div>
-              <div>Проект</div>
-              <div>Дата</div>
-              <div>Статус</div>
-            </div>
-            <div class="history-list" id="historyList"></div>
+          <div class="chat-empty-state" id="historyEmptyState" style="margin-top: 40px;">
+            <div class="empty-icon-hexagon-bg"><span data-icon="message"></span></div>
+            <h3 style="font-size: 17px; font-weight: 700; margin-top: 16px;">Пока здесь пусто</h3>
+            <p style="color: #6e6e73; font-size: 13.5px; max-width: 260px; margin-top: 8px;">Задавайте вопросы, создавайте документы и используйте инструменты — ваша история появится здесь.</p>
+            <button type="button" class="start-chat-btn-history" onclick="switchView('home')"><span data-icon="edit"></span> Начать новый чат</button>
           </div>
+
+          <div class="ref-table-wrapper select-menu-list" id="historyList" style="display: none;"></div>
         </div>
       </section>
 
       <section id="view-profile" class="view">
         <div class="view-scroll-container">
-          <header class="section-header-block">
-            <h2>Профиль</h2>
-            <p class="section-subtitle">Управление аккаунтом, подпиской и проектами.</p>
-          </header>
-
+          
           <div class="ref-split-profile-dashboard">
             <div class="profile-dashboard-left-rail">
               <button class="rail-link active">Аккаунт</button>
@@ -266,15 +223,11 @@
               <button class="rail-link">Использование</button>
               <button class="rail-link">Бизнес-профиль</button>
               <button class="rail-link">Настройки</button>
-              <button class="rail-link">Безопасность</button>
-              <button class="rail-link">Уведомления</button>
             </div>
 
             <div class="profile-dashboard-right-content">
-              
-              <div class="profile-meta-block-title">Аккаунт</div>
-              <div class="ref-dashboard-card align-chevron-row">
-                <div class="ref-profile-user-card">
+              <div class="profile-chevron-row-card">
+                <div class="avatar-left-block">
                   <div class="ref-avatar-large" id="profileUserAvatar">F</div>
                   <div class="ref-user-meta">
                     <h3 id="profileUserTitle">Александр Петров</h3>
@@ -284,33 +237,27 @@
                 <div class="chevron-arrow-right"></div>
               </div>
 
-              <div class="profile-meta-block-title">Тарифный план</div>
-              <div class="ref-dashboard-card">
-                <div class="ref-form-item-row-split">
-                  <div>
-                    <span class="sub-label-card">Текущий уровень</span>
-                    <strong class="plan-label-bold" id="profilePlanLabel">FounderPilot Pro</strong>
+              <div class="ref-settings-block-title">Тарифный план</div>
+              <div class="ref-premium-status-card">
+                <div class="status-top">
+                  <div class="status-title-box">
+                    <span class="status-plan-name" id="profilePlanLabel">FounderPilot Pro</span>
+                    <span class="status-badge-active">Активен</span>
                   </div>
-                  <button class="ref-action-outline-btn" id="openBillingBtn">Управление планом</button>
                 </div>
+                <p class="next-charge-date-text">Следующее списание 1 июля 2025</p>
                 
                 <div class="quota-progress-sub-box">
                   <div class="sub-progress-label-row">
-                    <span>Доступно сегодня</span>
-                    <span id="profileCreditsTodayText">0 / 0</span>
+                    <span id="profileCreditsTodayText">6 800 из 10 000 AI-кредитов</span>
+                    <span class="percentage-label">68%</span>
                   </div>
-                  <div class="ref-progress-bar"><div class="ref-progress-fill" id="profileCreditsTodayFill" style="width: 0%"></div></div>
-                  
-                  <div class="sub-progress-label-row mt-16">
-                    <span>Доступно в этом месяце</span>
-                    <span id="profileCreditsMonthText">0 / 0</span>
-                  </div>
-                  <div class="ref-progress-bar"><div class="ref-progress-fill" id="profileCreditsMonthFill" style="width: 0%"></div></div>
+                  <div class="ref-progress-bar"><div class="ref-progress-fill" id="profileCreditsTodayFill" style="width: 68%"></div></div>
                 </div>
               </div>
 
               <div class="ref-dashboard-card list-menu-stack">
-                <button type="button" class="menu-row-item">
+                <button type="button" class="menu-row-item" onclick="openBillingModal()">
                   <div class="menu-row-left">
                     <span class="menu-icon-box" data-icon="wallet"></span>
                     <span><strong>Платёжная информация</strong><small>Visa •••• 4242</small></span>
@@ -340,7 +287,7 @@
                 </button>
               </div>
 
-              <div class="profile-meta-block-title">Настройки</div>
+              <div class="ref-settings-block-title">Настройки</div>
               <div class="ref-dashboard-card list-menu-stack">
                 <button type="button" class="menu-row-item">
                   <div class="menu-row-left">
@@ -365,89 +312,14 @@
                 </button>
               </div>
 
-              <div class="profile-meta-block-title">Рабочее пространство</div>
-              <div class="ref-dashboard-card">
-                <p class="field-description mb-16">Разделяйте проекты, чтобы ассистент выдавал ответы с точным изолированным контекстом.</p>
-                <div class="workspace-form-grid">
-                  <div class="ref-input-element-group">
-                    <label>Название проекта</label>
-                    <input type="text" id="projectTitleInput" class="ref-dashboard-input" placeholder="Например: WB Магазин">
-                  </div>
-                  <div class="ref-input-element-group">
-                    <label>Ниша / Сфера</label>
-                    <input type="text" id="projectNicheInput" class="ref-dashboard-input" placeholder="Автотовары, одежда...">
-                  </div>
-                  <div class="ref-input-element-group wide">
-                    <label>Главная операционная цель проекта</label>
-                    <input type="text" id="projectGoalInput" class="ref-dashboard-input" placeholder="Например: Выйти на 1.5 млн оборота к концу года">
-                  </div>
-                </div>
-                <div class="action-row-end mt-12">
-                  <button class="ref-submit-dark-btn" id="saveWorkspaceBtn" type="button"><span data-icon="save"></span> Сохранить проект</button>
-                </div>
-                <div class="workspace-list" id="projectList"></div>
-              </div>
-
-              <div class="profile-meta-block-title">Память AI</div>
-              <div class="ref-dashboard-card">
-                <p class="field-description mb-16">Факты из памяти автоматически подмешиваются во все диалоги: ваши ограничения, маржа, особенности доставки.</p>
-                <div class="inline-input-action">
-                  <input type="text" id="memoryInput" class="ref-dashboard-input" placeholder="Например: Поставляем товары со склада в Казани">
-                  <button type="button" id="addMemoryBtn" class="ref-submit-dark-btn">Добавить</button>
-                </div>
-                <div class="memory-list" id="memoryList"></div>
-              </div>
-
-              <div class="profile-meta-block-title">Мои шаблоны промптов</div>
-              <div class="ref-dashboard-card">
-                <p class="field-description mb-16">Сохраняйте длинные частые инструкции, чтобы запускать их в чате в один клик.</p>
-                <div class="workspace-form-grid">
-                  <div class="ref-input-element-group">
-                    <label>Название шаблона</label>
-                    <input type="text" id="templateTitleInput" class="ref-dashboard-input" placeholder="Например: Юнит-анализ">
-                  </div>
-                  <div class="ref-input-element-group wide">
-                    <label>Инструкция (Промпт)</label>
-                    <input type="text" id="templatePromptInput" class="ref-dashboard-input" placeholder="Текст промпта...">
-                  </div>
-                </div>
-                <div class="action-row-end mt-12">
-                  <button type="button" id="saveTemplateBtn" class="ref-submit-outline-btn">Сохранить шаблон</button>
-                </div>
-                <div class="template-list" id="templateList"></div>
-              </div>
-
-              <div class="profile-meta-block-title">Докупка кредитов</div>
-              <div class="ref-dashboard-card">
-                <p class="field-description mb-16">Разовые пакеты вычислительной мощности, если лимиты подписки исчерпаны.</p>
-                <div class="credit-pack-list" id="creditPackList"></div>
-              </div>
-
-              <div class="profile-meta-block-title">Мини-аналитика платформы</div>
-              <div class="ref-dashboard-card analytics-card" id="analyticsMini">
-                <div><span>Пользователи</span><strong>—</strong></div>
-                <div><span>Оплатившие</span><strong>—</strong></div>
-                <div><span>Запросы сегодня</span><strong>—</strong></div>
-              </div>
-
-              <div class="profile-meta-block-title">Уведомления</div>
-              <div class="ref-dashboard-card">
-                <label class="toggle-row"><span><strong>Лимиты</strong><small>Сообщать, когда кредиты почти исчерпаны</small></span><input type="checkbox" id="notifyLimitToggle" checked></label>
-                <label class="toggle-row"><span><strong>Оплата</strong><small>Уведомления о платежах и подписках</small></span><input type="checkbox" id="notifyBillingToggle" checked></label>
-                <label class="toggle-row"><span><strong>Обновления</strong><small>Важные продуктовые новости</small></span><input type="checkbox" id="notifyProductToggle"></label>
-                <div class="action-row-end mt-12">
-                  <button type="button" id="saveNotificationsBtn" class="ref-submit-outline-btn">Сохранить настройки</button>
-                </div>
-              </div>
-
-              <div class="profile-meta-block-title">Бизнес-профиль вашей компании</div>
+              <div class="profile-meta-block-title">Управление контекстом бэкенда</div>
               <div class="ref-dashboard-card">
                 <div class="ref-input-element-group">
-                  <label>Наименование организации / ИП</label>
+                  <label>Название компании / ИП</label>
                   <input type="text" id="profileCompanyName" class="ref-dashboard-input" placeholder="ООО Название или ИП Иванов">
                 </div>
                 <div class="ref-input-element-group mt-12">
-                  <label>Глобальный бизнес-контекст для ИИ</label>
+                  <label>Специфика проекта / Контекст компании</label>
                   <textarea id="profileBusinessDescription" class="ref-dashboard-textarea" placeholder="Опишите нишу, сайт, цели продвижения продукта..."></textarea>
                 </div>
                 <div class="action-row-end mt-12">
@@ -455,15 +327,29 @@
                 </div>
               </div>
 
-              <div class="profile-meta-block-title">Техническая поддержка</div>
+              <div class="profile-meta-block-title">Управление проектами</div>
               <div class="ref-dashboard-card">
-                <div class="ref-input-element-group">
-                  <label>Оставьте отзыв или опишите проблему</label>
-                  <textarea id="appFeedbackText" class="ref-dashboard-textarea" placeholder="Опишите ваше предложение или баг..."></textarea>
+                <div class="workspace-form-grid">
+                  <input type="text" id="projectTitleInput" class="ref-dashboard-input" placeholder="Название подпроекта">
+                  <input type="text" id="projectNicheInput" class="ref-dashboard-input" placeholder="Сфера">
+                  <input type="text" id="projectGoalInput" class="ref-dashboard-input wide" placeholder="Цель проекта">
                 </div>
                 <div class="action-row-end mt-12">
-                  <button class="ref-submit-outline-btn" id="submitAppFeedbackBtn">Отправить обращение</button>
+                  <button class="ref-submit-dark-btn" id="saveWorkspaceBtn">Добавить проект</button>
                 </div>
+                <div class="workspace-list" id="projectList"></div>
+              </div>
+
+              <div class="profile-meta-block-title">Шаблоны промптов</div>
+              <div class="ref-dashboard-card">
+                <div class="workspace-form-grid">
+                  <input type="text" id="templateTitleInput" class="ref-dashboard-input" placeholder="Название шаблона">
+                  <input type="text" id="templatePromptInput" class="ref-dashboard-input wide" placeholder="Текст промпта">
+                </div>
+                <div class="action-row-end mt-12">
+                  <button type="button" id="saveTemplateBtn" class="ref-submit-outline-btn">Сохранить шаблон</button>
+                </div>
+                <div class="template-list" id="templateList"></div>
               </div>
 
             </div>
@@ -505,7 +391,6 @@
         <div id="billingError" class="error-banner-zone" hidden></div>
         <div id="billingPlanList" class="plans-layout-stack"></div>
         <div id="paymentProviderBox" class="providers-layout-zone" hidden>
-          <p class="provider-intro-text">Выберите удобный метод проведения оплаты:</p>
           <div id="providerList" class="providers-stack"></div>
           <button id="backToPlansBtn" class="btn-text-back"><span data-icon="back"></span> К выбору тарифов</button>
         </div>
@@ -536,5 +421,6 @@
 
   <div id="toast" class="toast-component">Оповещение</div>
 
+  <script src="app.js"></script>
 </body>
 </html>
