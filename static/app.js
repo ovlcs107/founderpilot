@@ -5,7 +5,7 @@
 
 const tg = window.Telegram?.WebApp || null;
 
-// Строгий Whitelist inline SVG иконок (Apple/Linear/Stripe style - 24x24 stroke)
+// Strict Whitelist inline SVG icons (Apple/Linear style - 24x24 stroke)
 const iconPaths = {
   home: '<path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path><polyline points="9 22 9 12 15 12 15 22"></polyline>',
   tools: '<rect x="3" y="3" width="7" height="7" rx="1"></rect><rect x="14" y="3" width="7" height="7" rx="1"></rect><rect x="14" y="14" width="7" height="7" rx="1"></rect><rect x="3" y="14" width="7" height="7" rx="1"></rect>',
@@ -26,7 +26,10 @@ const iconPaths = {
   'credit-card': '<rect x="1" y="4" width="22" height="16" rx="2" ry="2"></rect><line x1="1" y1="10" x2="23" y2="10"></line>',
   stars: '<polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"></polygon>',
   ton: '<polygon points="12 2 3 9 12 22 21 9 12 2"></polygon><polyline points="3 9 12 13 21 9"></polyline><line x1="12" y1="22" x2="12" y2="13"></line>',
-  btc: '<path d="M12 22c5.523 0 10-4.477 10-10S17.523 2 12 2 2 6.477 2 12s4.477 10 10 10z"></path><path d="M10 8h2.5a1.5 1.5 0 0 1 0 3H10V8z"></path><path d="M10 13h3a1.5 1.5 0 0 1 0 3h-3v-3z"></path><path d="M12 5v2"></path><path d="M12 17v2"></path>'
+  btc: '<path d="M12 22c5.523 0 10-4.477 10-10S17.523 2 12 2 2 6.477 2 12s4.477 10 10 10z"></path><path d="M10 8h2.5a1.5 1.5 0 0 1 0 3H10V8z"></path><path d="M10 13h3a1.5 1.5 0 0 1 0 3h-3v-3z"></path><path d="M12 5v2"></path><path d="M12 17v2"></path>',
+  settings: '<circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path>',
+  check: '<polyline points="20 6 9 17 4 12"></polyline>',
+  warning: '<path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"></path><line x1="12" y1="9" x2="12" y2="13"></line><line x1="12" y1="17" x2="12.01" y2="17"></line>'
 };
 
 // Global State
@@ -128,20 +131,8 @@ function normalizeUserResponse(data) {
   const root = data?.user || data || {};
   const tgUser = tg?.initDataUnsafe?.user || {};
 
-  const dailyLimit = Number(
-    root.credits_daily_limit ??
-    root.daily_credits_limit ??
-    root.daily_limit ??
-    root.limit_today ??
-    100
-  );
-  const monthlyLimit = Number(
-    root.credits_monthly_limit ??
-    root.monthly_credits_limit ??
-    root.monthly_limit ??
-    root.period_limit ??
-    0
-  );
+  const dailyLimit = Number(root.credits_daily_limit ?? root.daily_credits_limit ?? root.daily_limit ?? root.limit_today ?? 100);
+  const monthlyLimit = Number(root.credits_monthly_limit ?? root.monthly_credits_limit ?? root.monthly_limit ?? root.period_limit ?? 0);
 
   let dailyUsed = Number(root.credits_used_today ?? root.used_today ?? root.daily_used ?? 0);
   let monthlyUsed = Number(root.credits_used_month ?? root.used_period ?? root.monthly_used ?? 0);
@@ -217,11 +208,12 @@ function normalizeHistoryResponse(data) {
 
 function getFallbackTools() {
   return [
-    { id: "margin", title: "Расчёт маржи", description: "Быстрая юнит-экономика", prompt_template: "Помоги рассчитать маржу товара. Данные: " },
-    { id: "product-card", title: "Карточка товара", description: "Описание и SEO для WB/Ozon", prompt_template: "Улучши карточку товара для WB/Ozon: " },
-    { id: "offer", title: "Оффер", description: "Сильное предложение для акции", prompt_template: "Сделай оффер для продукта: " },
-    { id: "competitor", title: "Анализ конкурента", description: "Сильные и слабые стороны", prompt_template: "Разбери конкурента: " },
-    { id: "review", title: "Ответ на отзыв", description: "Спокойный ответ клиенту", prompt_template: "Напиши ответ на отзыв клиента: " }
+    { id: "margin", title: "Расчёт маржи", description: "Быстрая юнит-экономика и прогноз", prompt_template: "Помоги рассчитать маржу товара. Данные: ", icon: "calculator" },
+    { id: "product-card", title: "Карточка товара", description: "Описание и SEO для маркетплейсов", prompt_template: "Улучши описание и SEO карточки товара для WB/Ozon: ", icon: "edit" },
+    { id: "offer", title: "Создать оффер", description: "Сильное предложение для акции", prompt_template: "Сделай сильный оффер для продукта: ", icon: "target" },
+    { id: "competitor", title: "Анализ конкурента", description: "Разбор сильных и слабых сторон", prompt_template: "Разбери плюсы и минусы конкурента: ", icon: "search" },
+    { id: "review", title: "Ответ на отзыв", description: "Спокойный и грамотный ответ клиенту", prompt_template: "Напиши ответ на этот отзыв клиента: ", icon: "message" },
+    { id: "plan", title: "Контент-план", description: "План публикаций на неделю", prompt_template: "Составь контент-план на неделю для: ", icon: "history" }
   ];
 }
 
@@ -229,10 +221,9 @@ function getPlanProviders(plan) {
   if (Array.isArray(plan?.providers) && plan.providers.length) return plan.providers;
   if (Array.isArray(state.providers) && state.providers.length) return state.providers;
   return [
-    { id: "telegram_stars", title: "Telegram Stars", description: "Быстрая оплата внутри Telegram" },
-    { id: "yookassa", title: "ЮKassa / СБП", description: "Карта, СБП или ЮMoney" },
-    { id: "ton", title: "TON", description: "Оплата через TON / Tonkeeper" },
-    { id: "btcpay_btc", title: "Bitcoin", description: "BTC через invoice" }
+    { id: "telegram_stars", title: "Telegram Stars", description: "Внутри Telegram" },
+    { id: "yookassa", title: "Карта / СБП", description: "Банковские карты РФ" },
+    { id: "ton", title: "TON", description: "Оплата криптовалютой" }
   ];
 }
 
@@ -291,7 +282,7 @@ function updateCreditsUI() {
 function updateProfileUI() {
   if (!state.user) return;
   const u = state.user;
-  const initial = u.first_name.charAt(0).toUpperCase();
+  const initial = u.first_name.charAt(0).toUpperCase() || "F";
   
   if ($("homeGreeting")) $("homeGreeting").textContent = `Здравствуйте, ${u.first_name}`;
   if ($("headerUserAvatar")) $("headerUserAvatar").textContent = initial;
@@ -307,7 +298,7 @@ function updateProfileUI() {
 // Chat Logic
 function autoResizeTextarea(el) {
   if (!el) return;
-  el.style.height = "24px";
+  el.style.height = "20px";
   el.style.height = `${Math.min(el.scrollHeight, 120)}px`;
 }
 
@@ -334,7 +325,7 @@ function appendMessage(role, text, id = null) {
     copyBtn.type = "button";
     copyBtn.innerHTML = `<span data-icon="copy"></span> Скопировать`;
     copyBtn.addEventListener("click", () => {
-      navigator.clipboard.writeText(text).then(() => showToast("Скопировано!"));
+      navigator.clipboard.writeText(text).then(() => showToast("Скопировано"));
     });
     
     const saveBtn = document.createElement("button");
@@ -349,8 +340,26 @@ function appendMessage(role, text, id = null) {
       }
     });
 
+    const shorterBtn = document.createElement("button");
+    shorterBtn.type = "button";
+    shorterBtn.innerHTML = `<span data-icon="edit"></span> Короче`;
+    shorterBtn.addEventListener("click", () => {
+        const input = $("homeChatInput");
+        if(input) { input.value = "Сделай ответ короче"; input.focus(); autoResizeTextarea(input); updateSendButton(); }
+    });
+
+    const detailsBtn = document.createElement("button");
+    detailsBtn.type = "button";
+    detailsBtn.innerHTML = `<span data-icon="search"></span> Подробнее`;
+    detailsBtn.addEventListener("click", () => {
+        const input = $("homeChatInput");
+        if(input) { input.value = "Распиши подробнее"; input.focus(); autoResizeTextarea(input); updateSendButton(); }
+    });
+
     act.appendChild(copyBtn);
     act.appendChild(saveBtn);
+    act.appendChild(shorterBtn);
+    act.appendChild(detailsBtn);
     wrap.appendChild(act);
   }
   
@@ -432,15 +441,18 @@ async function loadTools() {
     return;
   }
 
-  grid.innerHTML = state.tools.map(t => `
-    <div class="tool-item-row" data-prompt="${escapeHTML(t.prompt_template || t.prompt || '')}">
-      <div class="tool-icon-box"><span data-icon="tools"></span></div>
-      <div class="tool-text-box">
-        <h4>${escapeHTML(t.title || t.name || 'Инструмент')}</h4>
-        <p class="muted">${escapeHTML(t.description || t.subtitle || 'Готовый бизнес-сценарий')}</p>
+  grid.innerHTML = state.tools.map(t => {
+    const iconKey = t.icon || "tools";
+    return `
+      <div class="tool-item-row" data-prompt="${escapeHTML(t.prompt_template || t.prompt || '')}">
+        <div class="tool-icon-box"><span data-icon="${iconKey}"></span></div>
+        <div class="tool-text-box">
+          <h4>${escapeHTML(t.title || t.name || 'Инструмент')}</h4>
+          <p class="muted">${escapeHTML(t.description || t.subtitle || 'Готовый сценарий')}</p>
+        </div>
       </div>
-    </div>
-  `).join("");
+    `;
+  }).join("");
   injectIcons(grid);
 }
 
@@ -474,7 +486,13 @@ function renderHistory() {
   }
   
   if (!filtered.length) {
-    list.innerHTML = `<div class="skeleton-state">Здесь появятся ваши результаты.</div>`;
+    list.innerHTML = `
+      <div class="empty-state">
+        <span data-icon="history"></span>
+        <h3>Истории пока нет</h3>
+        <p>Ваши запросы и сохранённые ответы появятся здесь.</p>
+      </div>`;
+    injectIcons(list);
     return;
   }
   
@@ -501,7 +519,7 @@ async function loadBillingPlans() {
     console.error("billing fail", err);
     state.plans = normalizeBillingPlans({
       plans: [
-        { key: "free", title: "Free", description: "100 кредитов в день", price_text: "Бесплатно", providers: [] },
+        { key: "free", title: "Free", description: "100 кредитов в день", price_text: "0 ₽", providers: [] },
         { key: "pro", title: "Pro", description: "500 кредитов в день · 10 000 в месяц", price_text: "299 ₽/мес" },
         { key: "business", title: "Business", description: "3 000 кредитов в день · 60 000 в месяц", price_text: "1 990 ₽/мес" }
       ]
@@ -608,7 +626,7 @@ async function checkout(providerId) {
     }
     
     if (res.ok || res.success) {
-      showToast("Успешно!");
+      showToast("Успешно");
       loadMe();
       $("billingModal").hidden = true;
       return;
@@ -631,7 +649,7 @@ function pollOrderStatus(orderId) {
       const s = String(data.status || "").toLowerCase();
       if (["paid", "success", "active"].includes(s)) {
         clearInterval(state.orderPollTimer);
-        showToast("Оплата получена!");
+        showToast("Оплата получена");
         loadMe();
       } else if (["failed", "cancelled", "expired"].includes(s)) {
         clearInterval(state.orderPollTimer);
@@ -681,7 +699,7 @@ function renderOnboardingStep() {
   }
   
   $("onboardingBackBtn").disabled = state.onboardingStep === 0;
-  $("onboardingNextBtn").textContent = state.onboardingStep === state.onboardingConfig.length - 1 ? "Готово" : "Далее";
+  $("onboardingNextBtn").textContent = state.onboardingStep === state.onboardingConfig.length - 1 ? "Завершить" : "Далее";
 }
 
 async function nextOnboarding() {
@@ -689,7 +707,7 @@ async function nextOnboarding() {
   const val = state.onboardingData[cfg.id];
   
   if (!val || !String(val).trim()) {
-    $("onboardingError").textContent = "Пожалуйста, заполните поле.";
+    $("onboardingError").textContent = "Пожалуйста, заполните это поле.";
     $("onboardingError").hidden = false;
     return;
   }
@@ -708,7 +726,7 @@ async function nextOnboarding() {
     loadMe();
   } catch {
     $("onboardingModal").hidden = true;
-    showToast("Заполним позже");
+    showToast("Профиль можно заполнить позже.");
   } finally {
     $("onboardingNextBtn").disabled = false;
   }
@@ -762,7 +780,7 @@ function bindEvents() {
     try {
       await apiTry("/api/profile/save", "/api/business-profile", { method: "POST", body: JSON.stringify({ telegram_user_id: getTelegramUserId(), business_profile: text, description: text }) });
       if(state.user) state.user.business_profile = text;
-      showToast("Сохранено");
+      showToast("Настройки сохранены");
     } catch(err) { showToast(err.message); }
   });
   
@@ -772,7 +790,7 @@ function bindEvents() {
     try {
       await apiRequest("/api/feedback", { method: "POST", body: JSON.stringify({ telegram_user_id: getTelegramUserId(), message: text, type: "app" }) });
       $("appFeedbackText").value = "";
-      showToast("Спасибо за отзыв!");
+      showToast("Спасибо за отзыв");
     } catch(err) { showToast(err.message); }
   });
   
@@ -801,6 +819,7 @@ async function boot() {
     tg.ready?.();
     tg.expand?.();
     if (tg.setHeaderColor) tg.setHeaderColor("bg_color");
+    if (tg.setBackgroundColor) tg.setBackgroundColor("bg_color");
   }
   
   bindEvents();
