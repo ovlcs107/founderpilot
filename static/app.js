@@ -9,9 +9,9 @@ const iconPaths = {
   send: '<line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/>',
   close: '<line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>',
   back: '<line x1="19" y1="12" x2="5" y2="12"/><polyline points="12 19 5 12 12 5"/>',
-  chevron: '<polyline points="9 18 15 12 9 6"/>',
   tg_stars: '<path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/>',
-  ton: '<path d="M12 2L3 9l9 13 9-13L12 2zm0 4.5L17.5 10H6.5L12 6.5zM6.8 12h10.4l-5.2 7.5-5.2-7.5z"/>'
+  ton: '<path d="M12 2L3 9l9 13 9-13L12 2zm0 4.5L17.5 10H6.5L12 6.5zM6.8 12h10.4l-5.2 7.5-5.2-7.5z"/>',
+  btc: '<path d="M12 22c5.523 0 10-4.477 10-10S17.523 2 12 2 2 6.477 2 12s4.477 10 10 10z"/><path d="M10 8h2.5a1.5 1.5 0 0 1 0 3H10V8z"/><path d="M10 13h3a1.5 1.5 0 0 1 0 3h-3v-3z"/><path d="M12 5v2"/><path d="M12 17v2"/>'
 };
 
 const state = {
@@ -31,13 +31,13 @@ const state = {
       options: [
         { key: "wb_seller", label: "Селлер Wildberries" },
         { key: "ozon_seller", label: "Селлер Ozon" },
-        { key: "multi_seller", label: "Торгую на нескольких маркетплейсах" },
-        { key: "beginner", label: "Только выбираю нишу" }
+        { key: "multi_seller", label: "Мультиселлер" },
+        { key: "beginner", label: "Выбираю нишу" }
       ]
     },
     {
       id: "turnover",
-      title: "Ваш текущий оборот",
+      title: "Текущий оборот",
       options: [
         { key: "zero", label: "Пока нет продаж" },
         { key: "up_to_100", label: "До 100 000 ₽ / мес" },
@@ -47,12 +47,12 @@ const state = {
     },
     {
       id: "pain",
-      title: "Главная бизнес-задача",
+      title: "Главная задача",
       options: [
-        { key: "seo", label: "SEO-оптимизация и описание карточек" },
-        { key: "margin", label: "Расчет маржинальности и цены" },
-        { key: "ads", label: "Эффективная реклама и офферы" },
-        { key: "strategy", label: "Стратегия развития и план продаж" }
+        { key: "seo", label: "SEO-оптимизация описаний" },
+        { key: "margin", label: "Юнит-экономика" },
+        { key: "ads", label: "Рекламные офферы" },
+        { key: "strategy", label: "Стратегия развития" }
       ]
     }
   ]
@@ -81,7 +81,7 @@ function showToast(text) {
   const el = $("toast");
   el.textContent = text;
   el.classList.add("visible");
-  setTimeout(() => el.classList.remove("visible"), 2800);
+  setTimeout(() => el.classList.remove("visible"), 2500);
 }
 
 function switchView(target) {
@@ -111,7 +111,7 @@ async function request(url, options = {}) {
   if (initData) options.headers["X-Telegram-Init-Data"] = initData;
   const res = await fetch(url, options);
   if (!res.ok) {
-    const err = await res.json().catch(() => ({ detail: "Системная ошибка сервера" }));
+    const err = await res.json().catch(() => ({ detail: "Системная ошибка" }));
     throw new Error(err.detail || "Внутренний сбой платформы");
   }
   return res.json();
@@ -147,7 +147,7 @@ async function handleChatSend(inputId, scrollId, sendBtnId) {
 
   scroll.insertAdjacentHTML("beforeend", `<div class="msg user">${text}</div>`);
   const statusId = "status_" + Date.now();
-  scroll.insertAdjacentHTML("beforeend", `<div class="msg bot system-msg" id="${statusId}">Выполняется анализ данных...</div>`);
+  scroll.insertAdjacentHTML("beforeend", `<div class="msg bot system-msg" id="${statusId}">Выполняется анализ...</div>`);
   scroll.scrollTop = scroll.scrollHeight;
 
   try {
@@ -182,8 +182,8 @@ function updateProfileUI() {
   const label = $("profilePlanLabel");
   if (label) {
     const p = state.user.plan ? state.user.plan.toUpperCase() : "FREE";
-    const rem = state.user.remaining === null ? "Без ограничений" : `Осталось: ${state.user.remaining}`;
-    label.innerHTML = `${p} <small style="display:block; font-weight:normal; margin-top:2px;">${rem}</small>`;
+    const rem = state.user.remaining === null ? "Безлимитно" : `Осталось: ${state.user.remaining}`;
+    label.innerHTML = `${p} <small style="display:block; font-weight:normal; margin-top:1px; opacity:0.7;">${rem}</small>`;
   }
   if ($("profileBusinessDescription")) $("profileBusinessDescription").value = state.user.business_profile || "";
   const initial = (state.user.first_name || "F").charAt(0).toUpperCase();
@@ -230,7 +230,7 @@ async function nextOnboarding() {
   const cfg = state.onboardingConfig[state.onboardingStep];
   if (!state.onboardingData[cfg.id]) {
     const err = $("onboardingError");
-    err.textContent = "Пожалуйста, выберите один из вариантов.";
+    err.textContent = "Выберите один из вариантов.";
     err.hidden = false;
     return;
   }
@@ -248,7 +248,7 @@ async function nextOnboarding() {
       state.user = res.user;
       updateProfileUI();
       $("onboardingModal").hidden = true;
-      showToast("Онбординг успешно завершён!");
+      showToast("Готово!");
     } catch (e) {
       const err = $("onboardingError");
       err.textContent = e.message;
@@ -272,7 +272,7 @@ async function loadTools() {
   if (!grid) return;
   
   if (!state.tools.length) {
-    grid.innerHTML = `<p class="muted" style="grid-column: 1/-1; text-align: center; padding: 40px 0;">Инструменты временно недоступны.</p>`;
+    grid.innerHTML = `<p class="muted" style="grid-column:1/-1; text-align:center; padding:30px 0;">Инструменты временно недоступны.</p>`;
     return;
   }
   
@@ -304,11 +304,11 @@ function renderBillingPlans() {
   $("paymentProviderBox").hidden = true;
   const planList = $("billingPlanList");
   planList.hidden = false;
-  $("billingTitle").textContent = "Доступные тарифы";
+  $("billingTitle").textContent = "Тарифные планы";
 
   const keys = Object.keys(state.plans);
   if (!keys.length) {
-    planList.innerHTML = `<p class="muted" style="text-align:center; padding:20px;">Нет доступных тарифов.</p>`;
+    planList.innerHTML = `<p class="muted" style="text-align:center; padding:16px;">Нет доступных тарифов.</p>`;
     return;
   }
 
@@ -318,10 +318,8 @@ function renderBillingPlans() {
     return `
       <button class="plan-card ${isCurrent ? 'muted-plan' : ''}" data-plan-key="${k}" type="button">
         <div class="plan-main">
-          <div>
-            <h4>${p.title}</h4>
-            <small>${p.description}</small>
-          </div>
+          <h4>${p.title}</h4>
+          <small>${p.description}</small>
         </div>
         <div class="plan-price">${p.price_monthly} ₽</div>
       </button>
@@ -343,12 +341,13 @@ function selectPlan(planKey) {
   const provList = $("providerList");
   provList.innerHTML = state.activePlan.providers.map(p => {
     let iconName = "credit-card";
-    let extraCls = "";
-    if (p.id === "telegram_stars") { iconName = "tg_stars"; extraCls = "provider-card-stars"; }
-    if (p.id === "ton") { iconName = "ton"; extraCls = "provider-card-ton"; }
+    let premiumCls = "";
+    if (p.id === "telegram_stars") { iconName = "tg_stars"; premiumCls = "provider-card-stars"; }
+    if (p.id === "ton" || p.id === "crypto") { iconName = "ton"; premiumCls = "provider-card-ton"; }
+    if (p.id === "btc") { iconName = "btc"; premiumCls = "provider-card-btc"; }
     
     return `
-      <button class="provider-card ${extraCls}" data-provider="${p.id}" type="button">
+      <button class="provider-card ${premiumCls}" data-provider="${p.id}" type="button">
         <span class="provider-icon" data-icon="${iconName}"></span>
         <div class="provider-info">
           <strong>${p.title}</strong>
@@ -379,15 +378,15 @@ async function checkout(providerId) {
       if (window.Telegram?.WebApp?.openInvoice) {
         window.Telegram.WebApp.openInvoice(res.invoice_link, (status) => {
           if (status === "paid") {
-            showToast("Оплата успешно проведена!");
+            showToast("Успешно оплачено!");
             closeBillingModal();
             loadMe().catch(() => {});
           } else {
-            showToast("Оплата не завершена");
+            showToast("Оплата отменена");
           }
         });
       } else {
-        showToast("Прямая оплата поддерживается только внутри Telegram App");
+        showToast("Поддерживается внутри Telegram");
       }
       return;
     }
@@ -398,13 +397,13 @@ async function checkout(providerId) {
       } else {
         window.open(res.invoice_url, "_blank");
       }
-      showToast("Ссылка на оплату открыта.");
+      showToast("Ссылка на оплату открыта");
       closeBillingModal();
       return;
     }
 
     if (res.success) {
-      showToast("Подписка успешно активирована!");
+      showToast("Подписка активирована!");
       closeBillingModal();
       await loadMe();
     }
@@ -432,7 +431,7 @@ function renderHistory() {
   }
 
   if (!filtered.length) {
-    list.innerHTML = `<div class="chat-empty"><span data-icon="history"></span><p>Записей не найдено.</p></div>`;
+    list.innerHTML = `<div class="chat-empty"><span data-icon="history"></span><p>Записей нет.</p></div>`;
     injectIcons(list);
     return;
   }
@@ -444,7 +443,7 @@ function renderHistory() {
         <time class="muted small">${new Date(h.timestamp * 1000).toLocaleDateString()}</time>
       </div>
       <p class="history-prompt"><strong>Запрос:</strong> ${h.text}</p>
-      <div class="history-answer"><strong>Ответ ИИ:</strong> ${h.answer}</div>
+      <div class="history-answer"><strong>Ответ:</strong> ${h.answer}</div>
     </article>
   `).join("");
 }
@@ -527,7 +526,7 @@ function bindEvents() {
       });
       state.user = res.user;
       updateProfileUI();
-      showToast("Профиль успешно сохранён!");
+      showToast("Сохранено!");
     } catch (err) {
       showToast(err.message);
     }
@@ -536,7 +535,7 @@ function bindEvents() {
   $("submitAppFeedbackBtn")?.addEventListener("click", async () => {
     const msg = $("appFeedbackText").value.trim();
     if (!msg) {
-      showToast("Напишите, что улучшить");
+      showToast("Напишите текст");
       return;
     }
     try {
@@ -545,7 +544,7 @@ function bindEvents() {
         body: JSON.stringify({ message: msg, type: "app" })
       });
       $("appFeedbackText").value = "";
-      showToast("Спасибо за ваш отзыв!");
+      showToast("Спасибо за отзыв!");
     } catch (err) {
       showToast(err.message);
     }

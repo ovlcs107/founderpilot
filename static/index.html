@@ -29,10 +29,10 @@
 
         <div class="section-head">
           <h3>Быстрые действия</h3>
-          <button class="text-btn" data-open-view=\"tools\" type=\"button\">Все инструменты</button>
+          <button class="text-btn" data-open-view="tools" type="button">Все</button>
         </div>
 
-        <div class="quick-strip">
+        <div class="quick-strip" id="quickStrip">
           <button class="quick-action" data-prompt="Напиши продающее SEO описание для карточки товара на Wildberries" type="button">
             <span class="card-icon" data-icon="tools"></span>
             <strong>Карточка WB/Ozon</strong>
@@ -48,18 +48,18 @@
         </div>
 
         <div class="main-chat-card">
-          <div class="chat-topbar compact">
+          <div class="chat-topbar">
             <h3>Экспресс-анализ бизнеса</h3>
             <p class="muted">Задайте любой вопрос по маркетплейсам или маркетингу</p>
           </div>
           <div class="chat-scroll" id="homeChatScroll">
             <div class="chat-empty">
               <span data-icon="chat"></span>
-              <p>История диалога пуста. Введите ваш запрос ниже.</p>
+              <p>История диалога пуста. Введите запрос ниже.</p>
             </div>
           </div>
           <div class="chat-input-area">
-            <textarea id="homeChatInput" rows="1" placeholder="Задайте ваш вопрос ИИ..."></textarea>
+            <textarea id="homeChatInput" rows="1" placeholder="Задать вопрос ИИ..."></textarea>
             <button class="send-btn" id="homeChatSendBtn" type="button" disabled aria-label="Отправить">
               <span data-icon="send"></span>
             </button>
@@ -70,7 +70,7 @@
       <section class="view" id="view-chat" aria-labelledby="chatTitle">
         <div class="chat-mode-selector">
           <button class="mode-tab active" data-mode="strategy" type="button">Стратегия</button>
-          <button class="mode-tab" data-mode="seo" type="button">SEO оптимизация</button>
+          <button class="mode-tab" data-mode="seo" type="button">SEO</button>
           <button class="mode-tab" data-mode="marketing" type="button">Маркетинг</button>
         </div>
         <div class="main-chat-card">
@@ -111,17 +111,17 @@
         </div>
 
         <div class="settings-group">
-          <h3>Ваш бизнес-профиль</h3>
-          <p class="muted field-desc">Укажите нишу и оборот, чтобы ИИ точнее адаптировал ответы под ваши масштабы.</p>
-          <textarea class="profile-textarea" id="profileBusinessDescription" placeholder="Например: Продаю автотовары на WB, оборот 500к/мес. Цель — выйти на 1.5 млн за счёт SEO." rows="3"></textarea>
-          <button class="secondary" id="saveProfileBtn" type="button" style="margin-top: 10px; width: 100%;">Сохранить профиль</button>
+          <h3>Бизнес-профиль</h3>
+          <p class="muted field-desc">Ниша и оборот для точечной адаптации ответов ИИ под ваш масштаб.</p>
+          <textarea class="profile-textarea" id="profileBusinessDescription" placeholder="Например: Продаю автотовары на WB, оборот 500к/мес." rows="3"></textarea>
+          <button class="secondary" id="saveProfileBtn" type="button" style="margin-top: 8px; width: 100%;">Сохранить</button>
         </div>
 
         <div class="settings-group">
           <h3>Обратная связь</h3>
-          <p class="muted field-desc">Нашли баг или есть предложение по улучшению? Напишите нам напрямую.</p>
-          <textarea class="profile-textarea" id="appFeedbackText" placeholder="Опишите вашу идею или проблему..." rows="2"></textarea>
-          <button class="secondary" id="submitAppFeedbackBtn" type="button" style="margin-top: 10px; width: 100%;">Отправить отзыв</button>
+          <p class="muted field-desc">Предложения или найденные баги отправляются напрямую разработчикам.</p>
+          <textarea class="profile-textarea" id="appFeedbackText" placeholder="Опишите вашу идею..." rows="2"></textarea>
+          <button class="secondary" id="submitAppFeedbackBtn" type="button" style="margin-top: 8px; width: 100%;">Отправить отзыв</button>
         </div>
       </section>
     </main>
@@ -153,7 +153,7 @@
   <div class="modal-backdrop" id="billingModal" hidden>
     <article class="modal-card" role="dialog" aria-modal="true" aria-labelledby="billingTitle">
       <div class="modal-header">
-        <h2 id="billingTitle">Доступные тарифы</h2>
+        <h2 id="billingTitle">Тарифные планы</h2>
         <button class="icon-btn" id="closeBillingBtn" type="button" aria-label="Закрыть">
           <span data-icon="close"></span>
         </button>
@@ -161,10 +161,10 @@
       <div class="billing-plan-list" id="billingPlanList"></div>
       <div class="payment-provider-box" id="paymentProviderBox" hidden>
         <button class="back-btn" id="backToPlansBtn" type="button">
-          <span data-icon=\"back\"></span>
-          Назад к тарифам
+          <span data-icon="back"></span>
+          К тарифам
         </button>
-        <h3 id="providerTitle" style="margin: 12px 0 8px;">Способ оплаты</h3>
+        <h3 id="providerTitle" style="margin: 12px 0 8px; font-size: 15px;">Выберите способ оплаты</h3>
         <div class="provider-list" id="providerList"></div>
         <p class="form-error" id="billingError" hidden></p>
       </div>
@@ -173,12 +173,12 @@
 
   <div class="modal-backdrop" id="onboardingModal" hidden>
     <article class="modal-card onboarding-card" role="dialog" aria-modal="true" aria-labelledby="onboardingTitle">
-      <div class="progress-row" aria-hidden=\"true\">
+      <div class="progress-row" aria-hidden="true">
         <span class="active"></span>
         <span></span>
         <span></span>
       </div>
-      <h2 id="onboardingTitle\">Кто вы?</h2>
+      <h2 id="onboardingTitle">Кто вы?</h2>
       <div id="onboardingBody"></div>
       <p class="form-error" id="onboardingError" hidden></p>
       <div class="modal-actions">
