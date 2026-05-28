@@ -286,6 +286,7 @@ function updateProfileUI() {
   
   if ($("homeGreeting")) $("homeGreeting").textContent = `Здравствуйте, ${u.first_name}`;
   if ($("headerUserAvatar")) $("headerUserAvatar").textContent = initial;
+  if ($("mobileHeaderAvatar")) $("mobileHeaderAvatar").textContent = initial;
   if ($("profileUserAvatar")) $("profileUserAvatar").textContent = initial;
   if ($("profileUserTitle")) $("profileUserTitle").textContent = u.username ? `@${u.username}` : u.first_name;
   if ($("profileUserSubtitle")) $("profileUserSubtitle").textContent = `ID: ${u.telegram_id}`;
@@ -563,6 +564,12 @@ function openBillingModal() {
 }
 
 function selectPlan(key) {
+  // If Free plan clicked, just prevent proceeding to checkout
+  if (key === "free") {
+    showToast("Тариф Free активен по умолчанию");
+    return;
+  }
+
   state.activePlanKey = key;
   const p = state.plans[key];
   if (!p) return;
