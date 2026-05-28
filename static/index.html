@@ -1,19 +1,27 @@
 <!DOCTYPE html>
 <html lang="ru">
-
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport"
-    content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
   <title>FounderPilot AI</title>
-  <link rel="stylesheet" href="/static/styles.css?v=reborn-1">
+  <link rel="stylesheet" href="/static/styles.css?v=reborn-2">
   <script src="https://telegram.org/js/telegram-web-app.js"></script>
 </head>
-
 <body>
 
-  <div class="app-container">
+  <div id="appPreloader" class="app-preloader">
+    <div class="preloader-content">
+      <div class="preloader-logo-zone">
+        <div class="preloader-svg-orbit" data-icon="stars"></div>
+      </div>
+      <h2 class="preloader-title">FounderPilot</h2>
+      <p class="preloader-subtitle">Загрузка защищенного бизнес-контекста...</p>
+      <div class="preloader-bar"><div class="preloader-progress"></div></div>
+    </div>
+  </div>
 
+  <div class="app-container" style="opacity: 0; transition: opacity 0.5s ease;">
+    
     <aside class="sidebar">
       <div class="sidebar-brand">
         <div class="brand-logo" data-icon="stars"></div>
@@ -42,14 +50,14 @@
           <div class="avatar" id="headerUserAvatar">F</div>
           <div class="meta">
             <span class="username">Мой аккаунт</span>
-            <span class="sub">Настройки & Лимит</span>
+            <span class="sub">Настройки & Лимиты</span>
           </div>
         </button>
       </div>
     </aside>
 
     <main class="main-content">
-
+      
       <header class="mobile-header">
         <div class="header-left">
           <h1 id="pageTitle">Главная</h1>
@@ -65,14 +73,13 @@
         <div class="view-scroll-container">
           <header class="workspace-intro">
             <h2 id="homeGreeting">Здравствуйте</h2>
-            <p class="section-subtitle">Ваш персональный AI-ассистент для развития бизнеса и оптимизации маркетплейсов.
-            </p>
+            <p class="section-subtitle">Интеллектуальная рабочая среда управления маркетплейсами и автоматизации бизнес-процессов.</p>
           </header>
 
           <div class="metrics-grid">
             <div class="metric-card">
               <div class="metric-header">
-                <span class="metric-title">Лимит на сегодня</span>
+                <span class="metric-title">Баланс лимитов на сегодня</span>
                 <span class="metric-badge" id="creditsTodayText">0 / 0</span>
               </div>
               <div class="progress-bar">
@@ -81,7 +88,7 @@
             </div>
             <div class="metric-card">
               <div class="metric-header">
-                <span class="metric-title">Лимит на месяц</span>
+                <span class="metric-title">Лимиты текущего периода</span>
                 <span class="metric-badge" id="creditsMonthText">0 / 0</span>
               </div>
               <div class="progress-bar">
@@ -91,18 +98,16 @@
           </div>
 
           <div class="quick-suggestions-wrapper">
-            <span class="tiny-label">Быстрые запросы</span>
+            <span class="tiny-label">Рекомендуемые экспресс-сценарии</span>
             <div class="quick-strip" id="quickStrip">
-              <button class="quick-pill"
-                data-prompt="Посчитай юнит-экономику для товара с себестоимостью 450р и ценой продажи 1200р">
+              <button class="quick-pill" data-prompt="Рассчитай юнит-экономику: себестоимость 450₽, логистика 80₽, хранение 40₽, комиссия 15%, розничная цена 1200₽. Покажи чистую прибыль и ROI.">
                 <span data-icon="calculator"></span> Юнит-экономика
               </button>
-              <button class="quick-pill"
-                data-prompt="Напиши продающее SEO-описание для карточки товара: Чехол для iPhone">
-                <span data-icon="edit"></span> SEO Карточки
+              <button class="quick-pill" data-prompt="Сгенерируй оптимизированное SEO-описание по правилам алгоритмов 2026 года для карточки товара: Чехол для iPhone. Включи высокочастотные ключи.">
+                <span data-icon="edit"></span> SEO Карточки товара
               </button>
-              <button class="quick-pill" data-prompt="Проанализируй сильные стороны конкурентов в нише автотоваров">
-                <span data-icon="search"></span> Анализ ниши
+              <button class="quick-pill" data-prompt="Проведи глубокий аудит рыночной ниши автотоваров. Выдели топ-3 критических фактора упущенной выручки у конкурентов.">
+                <span data-icon="search"></span> Поиск упущенной выручки
               </button>
             </div>
           </div>
@@ -113,15 +118,14 @@
                 <div class="empty-icon-hexagon">
                   <span data-icon="stars"></span>
                 </div>
-                <h3>Чем помочь вашему бизнесу?</h3>
-                <p>Задайте прямой вопрос в чате или перейдите в раздел инструментов для работы по готовым сценариям.</p>
+                <h3>Ассистент готов к работе</h3>
+                <p>Задайте прямой вопрос бизнес-аналитику или выберите необходимый шаблон во вкладке готовых инструментов.</p>
               </div>
             </div>
 
             <div class="chat-composer-zone">
               <div class="composer-inner">
-                <textarea id="homeChatInput" rows="1"
-                  placeholder="Задайте вопрос AI или выберите инструмент..."></textarea>
+                <textarea id="homeChatInput" rows="1" placeholder="Задайте вопрос AI или выберите инструмент..."></textarea>
                 <button id="homeChatSendBtn" class="send-btn" disabled>
                   <span data-icon="send"></span>
                 </button>
@@ -134,39 +138,37 @@
       <section id="view-tools" class="view">
         <div class="view-scroll-container">
           <header class="section-header-block">
-            <h2>Инструменты</h2>
-            <p class="section-subtitle">Готовые узкоспециализированные AI-ассистенты для рутинных бизнес-задач.</p>
+            <h2>Инженерные инструменты</h2>
+            <p class="section-subtitle">Специализированные микро-модели, настроенные на выполнение регламентных бизнес-задач.</p>
           </header>
-          <div class="tools-grid" id="toolsGrid">
-          </div>
+          <div class="tools-grid" id="toolsGrid"></div>
         </div>
       </section>
 
       <section id="view-history" class="view">
         <div class="view-scroll-container">
           <header class="section-header-block">
-            <h2>История запросов</h2>
-            <p class="section-subtitle">Просматривайте прошлые генерации и сохраненные шаблоны ответов.</p>
+            <h2>Протоколы генерации</h2>
+            <p class="section-subtitle">Архив выполненных вычислений, ответов ИИ и сохраненных операционных шаблонов.</p>
           </header>
 
           <div class="filters-container">
             <div class="history-filters" id="historyFilters">
-              <button class="chip active" data-filter="all">Все</button>
-              <button class="chip" data-filter="favorites">Сохраненные</button>
+              <button class="chip active" data-filter="all">Все записи</button>
+              <button class="chip" data-filter="favorites">Закладки</button>
               <button class="chip" data-filter="tools">Инструменты</button>
-              <button class="chip" data-filter="chat">Чат</button>
+              <button class="chip" data-filter="chat">Прямой чат</button>
             </div>
           </div>
 
-          <div class="history-list" id="historyList">
-          </div>
+          <div class="history-list" id="historyList"></div>
         </div>
       </section>
 
       <section id="view-profile" class="view">
         <div class="view-scroll-container">
           <header class="section-header-block">
-            <h2>Личный кабинет</h2>
+            <h2>Панель управления аккаунтом</h2>
           </header>
 
           <div class="profile-account-card">
@@ -180,20 +182,20 @@
 
             <div class="plan-status-row">
               <div class="plan-badge-zone">
-                <span class="plan-label-tag">Тарифный план</span>
+                <span class="plan-label-tag">Текущий уровень доступа</span>
                 <span class="plan-value" id="profilePlanLabel">FREE</span>
               </div>
               <button class="btn-premium" id="openBillingBtn">
-                <span data-icon="stars"></span> Управлять подпиской
+                <span data-icon="stars"></span> Изменить тариф
               </button>
             </div>
           </div>
 
-          <div class="cabinet-block-title">Расход лимитов (кредиты)</div>
+          <div class="cabinet-block-title">Квоты вычислительной мощности</div>
           <div class="metrics-grid">
             <div class="metric-card">
               <div class="metric-header">
-                <span class="metric-title">Доступно сегодня</span>
+                <span class="metric-title">Доступно на текущие сутки</span>
                 <span class="metric-badge" id="profileCreditsTodayText">0 / 0</span>
               </div>
               <div class="progress-bar">
@@ -202,7 +204,7 @@
             </div>
             <div class="metric-card">
               <div class="metric-header">
-                <span class="metric-title">Доступно в этом месяце</span>
+                <span class="metric-title">Остаток баланса в расчетном месяце</span>
                 <span class="metric-badge" id="profileCreditsMonthText">0 / 0</span>
               </div>
               <div class="progress-bar">
@@ -211,27 +213,23 @@
             </div>
           </div>
 
-          <div class="cabinet-block-title">Бизнес-контекст</div>
+          <div class="cabinet-block-title">Глобальный контекст компании</div>
           <div class="settings-card">
-            <p class="field-description">Информация о вашем бизнесе автоматически подмешивается к ответам ИИ, делая их
-              точными и персонализированными.</p>
-            <textarea id="profileBusinessDescription" class="form-textarea"
-              placeholder="Например: Магазин автотоваров на Wildberries, оборот 1.5м. Основная цель — поднять маржинальность и настроить внутреннюю рекламу."></textarea>
+            <p class="field-description">Эти данные автоматически интегрируются во все запросы к нейросети, гарантируя экспертные ответы без постоянного ввода базовых вводных.</p>
+            <textarea id="profileBusinessDescription" class="form-textarea" placeholder="Укажите: Обороты, нишу, маркетплейсы, текущие проблемы, цели продвижения, чтобы ИИ давал кастомизированные ответы..."></textarea>
             <div class="action-row-right">
               <button class="btn-primary" id="saveProfileBtn">
-                <span data-icon="save"></span> Сохранить контекст
+                <span data-icon="save"></span> Обновить контекст
               </button>
             </div>
           </div>
 
-          <div class="cabinet-block-title">Обратная связь</div>
+          <div class="cabinet-block-title">Техническая поддержка</div>
           <div class="settings-card">
-            <p class="field-description">Столкнулись с проблемой или хотите предложить функцию? Напишите напрямую
-              разработчикам.</p>
-            <textarea id="appFeedbackText" class="form-textarea"
-              placeholder="Опишите ваше предложение или баг..."></textarea>
+            <p class="field-description">Обнаружили сбой или хотите заказать индивидуальную ИИ-модель под ваши требования? Опишите детали.</p>
+            <textarea id="appFeedbackText" class="form-textarea" placeholder="Опишите ваше предложение или баг..."></textarea>
             <div class="action-row-right">
-              <button class="btn-secondary" id="submitAppFeedbackBtn">Отправить отзыв</button>
+              <button class="btn-secondary" id="submitAppFeedbackBtn">Отправить обращение</button>
             </div>
           </div>
         </div>
@@ -263,7 +261,7 @@
   <div id="billingModal" class="modal-overlay" hidden>
     <div class="modal-sheet">
       <div class="modal-header">
-        <h3 id="billingTitle">Выбор тарифа</h3>
+        <h3 id="billingTitle">Выбор тарифного плана</h3>
         <button id="closeBillingBtn" class="modal-close-btn">
           <span data-icon="close"></span>
         </button>
@@ -271,16 +269,13 @@
 
       <div class="modal-scroll-content">
         <div id="billingError" class="error-banner-zone" hidden></div>
-
-        <div id="billingPlanList" class="plans-layout-stack">
-        </div>
+        <div id="billingPlanList" class="plans-layout-stack"></div>
 
         <div id="paymentProviderBox" class="providers-layout-zone" hidden>
-          <p class="provider-intro-text">Выберите удобный способ проведения безопасного платежа:</p>
-          <div id="providerList" class="providers-stack">
-          </div>
+          <p class="provider-intro-text">Выберите сертифицированный шлюз безопасной транзакции:</p>
+          <div id="providerList" class="providers-stack"></div>
           <button id="backToPlansBtn" class="btn-text-back">
-            <span data-icon="back"></span> Вернуться к выбору тарифов
+            <span data-icon="back"></span> Вернуться назад к тарифам
           </button>
         </div>
       </div>
@@ -298,22 +293,20 @@
       </div>
 
       <div class="modal-scroll-content">
-        <h2 class="onboarding-step-title" id="onboardingTitle">Чем вы занимаетесь?</h2>
+        <h2 class="onboarding-step-title" id="onboardingTitle">Конфигурация окружения</h2>
         <div id="onboardingError" class="error-banner-zone mb-16" hidden></div>
-
-        <div id="onboardingBody" class="onboarding-interactive-body">
-        </div>
+        <div id="onboardingBody" class="onboarding-interactive-body"></div>
       </div>
 
       <div class="modal-footer-actions">
-        <button id="onboardingBackBtn" class="btn-secondary" disabled>Назад</button>
-        <button id="onboardingNextBtn" class="btn-primary">Продолжить</button>
+        <button id="onboardingBackBtn" class="btn-secondary" disabled type="button">Назад</button>
+        <button id="onboardingNextBtn" class="btn-primary" type="button">Продолжить</button>
       </div>
     </div>
   </div>
 
-  <div id="toast" class="toast-component">Повещение</div>
-  <script src="/static/app.js?v=reborn-1"></script>
-</body>
+  <div id="toast" class="toast-component">Оповещение</div>
 
+  <script src="/static/app.js?v=reborn-2"></script>
+</body>
 </html>
