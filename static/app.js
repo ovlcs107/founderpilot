@@ -1,201 +1,729 @@
+/**
+ * FounderPilot AI - Core Frontend Logic
+ * Premium Minimal Vanilla JavaScript Engine
+ */
+
 const tg = window.Telegram?.WebApp || null;
 
+// Whitelist-словарь всех разрешенных иконок для безопасной вставки в innerHTML
 const iconPaths = {
-  home: '<path d="m3 9 9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/>',
-  chat: '<path d="M21 11.5a8.4 8.4 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.4 8.4 0 0 1-3.8-.9L3 21l1.9-5.7A8.4 8.4 0 0 1 4 11.5a8.5 8.5 0 0 1 17 0Z"/>',
-  tools: '<rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/>',
-  history: '<circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/>',
-  user: '<path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/>',
-  send: '<line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/>',
-  close: '<line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>',
-  back: '<line x1="19" y1="12" x2="5" y2="12"/><polyline points="12 19 5 12 12 5"/>',
-  tg_stars: '<path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/>',
-  ton: '<path d="M12 2L3 9l9 13 9-13L12 2zm0 4.5L17.5 10H6.5L12 6.5zM6.8 12h10.4l-5.2 7.5-5.2-7.5z"/>',
-  btc: '<path d="M12 22c5.523 0 10-4.477 10-10S17.523 2 12 2 2 6.477 2 12s4.477 10 10 10z"/><path d="M10 8h2.5a1.5 1.5 0 0 1 0 3H10V8z"/><path d="M10 13h3a1.5 1.5 0 0 1 0 3h-3v-3z"/><path d="M12 5v2"/><path d="M12 17v2"/>'
+  home: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m3 9 9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>',
+  chat: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 11.5a8.4 8.4 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.4 8.4 0 0 1-3.8-.9L3 21l1.9-5.7A8.4 8.4 0 0 1 4 11.5a8.5 8.5 0 0 1 17 0Z"/></svg>',
+  tools: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/></svg>',
+  history: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>',
+  user: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>',
+  send: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>',
+  close: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>',
+  back: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="19" y1="12" x2="5" y2="12"/><polyline points="12 19 5 12 12 5"/></svg>',
+  copy: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>',
+  save: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyitalic points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>',
+  edit: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 1 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>',
+  trash: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>',
+  check: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>',
+  warning: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>',
+  'credit-card': '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="1" y="4" width="22" height="16" rx="2" ry="2"/><line x1="1" y1="10" x2="23" y2="10"/></svg>',
+  tg_stars: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>',
+  ton: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/></svg>',
+  btc: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M8 9h6a2 2 0 0 1 2 2v0a2 2 0 0 1-2 2H8"/><path d="M8 13h7a2 2 0 0 1 2 2v0a2 2 0 0 1-2 2H8"/><line x1="10" y1="6" x2="10" y2="18"/><line x1="12" y1="6" x2="12" y2="18"/></svg>',
+  chart: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>',
+  calculator: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="2" width="16" height="20" rx="2" ry="2"/><line x1="8" y1="6" x2="16" y2="6"/><line x1="16" y1="14" x2="16" y2="18"/><path d="M16 10h.01"/><path d="M12 10h.01"/><path d="M8 10h.01"/><path d="M12 14h.01"/><path d="M8 14h.01"/><path d="M8 18h.01"/><path d="M12 18h.01"/></svg>',
+  search: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>',
+  target: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="6"/><circle cx="12" cy="12" r="2"/></svg>',
+  link: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>'
 };
 
+// Единый глобальный стейт
 const state = {
   user: null,
   tools: [],
   plans: {},
   history: [],
-  currentMode: "strategy",
-  historyFilter: "all",
+  messages: [],
+  activeView: "home",
+  activePlanKey: null,
   activePlan: null,
+  historyFilter: "all",
+  isSending: false,
   onboardingStep: 0,
   onboardingData: {},
-  onboardingConfig: [
-    {
-      id: "role",
-      title: "Кто вы?",
-      options: [
-        { key: "wb_seller", label: "Селлер Wildberries" },
-        { key: "ozon_seller", label: "Селлер Ozon" },
-        { key: "multi_seller", label: "Мультиселлер" },
-        { key: "beginner", label: "Выбираю нишу" }
-      ]
-    },
-    {
-      id: "turnover",
-      title: "Текущий оборот",
-      options: [
-        { key: "zero", label: "Пока нет продаж" },
-        { key: "up_to_100", label: "До 100 000 ₽ / мес" },
-        { key: "up_to_1m", label: "До 1 000 000 ₽ / мес" },
-        { key: "over_1m", label: "Более 1 000 000 ₽ / мес" }
-      ]
-    },
-    {
-      id: "pain",
-      title: "Главная задача",
-      options: [
-        { key: "seo", label: "SEO-оптимизация описаний" },
-        { key: "margin", label: "Юнит-экономика" },
-        { key: "ads", label: "Рекламные офферы" },
-        { key: "strategy", label: "Стратегия развития" }
-      ]
-    }
-  ]
+  toastTimer: null
 };
 
-function $(id) { return document.getElementById(id); }
+// Хелпер быстрого выбора элементов
+const $ = (id) => document.getElementById(id);
 
+// Экранирование HTML (Защита от XSS атак)
+function escapeHTML(value) {
+  if (!value) return "";
+  return String(value)
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#x27;")
+    .replace(/\//g, "&#x2F;");
+}
+
+// Получить валидный inline SVG по имени
+function icon(name) {
+  return iconPaths[name] || "";
+}
+
+// Инъекция безопасных иконок
 function injectIcons(root = document) {
   root.querySelectorAll("[data-icon]").forEach((el) => {
-    const name = el.dataset.icon;
-    if (iconPaths[name] && !el.querySelector("svg")) {
-      el.innerHTML = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${iconPaths[name]}</svg>`;
+    const key = el.dataset.icon;
+    if (iconPaths[key]) {
+      el.innerHTML = iconPaths[key];
     }
   });
 }
 
+// Инициализация Telegram WebApp среды
 function initTelegram() {
-  if (!tg) return;
-  tg.ready();
-  tg.expand();
-  if (tg.HeaderColor) tg.setHeaderColor("secondary_bg_color");
-  document.body.classList.add("tg-theme");
+  if (tg) {
+    tg.ready();
+    tg.expand();
+    if (tg.setHeaderColor) tg.setHeaderColor(tg.themeParams?.bg_color || "#0a0a0c");
+    document.body.classList.add("tg-theme");
+  }
 }
 
-function showToast(text) {
-  const el = $("toast");
-  el.textContent = text;
-  el.classList.add("visible");
-  setTimeout(() => el.classList.remove("visible"), 2500);
+// Получение инфо о текущем ТГ-юзере
+function getTelegramUser() {
+  if (tg && tg.initDataUnsafe && tg.initDataUnsafe.user) {
+    return tg.initDataUnsafe.user;
+  }
+  return { id: 12345678, first_name: "Предприниматель", username: "founder" };
 }
 
+// Устойчивая обертка для сетевых запросов
+async function apiRequest(url, options = {}) {
+  const initData = tg ? tg.initData : "";
+  options.headers = {
+    ...options.headers,
+    "Content-Type": "application/json",
+    "X-Telegram-Init-Data": initData
+  };
+  
+  const response = await fetch(url, options);
+  if (!response.ok) {
+    throw new Error(`HTTP Error: ${response.status}`);
+  }
+  return await response.json();
+}
+
+// Защищенный вызов API с подавлением фатальных ошибок (Graceful Degradation)
+async function apiTry(url, options = {}, fallbackValue = null) {
+  try {
+    return await apiRequest(url, options);
+  } catch (err) {
+    console.error(`Ошибка при запросе к ${url}:`, err);
+    return fallbackValue;
+  }
+}
+
+// Нативная система Toast уведомлений вместо alert()
+function showToast(message, type = "info") {
+  const toastNode = $("toast");
+  if (!toastNode) return;
+  
+  clearTimeout(state.toastTimer);
+  toastNode.className = `toast visible ${type}`;
+  toastNode.textContent = message;
+  
+  state.toastTimer = setTimeout(() => {
+    toastNode.classList.remove("visible");
+  }, 3500);
+}
+
+// Переключение вкладок приложения (Внутренний роутинг)
 function switchView(target) {
-  document.querySelectorAll(".view").forEach((view) => view.classList.remove("active"));
-  document.querySelectorAll(".nav-item").forEach((btn) => btn.classList.toggle("active", btn.dataset.target === target));
+  state.activeView = target;
+  
+  document.querySelectorAll(".view").forEach(v => v.classList.remove("active"));
+  document.querySelectorAll(".nav-item").forEach(n => n.classList.remove("active"));
   
   const targetView = $(`view-${target}`);
   if (targetView) targetView.classList.add("active");
-
-  const titles = { home: "Главная", chat: "AI Чат", tools: "Инструменты", history: "История", profile: "Профиль" };
-  $("pageTitle").textContent = titles[target] || "FounderPilot AI";
+  
+  const navBtn = document.querySelector(`.nav-item[data-view="${target}"]`);
+  if (navBtn) navBtn.classList.add("active");
+  
+  // Динамические заголовки
+  const titles = { home: "Главная", tools: "Инструменты", history: "История", profile: "Профиль" };
+  if ($("pageTitle")) $("pageTitle").textContent = titles[target] || "Сервис";
+  
+  if (target === "history") loadHistory();
+  if (target === "tools") loadTools();
+  if (target === "profile") renderProfile();
 }
 
+// Управление состоянием лоадинга на кнопках
+function setLoading(button, isLoading) {
+  if (!button) return;
+  if (isLoading) {
+    button.disabled = true;
+    button.dataset.originalText = button.textContent;
+    button.textContent = "Загрузка...";
+  } else {
+    button.disabled = false;
+    if (button.dataset.originalText) {
+      button.textContent = button.dataset.originalText;
+    }
+  }
+}
+
+// Автоматический ресайз textarea чата
 function autoResizeTextarea(textarea) {
+  if (!textarea) return;
   textarea.style.height = "auto";
   textarea.style.height = (textarea.scrollHeight) + "px";
 }
 
-function updateChatSendButton(textareaId, buttonId) {
-  const txt = $(textareaId), btn = $(buttonId);
-  if (txt && btn) btn.disabled = !txt.value.trim();
+// Обновление состояния кнопки отправки сообщения
+function updateSendButton() {
+  const input = $("homeChatInput");
+  const btn = $("homeChatSendBtn");
+  if (!input || !btn) return;
+  btn.disabled = state.isSending || !input.value.trim();
 }
 
-async function request(url, options = {}) {
-  const initData = tg?.initData || "";
-  options.headers = { ...options.headers, "Content-Type": "application/json" };
-  if (initData) options.headers["X-Telegram-Init-Data"] = initData;
-  const res = await fetch(url, options);
-  if (!res.ok) {
-    const err = await res.json().catch(() => ({ detail: "Системная ошибка" }));
-    throw new Error(err.detail || "Внутренний сбой платформы");
+// Безопасное добавление сообщений в DOM-дерево
+function appendMessage(role, text, actions = false) {
+  const scrollContainer = $("homeChatScroll");
+  if (!scrollContainer) return;
+  
+  const emptyState = $("chatEmptyState");
+  if (emptyState) emptyState.style.display = "none";
+  
+  const msgDiv = document.createElement("div");
+  msgDiv.className = `msg ${role}`;
+  
+  // Вставляем безопасный экранированный текст
+  const contentSpan = document.createElement("span");
+  contentSpan.textContent = text;
+  msgDiv.appendChild(contentSpan);
+  
+  // Кнопки действий для ответов ассистента
+  if (actions && role === "bot") {
+    const actionsDiv = document.createElement("div");
+    actionsDiv.className = "message-actions";
+    
+    const copyBtn = document.createElement("button");
+    copyBtn.textContent = "Скопировать";
+    copyBtn.onclick = () => copyText(text);
+    
+    const saveBtn = document.createElement("button");
+    saveBtn.textContent = "Сохранить";
+    saveBtn.onclick = () => saveResult(text, "Результат генерации");
+    
+    const shorterBtn = document.createElement("button");
+    shorterBtn.textContent = "Короче";
+    shorterBtn.onclick = () => improveLastAnswer("Сделай короче");
+    
+    const longerBtn = document.createElement("button");
+    longerBtn.textContent = "Подробнее";
+    longerBtn.onclick = () => improveLastAnswer("Расскажи подробнее");
+    
+    actionsDiv.appendChild(copyBtn);
+    actionsDiv.appendChild(saveBtn);
+    actionsDiv.appendChild(shorterBtn);
+    actionsDiv.appendChild(longerBtn);
+    
+    msgDiv.appendChild(actionsDiv);
   }
-  return res.json();
+  
+  scrollContainer.appendChild(msgDiv);
+  scrollContainer.scrollTop = scrollContainer.scrollHeight;
 }
 
-function renderChat(scrollId, messages) {
-  const scroll = $(scrollId);
-  if (!scroll) return;
-  if (!messages || !messages.length) {
-    scroll.innerHTML = `<div class="chat-empty"><span data-icon="chat"></span><p>История диалога пуста.</p></div>`;
-    injectIcons(scroll);
+// Отрисовка всей цепочки чата из стейта
+function renderChat() {
+  const scrollContainer = $("homeChatScroll");
+  if (!scrollContainer) return;
+  
+  // Очистка кроме empty state
+  scrollContainer.querySelectorAll(".msg").forEach(m => m.remove());
+  
+  if (state.messages.length === 0) {
+    if ($("chatEmptyState")) $("chatEmptyState").style.display = "block";
     return;
   }
-  scroll.innerHTML = messages.map(m => {
-    let cls = "system-msg";
-    if (m.role === "user") cls = "user";
-    if (m.role === "assistant") cls = "bot";
-    return `<div class="msg ${cls}">${m.text}</div>`;
-  }).join("");
+  
+  if ($("chatEmptyState")) $("chatEmptyState").style.display = "none";
+  
+  state.messages.forEach((m, idx) => {
+    const isLast = idx === state.messages.length - 1;
+    appendMessage(m.role, m.text, isLast);
+  });
 }
 
-async function handleChatSend(inputId, scrollId, sendBtnId) {
-  const input = $(inputId), text = input.value.trim();
-  if (!text) return;
+// Отправка сообщений на бэкенд
+async function sendChatMessage(text, options = {}) {
+  if (!text || state.isSending) return;
   
-  input.value = "";
-  autoResizeTextarea(input);
-  updateChatSendButton(inputId, sendBtnId);
-
-  const scroll = $(scrollId);
-  let empty = scroll.querySelector(".chat-empty");
-  if (empty) empty.remove();
-
-  scroll.insertAdjacentHTML("beforeend", `<div class="msg user">${text}</div>`);
-  const statusId = "status_" + Date.now();
-  scroll.insertAdjacentHTML("beforeend", `<div class="msg bot system-msg" id="${statusId}">Выполняется анализ...</div>`);
-  scroll.scrollTop = scroll.scrollHeight;
-
+  state.isSending = true;
+  updateSendButton();
+  
+  state.messages.push({ role: "user", text: text });
+  renderChat();
+  
+  if ($("homeChatInput")) {
+    $("homeChatInput").value = "";
+    autoResizeTextarea($("homeChatInput"));
+  }
+  
+  // Добавление временного системного сообщения ожидания генерации
+  appendMessage("system", "AI готовит ответ...");
+  
+  // Проверяем доступность /api/chat с автопереходом на /api/ask
+  let result = null;
+  const payload = { prompt: text, context: state.messages, ...options };
+  
   try {
-    const res = await request("/api/ask", {
-      method: "POST",
-      body: JSON.stringify({ mode: state.currentMode, text })
-    });
-    $(statusId)?.remove();
-    scroll.insertAdjacentHTML("beforeend", `<div class="msg bot">${res.answer}</div>`);
-    if (state.user) {
-      state.user.used_today = res.used_today;
-      state.user.used_period = res.used_period;
-      updateProfileUI();
-    }
-    loadHistory().catch(() => {});
-  } catch (err) {
-    const st = $(statusId);
-    if (st) {
-      st.classList.remove("system-msg");
-      st.classList.add("text-danger");
-      st.textContent = err.message;
+    result = await apiRequest("/api/chat", { method: "POST", body: JSON.stringify(payload) });
+  } catch (e) {
+    try {
+      result = await apiRequest("/api/ask", { method: "POST", body: JSON.stringify({ message: text, ...options }) });
+    } catch (err) {
+      console.error("Оба эндпоинта отправки недоступны", err);
     }
   }
-  scroll.scrollTop = scroll.scrollHeight;
-}
-
-function updateProfileUI() {
-  if (!state.user) return;
-  if ($("homeGreeting")) $("homeGreeting").textContent = `Здравствуйте, ${state.user.first_name || "пользователь"}`;
-  if ($("profileUserTitle")) $("profileUserTitle").textContent = state.user.username ? `@${state.user.username}` : `ID: ${state.user.telegram_id}`;
   
-  const label = $("profilePlanLabel");
-  if (label) {
-    const p = state.user.plan ? state.user.plan.toUpperCase() : "FREE";
-    const rem = state.user.remaining === null ? "Безлимитно" : `Осталось: ${state.user.remaining}`;
-    label.innerHTML = `${p} <small style="display:block; font-weight:normal; margin-top:1px; opacity:0.7;">${rem}</small>`;
+  // Удаляем сообщение ожидания
+  const scrollContainer = $("homeChatScroll");
+  if (scrollContainer && scrollContainer.lastChild) {
+    scrollContainer.lastChild.remove();
   }
-  if ($("profileBusinessDescription")) $("profileBusinessDescription").value = state.user.business_profile || "";
-  const initial = (state.user.first_name || "F").charAt(0).toUpperCase();
-  if ($("userAvatar")) $("userAvatar").textContent = initial;
+  
+  state.isSending = false;
+  updateSendButton();
+  
+  if (result && (result.answer || result.response || result.text)) {
+    const aiText = result.answer || result.response || result.text;
+    state.messages.push({ role: "bot", text: aiText });
+    renderChat();
+  } else {
+    showToast("Не удалось получить ответ от ИИ. Проверьте соединение.", "error");
+    if (state.messages.length > 0) {
+      state.messages.pop(); // Удаляем последнее безответное сообщение
+      renderChat();
+    }
+  }
 }
 
-async function loadMe() {
-  const data = await request("/api/me");
-  state.user = data.user;
-  updateProfileUI();
-  if (data.onboarding_required) openOnboarding();
+// Корректировка последнего ответа ИИ
+function improveLastAnswer(instruction) {
+  const lastUserMsg = [...state.messages].reverse().find(m => m.role === "user");
+  if (!lastUserMsg) return;
+  sendChatMessage(lastUserMsg.text, { refinement: instruction });
 }
+
+// Нативное копирование текста в буфер обмена
+function copyText(text) {
+  if (navigator.clipboard && navigator.clipboard.writeText) {
+    navigator.clipboard.writeText(text)
+      .then(() => showToast("Текст скопирован в буфер обмена", "success"))
+      .catch(() => showToast("Не удалось скопировать текст", "error"));
+  } else {
+    // Резервный метод для старых браузеров (Fallback)
+    const area = document.createElement("textarea");
+    area.value = text;
+    area.style.position = "fixed";
+    document.body.appendChild(area);
+    area.select();
+    try {
+      document.execCommand("copy");
+      showToast("Текст скопирован в буфер обмена", "success");
+    } catch (e) {
+      showToast("Не удалось скопировать", "error");
+    }
+    document.body.removeChild(area);
+  }
+}
+
+// Сохранение результатов генерации
+async function saveResult(content, title) {
+  try {
+    await apiRequest("/api/saved", { method: "POST", body: JSON.stringify({ content, title }) });
+    showToast("Результат успешно сохранен", "success");
+  } catch (e) {
+    // Мягкий фоллбэк согласно ТЗ
+    showToast("Сохранение временно недоступно", "info");
+  }
+}
+
+// Загрузка данных аккаунта пользователя
+async function loadMe() {
+  const tgUser = getTelegramUser();
+  const fallbackMe = {
+    name: tgUser.first_name,
+    username: tgUser.username || String(tgUser.id),
+    plan_name: "Free",
+    used_today: 0,
+    limit_today: 10,
+    business_profile: "",
+    onboarding_required: false
+  };
+  
+  state.user = await apiTry("/api/me", { method: "GET" }, fallbackMe);
+  
+  if ($("homeGreeting")) {
+    $("homeGreeting").textContent = `Здравствуйте, ${state.user.name || "предприниматель"}`;
+  }
+  
+  if (state.user.onboarding_required) {
+    openOnboarding();
+  }
+}
+
+// Обновление интерфейса профиля
+function renderProfile() {
+  if (!state.user) return;
+  
+  if ($("headerUserAvatar")) $("headerUserAvatar").textContent = (state.user.name || "FP").substring(0, 2).toUpperCase();
+  if ($("profileUserAvatar")) $("profileUserAvatar").textContent = (state.user.name || "FP").substring(0, 2).toUpperCase();
+  if ($("profileUserTitle")) $("profileUserTitle").textContent = state.user.name || "Пользователь";
+  if ($("profilePlanLabel")) $("profilePlanLabel").textContent = state.user.plan_name || "Free";
+  
+  const used = state.user.used_today || 0;
+  const limit = state.user.limit_today || 0;
+  if ($("profileUsageText")) $("profileUsageText").textContent = `${used} / ${limit}`;
+  
+  if ($("profileUsageFill")) {
+    const pct = limit > 0 ? Math.min(100, (used / limit) * 100) : 0;
+    $("profileUsageFill").style.width = `${pct}%`;
+  }
+  
+  if ($("profileBusinessDescription")) {
+    $("profileBusinessDescription").value = state.user.business_profile || "";
+  }
+}
+
+// Загрузка библиотеки инструментов ИИ
+async function loadTools() {
+  const defaultTools = [
+    { id: "t1", title: "Расчёт маржинальности", description: "Быстрая юнит-экономика товара.", prompt_template: "Помоги рассчитать маржу товара. Вот исходные данные: " },
+    { id: "t2", title: "Оптимизация карточки", description: "Генерация сильного SEO-описания.", prompt_template: "Улучши описание карточки товара для маркетплейса: " },
+    { id: "t3", title: "Анализ конкурентов", description: "Разбор преимуществ и слабых мест.", prompt_template: "Сделай анализ конкурентов для следующей ниши: " }
+  ];
+  
+  state.tools = await apiTry("/api/tools", { method: "GET" }, defaultTools);
+  renderTools();
+}
+
+// Отрисовка сетки инструментов
+function renderTools() {
+  const grid = $("toolsGrid");
+  if (!grid) return;
+  
+  grid.innerHTML = "";
+  if (!state.tools || state.tools.length === 0) {
+    grid.innerHTML = '<div class="empty-state">Инструменты временно недоступны.</div>';
+    return;
+  }
+  
+  state.tools.forEach(tool => {
+    const row = document.createElement("div");
+    row.className = "tool-item-row";
+    
+    // Подбор иконки по типу/id
+    let currentIcon = "calculator";
+    if (tool.id === "t2") currentIcon = "target";
+    if (tool.id === "t3") currentIcon = "chart";
+    
+    row.innerHTML = `
+      <div class="tool-icon-box">${icon(currentIcon)}</div>
+      <div class="tool-text-box">
+        <h4>${escapeHTML(tool.title)}</h4>
+        <p>${escapeHTML(tool.description)}</p>
+      </div>
+    `;
+    
+    row.onclick = () => {
+      switchView("home");
+      if (tool.prompt_template && $("homeChatInput")) {
+        $("homeChatInput").value = tool.prompt_template;
+        $("homeChatInput").focus();
+        autoResizeTextarea($("homeChatInput"));
+        updateSendButton();
+      }
+    };
+    
+    grid.appendChild(row);
+  });
+}
+
+// Загрузка истории генераций
+async function loadHistory() {
+  state.history = await apiTry("/api/history", { method: "GET" }, []);
+  renderHistory();
+}
+
+// Отрисовка списка истории с учетом полифилла форматов
+function renderHistory() {
+  const container = $("historyList");
+  if (!container) return;
+  
+  container.innerHTML = "";
+  
+  // Фильтрация данных по стейту фильтра
+  let list = state.history || [];
+  if (state.historyFilter === "chats") {
+    list = list.filter(h => h.mode === "chat" || h.type === "chat");
+  } else if (state.historyFilter === "tools") {
+    list = list.filter(h => h.mode && h.mode !== "chat" || h.type === "tool");
+  } else if (state.historyFilter === "saved") {
+    list = list.filter(h => h.is_saved || h.type === "saved");
+  }
+  
+  if (list.length === 0) {
+    container.innerHTML = '<div class="empty-state">Здесь появятся ваши результаты.</div>';
+    return;
+  }
+  
+  list.forEach(item => {
+    // Поддержка форматов old format и new format
+    const title = item.title || item.mode || "Генерация";
+    const preview = item.preview || item.text || item.answer || "";
+    const rawDate = item.created_at || item.timestamp || "";
+    
+    let formattedDate = "";
+    if (rawDate) {
+      const d = new Date(rawDate);
+      formattedDate = isNaN(d.getTime()) ? rawDate : d.toLocaleDateString("ru-RU");
+    }
+    
+    const card = document.createElement("div");
+    card.className = "history-row";
+    card.innerHTML = `
+      <h4>${escapeHTML(title)}</h4>
+      <p>${escapeHTML(preview)}</p>
+      <div class="meta">${escapeHTML(formattedDate)}</div>
+    `;
+    
+    card.onclick = () => {
+      // Клик по истории разворачивает элемент в чат
+      switchView("home");
+      state.messages = [
+        { role: "user", text: item.text || item.title || "Исходный запрос" },
+        { role: "bot", text: item.answer || item.content || preview }
+      ];
+      renderChat();
+    };
+    
+    container.appendChild(card);
+  });
+}
+
+// Мутатор фильтров истории
+function setHistoryFilter(filter) {
+  state.historyFilter = filter;
+  document.querySelectorAll("#historyFilters .filter-btn").forEach(btn => {
+    btn.classList.toggle("active", btn.dataset.filter === filter);
+  });
+  renderHistory();
+}
+
+// Загрузка биллинг-планов
+async function loadBillingPlans() {
+  const fallbackPlans = {
+    plans: [
+      { key: "free", title: "Free", description: "Базовые возможности ИИ", price_text: "0 ₽" },
+      { key: "pro", title: "Pro", description: "Расширенный бизнес-анализ", price_text: "990 ₽/мес" },
+      { key: "business", title: "Business", description: "Максимальные лимиты и приоритет", price_text: "2990 ₽/мес" }
+    ],
+    providers: [
+      { id: "telegram_stars", name: "Telegram Stars", icon: "tg_stars" },
+      { id: "yookassa", name: "ЮKassa / ЮMoney", icon: "credit-card" },
+      { id: "ton", name: "TON / Tonkeeper", icon: "ton" },
+      { id: "btc", name: "Bitcoin", icon: "btc" }
+    ]
+  };
+  
+  const res = await apiTry("/api/billing/plans", { method: "GET" }, fallbackPlans);
+  state.plans = res;
+}
+
+// Открытие биллинг окна
+function openBillingModal() {
+  $("billingModal").hidden = false;
+  $("paymentProviderBox").hidden = true;
+  $("billingPlanList").hidden = false;
+  $("billingError").hidden = true;
+  renderBillingPlans();
+}
+
+function closeBillingModal() {
+  $("billingModal").hidden = true;
+}
+
+// Рендер тарифов
+function renderBillingPlans() {
+  const container = $("billingPlanList");
+  if (!container) return;
+  
+  container.innerHTML = "";
+  const plansList = state.plans?.plans || [];
+  
+  if (plansList.length === 0) {
+    container.innerHTML = '<div class="empty-state">Тарифы временно недоступны.</div>';
+    return;
+  }
+  
+  plansList.forEach(plan => {
+    const card = document.createElement("div");
+    card.className = "plan-item-row";
+    card.setAttribute("data-plan-key", plan.key);
+    card.innerHTML = `
+      <h3>${escapeHTML(plan.title)}</h3>
+      <p>${escapeHTML(plan.description)}</p>
+      <div class="plan-price">${escapeHTML(plan.price_text)}</div>
+    `;
+    container.appendChild(card);
+  });
+}
+
+// Клик по тарифу -> выбор шлюза
+function selectPlan(planKey) {
+  state.activePlanKey = planKey;
+  state.activePlan = (state.plans?.plans || []).find(p => p.key === planKey);
+  
+  $("billingPlanList").hidden = true;
+  $("paymentProviderBox").hidden = false;
+  
+  const container = $("providerList");
+  if (!container) return;
+  container.innerHTML = "";
+  
+  const providers = state.plans?.providers || [];
+  providers.forEach(prov => {
+    const row = document.createElement("div");
+    row.className = "provider-item-row";
+    row.setAttribute("data-provider", prov.id);
+    
+    row.innerHTML = `
+      <div class="provider-icon">${icon(prov.icon || "credit-card")}</div>
+      <div class="provider-info">
+        <div class="provider-title">${escapeHTML(prov.name)}</div>
+      </div>
+      <div class="provider-price-tag">${escapeHTML(state.activePlan?.price_text)}</div>
+    `;
+    container.appendChild(row);
+  });
+}
+
+// Запуск оплаты
+async function checkout(providerId) {
+  $("billingError").hidden = true;
+  
+  const payload = { plan: state.activePlanKey, provider: providerId };
+  let orderData = null;
+  
+  try {
+    orderData = await apiRequest("/api/billing/create-order", { method: "POST", body: JSON.stringify(payload) });
+  } catch (e) {
+    try {
+      orderData = await apiRequest("/api/billing/checkout", { method: "POST", body: JSON.stringify(payload) });
+    } catch (err) {
+      $("billingError").textContent = "Не удалось инициировать оплату. Попробуйте позже.";
+      $("billingError").hidden = false;
+      return;
+    }
+  }
+  
+  if (!orderData) return;
+  
+  // Логика TON криптовалюты
+  if (providerId === "ton") {
+    if (orderData.payment_url || orderData.invoice_url) {
+      if (tg) tg.openLink(orderData.payment_url || orderData.invoice_url);
+      else window.open(orderData.payment_url || orderData.invoice_url, "_blank");
+    }
+    showToast("Оплата TON будет подтверждена после проверки транзакции.", "info");
+    closeBillingModal();
+    return;
+  }
+  
+  // Логика Telegram Stars
+  if (providerId === "telegram_stars" && orderData.invoice_link) {
+    if (tg && tg.openInvoice) {
+      tg.openInvoice(orderData.invoice_link, (status) => {
+        if (status === "paid") showToast("Оплата прошла успешно!", "success");
+        else if (status === "cancelled") showToast("Оплата отменена", "info");
+        else showToast("Не удалось проверить оплату", "error");
+        loadMe();
+      });
+    }
+    closeBillingModal();
+    return;
+  }
+  
+  // Логика внешних шлюзов (ЮKassa, BTC)
+  const targetUrl = orderData.invoice_url || orderData.payment_url || orderData.url;
+  if (targetUrl) {
+    if (tg) tg.openLink(targetUrl);
+    else window.open(targetUrl, "_blank");
+  }
+  
+  // Включение поллинга ордера при возврате order_id
+  if (orderData.order_id) {
+    showToast("Ожидаем оплату...", "info");
+    pollOrderStatus(orderData.order_id);
+  }
+  
+  closeBillingModal();
+}
+
+// Поллинг статуса транзакций
+async function pollOrderStatus(orderId) {
+  let counter = 0;
+  const maxAttempts = 30;
+  
+  const timer = setInterval(async () => {
+    counter++;
+    if (counter > maxAttempts) {
+      clearInterval(timer);
+      showToast("Не удалось проверить оплату автоматически. Проверьте профиль.", "warning");
+      return;
+    }
+    
+    const statusData = await apiTry(`/api/billing/order/${orderId}`, { method: "GET" });
+    if (statusData && statusData.status) {
+      if (statusData.status === "paid" || statusData.status === "success") {
+        clearInterval(timer);
+        showToast("Оплата прошла успешно! Ваш тариф обновлен.", "success");
+        loadMe();
+      } else if (statusData.status === "cancelled" || statusData.status === "failed") {
+        clearInterval(timer);
+        showToast("Оплата отменена или отклонена бэкендом", "error");
+      }
+    }
+  }, 4000);
+}
+
+// Онбординг
+const onboardingStepsConfig = [
+  {
+    title: "Чем вы занимаетесь?",
+    type: "select",
+    key: "occupation",
+    options: ["Селлер WB/Ozon", "Предприниматель", "Маркетолог", "Новичок", "Другое"]
+  },
+  {
+    title: "Что хотите улучшить?",
+    type: "select",
+    key: "target",
+    options: ["Продажи", "Карточки товара", "Рекламу", "Идеи товара", "Стратегию", "Расчёты"]
+  },
+  {
+    title: "Коротко опишите бизнес",
+    type: "textarea",
+    key: "description",
+    placeholder: "Ваши основные товары, текущие показатели и проблемы..."
+  }
+];
 
 function openOnboarding() {
   state.onboardingStep = 0;
@@ -205,56 +733,73 @@ function openOnboarding() {
 }
 
 function renderOnboardingStep() {
-  const cfg = state.onboardingConfig[state.onboardingStep];
-  $("onboardingTitle").textContent = cfg.title;
+  const currentCfg = onboardingStepsConfig[state.onboardingStep];
+  if (!currentCfg) return;
   
-  const dots = $("onboardingModal").querySelectorAll(".progress-row span");
-  dots.forEach((dot, idx) => dot.classList.toggle("active", idx === state.onboardingStep));
-  
-  const savedKey = state.onboardingData[cfg.id];
-  const html = cfg.options.map(o => `
-    <button class="onboarding-option ${savedKey === o.key ? 'active' : ''}" data-key="${o.key}" type="button">
-      ${o.label}
-    </button>
-  `).join("");
-  
-  $("onboardingBody").innerHTML = html;
+  $("onboardingTitle").textContent = currentCfg.title;
   $("onboardingError").hidden = true;
-  $("onboardingBackBtn").disabled = (state.onboardingStep === 0);
   
-  const isLast = (state.onboardingStep === state.onboardingConfig.length - 1);
-  $("onboardingNextBtn").textContent = isLast ? "Готово" : "Далее";
+  // Прогресс бар бар-линии
+  const progressRow = $("onboardingProgressRow");
+  progressRow.innerHTML = "";
+  onboardingStepsConfig.forEach((_, idx) => {
+    const span = document.createElement("span");
+    span.style.width = `calc(${100 / onboardingStepsConfig.length}% - 4px)`;
+    if (idx <= state.onboardingStep) span.className = "active";
+    progressRow.appendChild(span);
+  });
+  
+  const body = $("onboardingBody");
+  body.innerHTML = "";
+  
+  if (currentCfg.type === "select") {
+    currentCfg.options.forEach(opt => {
+      const btn = document.createElement("button");
+      btn.className = "onboarding-option";
+      if (state.onboardingData[currentCfg.key] === opt) btn.classList.add("active");
+      btn.textContent = opt;
+      btn.onclick = () => {
+        state.onboardingData[currentCfg.key] = opt;
+        renderOnboardingStep();
+      };
+      body.appendChild(btn);
+    });
+  } else if (currentCfg.type === "textarea") {
+    const tx = document.createElement("textarea");
+    tx.className = "profile-textarea";
+    tx.placeholder = currentCfg.placeholder;
+    tx.value = state.onboardingData[currentCfg.key] || "";
+    tx.oninput = (e) => { state.onboardingData[currentCfg.key] = e.target.value; };
+    body.appendChild(tx);
+  }
+  
+  $("onboardingBackBtn").style.visibility = state.onboardingStep === 0 ? "hidden" : "visible";
+  $("onboardingNextBtn").textContent = state.onboardingStep === onboardingStepsConfig.length - 1 ? "Готово" : "Далее";
 }
 
 async function nextOnboarding() {
-  const cfg = state.onboardingConfig[state.onboardingStep];
-  if (!state.onboardingData[cfg.id]) {
-    const err = $("onboardingError");
-    err.textContent = "Выберите один из вариантов.";
-    err.hidden = false;
+  const currentCfg = onboardingStepsConfig[state.onboardingStep];
+  if (!state.onboardingData[currentCfg.key]) {
+    $("onboardingError").textContent = "Пожалуйста, заполните или выберите ответ";
+    $("onboardingError").hidden = false;
     return;
   }
   
-  if (state.onboardingStep < state.onboardingConfig.length - 1) {
+  if (state.onboardingStep < onboardingStepsConfig.length - 1) {
     state.onboardingStep++;
     renderOnboardingStep();
   } else {
+    // Финал онбординга
+    setLoading($("onboardingNextBtn"), true);
     try {
-      $("onboardingNextBtn").disabled = true;
-      const res = await request("/api/onboarding", {
-        method: "POST",
-        body: JSON.stringify(state.onboardingData)
-      });
-      state.user = res.user;
-      updateProfileUI();
-      $("onboardingModal").hidden = true;
-      showToast("Готово!");
+      await apiRequest("/api/onboarding", { method: "POST", body: JSON.stringify(state.onboardingData) });
+      showToast("Профиль успешно настроен", "success");
     } catch (e) {
-      const err = $("onboardingError");
-      err.textContent = e.message;
-      err.hidden = false;
-      $("onboardingNextBtn").disabled = false;
+      showToast("Профиль можно заполнить позже.", "info");
     }
+    setLoading($("onboardingNextBtn"), false);
+    $("onboardingModal").hidden = true;
+    loadMe();
   }
 }
 
@@ -265,337 +810,117 @@ function previousOnboarding() {
   }
 }
 
-async function loadTools() {
-  const data = await request("/api/tools");
-  state.tools = data.tools || [];
-  const grid = $("toolsGrid");
-  if (!grid) return;
-  
-  if (!state.tools.length) {
-    grid.innerHTML = `<p class="muted" style="text-align:center; padding:30px 0;">Инструменты временно недоступны.</p>`;
-    return;
-  }
-  
-  grid.innerHTML = state.tools.map(t => `
-    <div class="tool-item-row" data-prompt="${t.prompt_template}">
-      <div class="tool-icon-box"><span data-icon="tools"></span></div>
-      <div class="tool-text-box">
-        <h4>${t.title}</h4>
-        <p class="muted">${t.description}</p>
-      </div>
-    </div>
-  `).join("");
-  injectIcons(grid);
-}
-
-async function loadBillingPlans() {
-  const data = await request("/api/billing/plans");
-  state.plans = data.plans || {};
-}
-
-function openBillingModal() {
-  $("billingModal").hidden = false;
-  renderBillingPlans();
-}
-
-function closeBillingModal() {
-  $("billingModal").hidden = true;
-}
-
-function renderBillingPlans() {
-  $("paymentProviderBox").hidden = true;
-  const planList = $("billingPlanList");
-  planList.hidden = false;
-  $("billingTitle").textContent = "Тарифные планы";
-
-  const keys = Object.keys(state.plans);
-  if (!keys.length) {
-    planList.innerHTML = `<p class="muted" style="text-align:center; padding:16px;">Нет доступных тарифов.</p>`;
-    return;
-  }
-
-  planList.innerHTML = keys.map(k => {
-    const p = state.plans[k];
-    const isCurrent = state.user && state.user.plan === k;
-    return `
-      <button class="plan-item-row ${isCurrent ? 'muted-plan' : ''}" data-plan-key="${k}" type="button">
-        <div class="plan-main">
-          <h4>${p.title}</h4>
-          <small>${p.description}</small>
-        </div>
-        <div class="plan-price">${p.price_monthly} ₽</div>
-      </button>
-    `;
-  }).join("");
-}
-
-function selectPlan(planKey) {
-  state.activePlan = state.plans[planKey];
-  if (!state.activePlan) return;
-
-  $("billingPlanList").hidden = true;
-  $("billingTitle").textContent = `Оплата: ${state.activePlan.title}`;
-  $("billingError").hidden = true;
-  
-  const box = $("paymentProviderBox");
-  box.hidden = false;
-
-  const provList = $("providerList");
-  provList.innerHTML = state.activePlan.providers.map(p => {
-    let iconName = "credit-card";
-    let premiumCls = "";
-    if (p.id === "telegram_stars") { iconName = "tg_stars"; premiumCls = "provider-row-stars"; }
-    if (p.id === "ton" || p.id === "crypto") { iconName = "ton"; premiumCls = "provider-row-ton"; }
-    if (p.id === "btc") { iconName = "btc"; premiumCls = "provider-row-btc"; }
-    
-    return `
-      <button class="provider-item-row ${premiumCls}" data-provider="${p.id}" type="button">
-        <span class="provider-icon" data-icon="${iconName}"></span>
-        <div class="provider-info">
-          <strong>${p.title}</strong>
-          <small>${p.description}</small>
-        </div>
-        <div class="provider-price-tag">${p.price_formatted}</div>
-      </button>
-    `;
-  }).join("");
-  injectIcons(provList);
-}
-
-async function checkout(providerId) {
-  const pBox = $("paymentProviderBox");
-  const errEl = $("billingError");
-  errEl.hidden = true;
-  
+// Сохранение кастомного контекста бизнес-профиля
+async function saveBusinessProfile() {
+  const desc = $("profileBusinessDescription")?.value || "";
+  setLoading($("saveProfileBtn"), true);
   try {
-    pBox.classList.add("loading-state");
-    const planKey = Object.keys(state.plans).find(k => state.plans[k].title === state.activePlan.title);
-    
-    const res = await request("/api/billing/checkout", {
-      method: "POST",
-      body: JSON.stringify({ plan: planKey, provider: providerId })
-    });
-
-    if (providerId === "telegram_stars" && res.invoice_link) {
-      if (window.Telegram?.WebApp?.openInvoice) {
-        window.Telegram.WebApp.openInvoice(res.invoice_link, (status) => {
-          if (status === "paid") {
-            showToast("Успешно оплачено!");
-            closeBillingModal();
-            loadMe().catch(() => {});
-          } else {
-            showToast("Оплата отменена");
-          }
-        });
-      } else {
-        showToast("Поддерживается внутри Telegram");
-      }
-      return;
-    }
-
-    if (res.invoice_url) {
-      if (window.Telegram?.WebApp?.openLink) {
-        window.Telegram.WebApp.openLink(res.invoice_url);
-      } else {
-        window.open(res.invoice_url, "_blank");
-      }
-      showToast("Ссылка на оплату открыта");
-      closeBillingModal();
-      return;
-    }
-
-    if (res.success) {
-      showToast("Подписка активирована!");
-      closeBillingModal();
-      await loadMe();
-    }
-  } catch (err) {
-    errEl.textContent = err.message;
-    errEl.hidden = false;
-  } finally {
-    pBox.classList.remove("loading-state");
+    await apiRequest("/api/profile/save", { method: "POST", body: JSON.stringify({ business_profile: desc }) });
+    showToast("Бизнес-профиль успешно сохранен", "success");
+    if (state.user) state.user.business_profile = desc;
+  } catch (e) {
+    showToast("Не удалось сохранить профиль", "error");
   }
+  setLoading($("saveProfileBtn"), false);
 }
 
-async function loadHistory() {
-  const data = await request("/api/history");
-  state.history = data.history || [];
-  renderHistory();
-}
-
-function renderHistory() {
-  const list = $("historyList");
-  if (!list) return;
-
-  let filtered = state.history;
-  if (state.historyFilter !== "all") {
-    filtered = state.history.filter(h => h.mode === state.historyFilter);
-  }
-
-  if (!filtered.length) {
-    list.innerHTML = `<div class="chat-empty"><span data-icon="history"></span><p>Записей нет.</p></div>`;
-    injectIcons(list);
+// Отправка формы обратной связи
+async function submitFeedback() {
+  const text = $("appFeedbackText")?.value || "";
+  if (!text.trim()) {
+    showToast("Пожалуйста, введите текст сообщения", "warning");
     return;
   }
-
-  list.innerHTML = filtered.map(h => `
-    <article class="history-row">
-      <div class="history-meta-line">
-        <span class="badge">${h.mode.toUpperCase()}</span>
-        <time class="muted small">${new Date(h.timestamp * 1000).toLocaleDateString()}</time>
-      </div>
-      <p class="history-prompt">Запрос: ${h.text}</p>
-      <div class="history-answer">${h.answer}</div>
-    </article>
-  `).join("");
+  setLoading($("submitAppFeedbackBtn"), true);
+  try {
+    await apiRequest("/api/feedback", { method: "POST", body: JSON.stringify({ text }) });
+    showToast("Отзыв успешно отправлен. Спасибо!", "success");
+    if ($("appFeedbackText")) $("appFeedbackText").value = "";
+  } catch (e) {
+    showToast("Не удалось отправить обратную связь", "error");
+  }
+  setLoading($("submitAppFeedbackBtn"), false);
 }
 
+// Привязка слушателей событий и обработчиков элементов
 function bindEvents() {
-  document.querySelectorAll(".nav-item").forEach(btn => {
-    btn.addEventListener("click", () => switchView(btn.dataset.target));
+  // Навигационный бар
+  document.querySelectorAll(".app-nav .nav-item").forEach(item => {
+    item.addEventListener("click", () => switchView(item.dataset.view));
   });
-
-  document.querySelectorAll("[data-open-view]").forEach(btn => {
-    btn.addEventListener("click", () => switchView(btn.dataset.openView));
-  });
-
-  const txtHome = $("homeChatInput"), btnHome = $("homeChatSendBtn");
-  if (txtHome && btnHome) {
-    txtHome.addEventListener("input", () => {
-      autoResizeTextarea(txtHome);
-      updateChatSendButton("homeChatInput", "homeChatSendBtn");
-    });
-    btnHome.addEventListener("click", () => handleChatSend("homeChatInput", "homeChatScroll", "homeChatSendBtn"));
-  }
-
-  const txtMain = $("mainChatInput"), btnMain = $("mainChatSendBtn");
-  if (txtMain && btnMain) {
-    txtMain.addEventListener("input", () => {
-      autoResizeTextarea(txtMain);
-      updateChatSendButton("mainChatInput", "mainChatSendBtn");
-    });
-    btnMain.addEventListener("click", () => handleChatSend("mainChatInput", "mainChatScroll", "mainChatSendBtn"));
-  }
-
-  document.querySelectorAll(".chat-mode-selector .mode-tab").forEach(tab => {
-    tab.addEventListener("click", () => {
-      document.querySelectorAll(".chat-mode-selector .mode-tab").forEach(t => t.classList.remove("active"));
-      tab.classList.add("active");
-      state.currentMode = tab.dataset.mode;
-    });
-  });
-
+  
+  // Клик по аватару в шапке открывает профиль
+  $("headerProfileBtn")?.addEventListener("click", () => switchView("profile"));
+  
+  // Быстрые подсказки-chips на главном экране
   $("quickStrip")?.addEventListener("click", (e) => {
-    const act = e.target.closest(".quick-action");
-    if (!act) return;
-    switchView("chat");
-    const mainIn = $("mainChatInput");
-    if (mainIn) {
-      mainIn.value = act.dataset.prompt || "";
-      autoResizeTextarea(mainIn);
-      updateChatSendButton("mainChatInput", "mainChatSendBtn");
-      mainIn.focus();
+    const actionBtn = e.target.closest(".quick-action");
+    if (actionBtn && actionBtn.dataset.prompt) {
+      sendChatMessage(actionBtn.dataset.prompt);
     }
   });
-
-  $("toolsGrid")?.addEventListener("click", (e) => {
-    const card = e.target.closest(".tool-item-row");
-    if (!card) return;
-    switchView("chat");
-    const mainIn = $("mainChatInput");
-    if (mainIn) {
-      mainIn.value = card.dataset.prompt || "";
-      autoResizeTextarea(mainIn);
-      updateChatSendButton("mainChatInput", "mainChatSendBtn");
-      mainIn.focus();
-    }
+  
+  // Логика авторесайза и отправки по Enter (без Shift)
+  const chatInput = $("homeChatInput");
+  if (chatInput) {
+    chatInput.addEventListener("input", () => {
+      autoResizeTextarea(chatInput);
+      updateSendButton();
+    });
+    chatInput.addEventListener("keydown", (e) => {
+      if (e.key === "Enter" && !e.shiftKey) {
+        e.preventDefault();
+        const txt = chatInput.value.trim();
+        if (txt && !state.isSending) sendChatMessage(txt);
+      }
+    });
+  }
+  
+  $("homeChatSendBtn")?.addEventListener("click", () => {
+    const txt = $("homeChatInput")?.value.trim();
+    if (txt) sendChatMessage(txt);
   });
-
-  $("onboardingBody")?.addEventListener("click", (e) => {
-    const opt = e.target.closest(".onboarding-option");
-    if (!opt) return;
-    const cfg = state.onboardingConfig[state.onboardingStep];
-    state.onboardingData[cfg.id] = opt.dataset.key;
-    renderOnboardingStep();
+  
+  // Фильтры экрана истории
+  $("historyFilters")?.addEventListener("click", (e) => {
+    const btn = e.target.closest("button[data-filter]");
+    if (btn) setHistoryFilter(btn.dataset.filter);
   });
-
-  $("saveProfileBtn")?.addEventListener("click", async () => {
-    const profileText = $("profileBusinessDescription").value.trim();
-    try {
-      const res = await request("/api/profile/save", {
-        method: "POST",
-        body: JSON.stringify({ business_profile: profileText })
-      });
-      state.user = res.user;
-      updateProfileUI();
-      showToast("Сохранено!");
-    } catch (err) {
-      showToast(err.message);
-    }
-  });
-
-  $("submitAppFeedbackBtn")?.addEventListener("click", async () => {
-    const msg = $("appFeedbackText").value.trim();
-    if (!msg) {
-      showToast("Напишите текст");
-      return;
-    }
-    try {
-      await request("/api/feedback", {
-        method: "POST",
-        body: JSON.stringify({ message: msg, type: "app" })
-      });
-      $("appFeedbackText").value = "";
-      showToast("Спасибо за отзыв!");
-    } catch (err) {
-      showToast(err.message);
-    }
-  });
-
+  
+  // Кнопки управления биллингом
   $("openBillingBtn")?.addEventListener("click", openBillingModal);
   $("closeBillingBtn")?.addEventListener("click", closeBillingModal);
   $("backToPlansBtn")?.addEventListener("click", renderBillingPlans);
   
-  $("billingModal")?.addEventListener("click", (e) => {
-    if (e.target === $("billingModal")) closeBillingModal();
-  });
-
-  $("billingPlanList").addEventListener("click", (e) => {
+  $("billingPlanList")?.addEventListener("click", (e) => {
     const card = e.target.closest("[data-plan-key]");
     if (card) selectPlan(card.dataset.planKey);
   });
-
-  $("providerList").addEventListener("click", (e) => {
-    const card = e.target.closest("[data-provider]");
-    if (card) checkout(card.dataset.provider);
+  
+  $("providerList")?.addEventListener("click", (e) => {
+    const row = e.target.closest("[data-provider]");
+    if (row) checkout(row.dataset.provider);
   });
-
-  $("onboardingNextBtn").addEventListener("click", nextOnboarding);
-  $("onboardingBackBtn").addEventListener("click", previousOnboarding);
-
-  $("historyFilters").addEventListener("click", (e) => {
-    const btn = e.target.closest("button[data-filter]");
-    if (!btn) return;
-    state.historyFilter = btn.dataset.filter;
-    $("historyFilters").querySelectorAll("button").forEach(n => n.classList.toggle("active", n === btn));
-    renderHistory();
-  });
-
-  $("headerProfileBtn")?.addEventListener("click", () => switchView("profile"));
+  
+  // События онбординга
+  $("onboardingNextBtn")?.addEventListener("click", nextOnboarding);
+  $("onboardingBackBtn")?.addEventListener("click", previousOnboarding);
+  
+  // События кнопок в профиле
+  $("saveProfileBtn")?.addEventListener("click", saveBusinessProfile);
+  $("submitAppFeedbackBtn")?.addEventListener("click", submitFeedback);
 }
 
+// Точка входа boot приложения
 (async function boot() {
   injectIcons();
   initTelegram();
   bindEvents();
-  updateChatSendButton("homeChatInput", "homeChatSendBtn");
-  updateChatSendButton("mainChatInput", "mainChatSendBtn");
   
-  await Promise.all([loadTools(), loadBillingPlans()]);
-  try {
-    await loadMe();
-  } catch (error) {
-    showToast(error.message);
-  }
-  await loadHistory().catch(() => {});
+  // Конкурентный параллельный асинхронный запуск без блокировки интерфейса (Resilient Boot)
+  await Promise.all([
+    loadMe().then(() => renderProfile()),
+    loadTools(),
+    loadBillingPlans()
+  ]);
 })();

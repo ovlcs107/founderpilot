@@ -1,12 +1,13 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="ru">
 <head>
   <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
   <meta name="color-scheme" content="light dark" />
   <title>FounderPilot AI</title>
   <link rel="stylesheet" href="/static/styles.css" />
   <script src="https://telegram.org/js/telegram-web-app.js"></script>
+  <script src="/static/app.js" defer></script>
 </head>
 <body>
   <div class="app-shell">
@@ -16,177 +17,158 @@
         <h1 id="pageTitle">Главная</h1>
       </div>
       <button class="avatar-button" id="headerProfileBtn" type="button" aria-label="Открыть профиль">
-        <span class="avatar" id="userAvatar">FP</span>
+        <span class="avatar" id="headerUserAvatar">FP</span>
       </button>
     </header>
 
-    <main class="content" id="content">
-      <section class="view active" id="view-home" aria-labelledby="homeTitle">
+    <main class="content">
+      
+      <section id="view-home" class="view active">
         <div class="home-heading">
           <p class="muted" id="homeGreeting">Здравствуйте</p>
-          <h2 id="homeTitle">Чем займёмся сегодня?</h2>
-        </div>
-
-        <div class="section-head">
-          <h3>Быстрые действия</h3>
-          <button class="text-btn" data-open-view="tools" type="button">Все</button>
+          <h2 class="subheading-title">Чем займёмся сегодня?</h2>
         </div>
 
         <div class="quick-strip" id="quickStrip">
-          <button class="quick-action" data-prompt="Напиши продающее SEO описание для карточки товара на Wildberries" type="button">
-            <span class="card-icon" data-icon="tools"></span>
-            <strong>Карточка WB/Ozon</strong>
-          </button>
-          <button class="quick-action" data-prompt="Рассчитай юнит-экономику товара, если себестоимость 450₽, а продажа 1200₽" type="button">
-            <span class="card-icon" data-icon="history"></span>
-            <strong>Юнит-экономика</strong>
-          </button>
-          <button class="quick-action" data-prompt="Составь контент-план и идеи для рекламы нового бренда одежды" type="button">
-            <span class="card-icon" data-icon="chat"></span>
-            <strong>План продвижения</strong>
-          </button>
+          <button class="quick-action" type="button" data-prompt="Посчитать маржу">Посчитать маржу</button>
+          <button class="quick-action" type="button" data-prompt="Улучшить карточку">Улучшить карточку</button>
+          <button class="quick-action" type="button" data-prompt="Сделать оффер">Сделать оффер</button>
+          <button class="quick-action" type="button" data-prompt="Разобрать конкурента">Разобрать конкурента</button>
+          <button class="quick-action" type="button" data-prompt="Ответить на отзыв">Ответить на отзыв</button>
         </div>
 
         <div class="main-chat-card">
-          <div class="chat-topbar">
-            <h3>Экспресс-анализ бизнеса</h3>
-            <p class="muted">Задайте любой вопрос по маркетплейсам или маркетингу</p>
-          </div>
           <div class="chat-scroll" id="homeChatScroll">
-            <div class="chat-empty">
-              <span data-icon="chat"></span>
-              <p>История диалога пуста. Введите запрос ниже.</p>
+            <div class="chat-empty" id="chatEmptyState">
+              <div class="empty-state-icon" data-icon="chat"></div>
+              <p>Напишите задачу — FounderPilot AI поможет с расчётами, продажами и карточками товаров.</p>
             </div>
           </div>
+          
           <div class="chat-input-area">
-            <textarea id="homeChatInput" rows="1" placeholder="Задать вопрос ИИ..."></textarea>
-            <button class="send-btn" id="homeChatSendBtn" type="button" disabled aria-label="Отправить">
+            <textarea id="homeChatInput" rows="1" placeholder="Опишите задачу: карточка товара, маржа, реклама, продажи..."></textarea>
+            <button id="homeChatSendBtn" class="send-btn" type="button" aria-label="Отправить" disabled>
               <span data-icon="send"></span>
             </button>
           </div>
         </div>
       </section>
 
-      <section class="view" id="view-chat" aria-labelledby="chatTitle">
-        <div class="chat-mode-selector">
-          <button class="mode-tab active" data-mode="strategy" type="button">Стратегия</button>
-          <button class="mode-tab" data-mode="seo" type="button">SEO</button>
-          <button class="mode-tab" data-mode="marketing" type="button">Маркетинг</button>
-        </div>
-        <div class="main-chat-card">
-          <div class="chat-scroll" id="mainChatScroll"></div>
-          <div class="chat-input-area">
-            <textarea id="mainChatInput" rows="1" placeholder="Напишите детали задачи..."></textarea>
-            <button class="send-btn" id="mainChatSendBtn" type="button" disabled aria-label="Отправить">
-              <span data-icon="send"></span>
-            </button>
+      <section id="view-tools" class="view">
+        <div class="tools-grid" id="toolsGrid">
           </div>
-        </div>
       </section>
 
-      <section class="view" id="view-tools" aria-labelledby="toolsTitle">
-        <div class="tools-grid" id="toolsGrid"></div>
-      </section>
-
-      <section class="view" id="view-history" aria-labelledby="historyTitle">
+      <section id="view-history" class="view">
         <div class="history-filters" id="historyFilters">
-          <button class="filter-btn active" data-filter="all" type="button">Все</button>
-          <button class="filter-btn" data-filter="strategy" type="button">Стратегия</button>
-          <button class="filter-btn" data-filter="seo" type="button">SEO</button>
-          <button class="filter-btn" data-filter="marketing" type="button">Маркетинг</button>
+          <button class="filter-btn active" type="button" data-filter="all">Все</button>
+          <button class="filter-btn" type="button" data-filter="chats">Чаты</button>
+          <button class="filter-btn" type="button" data-filter="tools">Инструменты</button>
+          <button class="filter-btn" type="button" data-filter="saved">Сохранённое</button>
         </div>
-        <div class="history-list" id="historyList"></div>
-      </section>
-
-      <section class="view" id="view-profile" aria-labelledby="profileTitle">
-        <div class="profile-clean-card">
-          <div class="avatar" id="userAvatar">FP</div>
-          <div class="profile-meta">
-            <h3 id="profileUserTitle">@username</h3>
-            <div class="plan-badge" id="profilePlanLabel">FREE</div>
+        <div class="history-list" id="historyList">
           </div>
+      </section>
+
+      <section id="view-profile" class="view">
+        <div class="profile-clean-card">
+          <div class="profile-meta">
+            <div class="avatar-large">
+              <span class="avatar" id="profileUserAvatar">FP</span>
+            </div>
+            <div class="profile-info-block">
+              <h2 id="profileUserTitle" class="profile-name">Пользователь</h2>
+              <span id="profilePlanLabel" class="badge">Загрузка...</span>
+            </div>
+          </div>
+
+          <div class="usage-card">
+            <div class="usage-header">
+              <span class="muted small">Использование за сегодня</span>
+              <span id="profileUsageText" class="small bold">0 / 0</span>
+            </div>
+            <div class="usage-bar">
+              <div id="profileUsageFill" class="usage-fill" style="width: 0%;"></div>
+            </div>
+          </div>
+
+          <button id="openBillingBtn" class="secondary" type="button" style="width: 100%; margin-top: 12px;">
+            <span data-icon="credit-card" style="margin-right: 6px;"></span>Управление подпиской
+          </button>
         </div>
-        <button class="primary" id="openBillingBtn" type="button">Управление подпиской</button>
 
         <div class="settings-group">
-          <h3>Бизнес-профиль</h3>
-          <p class="muted field-desc">Ниша и оборот для точечной адаптации ответов ИИ под ваш масштаб.</p>
-          <textarea class="profile-textarea" id="profileBusinessDescription" placeholder="Например: Продаю автотовары на WB, оборот 500к/мес." rows="3"></textarea>
-          <button class="secondary" id="saveProfileBtn" type="button">Сохранить профиль</button>
+          <h3 class="section-title">Бизнес-профиль</h3>
+          <p class="muted small" style="margin-bottom: 8px;">Контекст о вашем бизнесе, который ИИ будет учитывать при каждом ответе.</p>
+          <textarea id="profileBusinessDescription" class="profile-textarea" placeholder="Например: Продаю чехлы для телефонов на WB, оборот 500к, целевая аудитория — молодежь..."></textarea>
+          <button id="saveProfileBtn" class="primary" type="button" style="width: 100%; margin-top: 8px;">Сохранить профиль</button>
         </div>
 
         <div class="settings-group">
-          <h3>Обратная связь</h3>
-          <p class="muted field-desc">Предложения или найденные баги отправляются напрямую разработчикам.</p>
-          <textarea class="profile-textarea" id="appFeedbackText" placeholder="Опишите вашу идею..." rows="2"></textarea>
-          <button class="secondary" id="submitAppFeedbackBtn" type="button">Отправить отзыв</button>
+          <h3 class="section-title">Обратная связь</h3>
+          <textarea id="appFeedbackText" class="profile-textarea" placeholder="Опишите вашу проблему или предложение по улучшению сервиса..."></textarea>
+          <button id="submitAppFeedbackBtn" class="secondary" type="button" style="width: 100%; margin-top: 8px;">Отправить</button>
         </div>
       </section>
+
     </main>
 
-    <nav class="app-nav" aria-label="Главное меню">
-      <button class="nav-item active" data-target="home" type="button">
+    <nav class="app-nav">
+      <button class="nav-item active" type="button" data-view="home">
         <span class="nav-icon" data-icon="home"></span>
-        <span>Главная</span>
+        <span class="nav-label">Главная</span>
       </button>
-      <button class="nav-item" data-target="chat" type="button">
-        <span class="nav-icon" data-icon="chat"></span>
-        <span>Чат</span>
-      </button>
-      <button class="nav-item" data-target="tools" type="button">
+      <button class="nav-item" type="button" data-view="tools">
         <span class="nav-icon" data-icon="tools"></span>
-        <span>Инструменты</span>
+        <span class="nav-label">Инструменты</span>
       </button>
-      <button class="nav-item" data-target="history" type="button">
+      <button class="nav-item" type="button" data-view="history">
         <span class="nav-icon" data-icon="history"></span>
-        <span>История</span>
+        <span class="nav-label">История</span>
       </button>
-      <button class="nav-item" data-target="profile" type="button">
+      <button class="nav-item" type="button" data-view="profile">
         <span class="nav-icon" data-icon="user"></span>
-        <span>Профиль</span>
+        <span class="nav-label">Профиль</span>
       </button>
     </nav>
   </div>
 
-  <div class="modal-backdrop" id="billingModal" hidden>
+  <div id="billingModal" class="modal-backdrop" hidden>
     <article class="modal-card" role="dialog" aria-modal="true" aria-labelledby="billingTitle">
       <div class="modal-header">
-        <h2 id="billingTitle">Тарифные планы</h2>
-        <button class="icon-btn" id="closeBillingBtn" type="button" aria-label="Закрыть">
+        <h2 id="billingTitle">Доступные тарифы</h2>
+        <button id="closeBillingBtn" class="icon-btn" type="button" aria-label="Закрыть">
           <span data-icon="close"></span>
         </button>
       </div>
+      
       <div class="billing-plan-list" id="billingPlanList"></div>
+      
       <div class="payment-provider-box" id="paymentProviderBox" hidden>
-        <button class="back-btn" id="backToPlansBtn" type="button">
-          <span data-icon="back"></span>
-          К тарифам
+        <button id="backToPlansBtn" class="back-btn" type="button">
+          <span data-icon="back"></span> К тарифам
         </button>
-        <h3 id="providerTitle" style="margin: 0 0 12px; font-size: 15px; font-weight: 600;">Выберите способ оплаты</h3>
+        <h3 style="margin: 16px 0 12px; font-size: 15px; font-weight: 600;">Выберите способ оплаты</h3>
         <div class="provider-list" id="providerList"></div>
-        <p class="form-error" id="billingError" hidden></p>
+        <p id="billingError" class="form-error" hidden></p>
       </div>
     </article>
   </div>
 
-  <div class="modal-backdrop" id="onboardingModal" hidden>
+  <div id="onboardingModal" class="modal-backdrop" hidden>
     <article class="modal-card" role="dialog" aria-modal="true" aria-labelledby="onboardingTitle">
-      <div class="progress-row" aria-hidden="true">
-        <span class="active"></span>
-        <span></span>
-        <span></span>
-      </div>
+      <div class="progress-row" id="onboardingProgressRow">
+        </div>
       <h2 id="onboardingTitle">Кто вы?</h2>
       <div class="onboarding-body" id="onboardingBody"></div>
-      <p class="form-error" id="onboardingError" hidden></p>
+      <p id="onboardingError" class="form-error" hidden></p>
       <div class="modal-actions">
-        <button class="ghost" id="onboardingBackBtn" type="button">Назад</button>
-        <button class="primary" id="onboardingNextBtn" type="button">Далее</button>
+        <button id="onboardingBackBtn" class="ghost" type="button">Назад</button>
+        <button id="onboardingNextBtn" class="primary" type="button">Далее</button>
       </div>
     </article>
   </div>
 
-  <div class="toast" id="toast" role="alert" aria-live="assertive"></div>
-  <script src="/static/app.js"></script>
+  <div id="toast" class="toast" role="alert" aria-live="assertive"></div>
 </body>
 </html>
