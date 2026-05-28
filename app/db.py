@@ -206,6 +206,42 @@ CREATE TABLE IF NOT EXISTS error_logs (
     error_text TEXT NOT NULL,
     created_at TEXT NOT NULL
 );
+
+CREATE TABLE IF NOT EXISTS credit_transactions (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    telegram_user_id TEXT NOT NULL,
+    request_id TEXT,
+    transaction_type TEXT NOT NULL,
+    amount INTEGER NOT NULL,
+    balance_after INTEGER,
+    reason TEXT,
+    metadata_json TEXT,
+    created_at TEXT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS ai_usage_events (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    telegram_user_id TEXT NOT NULL,
+    request_id TEXT NOT NULL,
+    tool_id TEXT,
+    model TEXT,
+    input_tokens INTEGER DEFAULT 0,
+    output_tokens INTEGER DEFAULT 0,
+    total_tokens INTEGER DEFAULT 0,
+    credits_estimated INTEGER DEFAULT 0,
+    credits_charged INTEGER DEFAULT 0,
+    status TEXT NOT NULL,
+    error_message TEXT,
+    created_at TEXT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS active_ai_requests (
+    request_id TEXT PRIMARY KEY,
+    telegram_user_id TEXT NOT NULL,
+    tool_id TEXT,
+    reserved_credits INTEGER NOT NULL,
+    started_at TEXT NOT NULL
+);
 """
 
 
@@ -278,6 +314,18 @@ ON payments(order_id);
 
 CREATE INDEX IF NOT EXISTS idx_payment_events_order
 ON payment_events(order_id);
+
+CREATE INDEX IF NOT EXISTS idx_credit_transactions_user_created
+ON credit_transactions(telegram_user_id, created_at);
+
+CREATE INDEX IF NOT EXISTS idx_credit_transactions_request_id
+ON credit_transactions(request_id);
+
+CREATE INDEX IF NOT EXISTS idx_ai_usage_events_user_created
+ON ai_usage_events(telegram_user_id, created_at);
+
+CREATE INDEX IF NOT EXISTS idx_active_ai_requests_user
+ON active_ai_requests(telegram_user_id);
 
 """
 
@@ -366,6 +414,10 @@ def tg_text_id(telegram_id: int | str) -> str:
 
 def referral_code_for(telegram_id: int | str) -> str:
     return f"fp{telegram_id}"
+
+
+class CreditLimitError(RuntimeError):
+    pass
 
 
 class Database:
@@ -714,6 +766,212 @@ class Database:
             row = await cursor.fetchone()
             return int(row[0]) if row else 0
 
+    async def sum_credits_since(self, telegram_id: int, since_iso: str) -> int:
+        async with aiosqlite.connect(self.path) as db:
+            cursor = await db.execute(
+                """
+                SELECT COALESCE(SUM(
+                    CASE
+                        WHEN transaction_type = 'charge' THEN amount
+                        WHEN transaction_type = 'refund' THEN -amount
+                        ELSE 0
+                    END
+                ), 0)
+                FROM credit_transactions
+                WHERE telegram_user_id = ? AND created_at >= ?
+                """,
+                (tg_text_id(telegram_id), since_iso),
+            )
+            row = await cursor.fetchone()
+            return max(0, int(row[0] or 0)) if row else 0
+
+    async def sum_credits_total(self, telegram_id: int) -> int:
+        async with aiosqlite.connect(self.path) as db:
+            cursor = await db.execute(
+                """
+                SELECT COALESCE(SUM(
+                    CASE
+                        WHEN transaction_type = 'charge' THEN amount
+                        WHEN transaction_type = 'refund' THEN -amount
+                        ELSE 0
+                    END
+                ), 0)
+                FROM credit_transactions
+                WHERE telegram_user_id = ?
+                """,
+                (tg_text_id(telegram_id),),
+            )
+            row = await cursor.fetchone()
+            return max(0, int(row[0] or 0)) if row else 0
+
+    async def get_reserved_credits(self, telegram_id: int) -> int:
+        async with aiosqlite.connect(self.path) as db:
+            cursor = await db.execute(
+                """
+                SELECT COALESCE(SUM(reserved_credits), 0)
+                FROM active_ai_requests
+                WHERE telegram_user_id = ?
+                """,
+                (tg_text_id(telegram_id),),
+            )
+            row = await cursor.fetchone()
+            return int(row[0] or 0) if row else 0
+
+    async def reserve_credits(
+        self,
+        telegram_id: int,
+        request_id: str,
+        tool_id: str,
+        credits: int,
+        *,
+        free_limit_default: int,
+        monthly_limit_default: int,
+        metadata: dict[str, Any] | None = None,
+    ) -> dict[str, Any]:
+        credits = max(1, int(credits))
+        access = await self.get_access_state(telegram_id, free_limit_default, monthly_limit_default)
+        if not access["can_request"]:
+            raise CreditLimitError(str(access["denial_reason"]))
+        remaining = access.get("remaining")
+        if remaining is not None and credits > int(remaining):
+            raise CreditLimitError(
+                f"Недостаточно кредитов для этого запроса. Нужно примерно {credits}, осталось {remaining}."
+            )
+        if access.get("unlimited"):
+            return access
+        now = utc_now_iso()
+        async with aiosqlite.connect(self.path) as db:
+            await db.execute(
+                """
+                INSERT OR REPLACE INTO active_ai_requests (
+                    request_id, telegram_user_id, tool_id, reserved_credits, started_at
+                ) VALUES (?, ?, ?, ?, ?)
+                """,
+                (request_id, tg_text_id(telegram_id), tool_id, credits, now),
+            )
+            await db.execute(
+                """
+                INSERT INTO credit_transactions (
+                    telegram_user_id, request_id, transaction_type, amount, reason, metadata_json, created_at
+                ) VALUES (?, ?, 'reserve', ?, ?, ?, ?)
+                """,
+                (
+                    tg_text_id(telegram_id),
+                    request_id,
+                    credits,
+                    f"reserve:{tool_id}",
+                    json.dumps(metadata or {}, ensure_ascii=False, separators=(",", ":")),
+                    now,
+                ),
+            )
+            await db.commit()
+        return access
+
+    async def finalize_credit_charge(
+        self,
+        telegram_id: int,
+        request_id: str,
+        tool_id: str,
+        estimated_credits: int,
+        charged_credits: int,
+        *,
+        model: str | None,
+        input_tokens: int,
+        output_tokens: int,
+        status: str = "success",
+        error_message: str | None = None,
+    ) -> None:
+        now = utc_now_iso()
+        charged_credits = max(0, int(charged_credits))
+        total_tokens = max(0, int(input_tokens or 0)) + max(0, int(output_tokens or 0))
+        async with aiosqlite.connect(self.path) as db:
+            await db.execute("DELETE FROM active_ai_requests WHERE request_id = ?", (request_id,))
+            if charged_credits:
+                await db.execute(
+                    """
+                    INSERT INTO credit_transactions (
+                        telegram_user_id, request_id, transaction_type, amount, reason, metadata_json, created_at
+                    ) VALUES (?, ?, 'charge', ?, ?, ?, ?)
+                    """,
+                    (
+                        tg_text_id(telegram_id),
+                        request_id,
+                        charged_credits,
+                        f"charge:{tool_id}",
+                        json.dumps({"estimated": estimated_credits, "model": model}, ensure_ascii=False, separators=(",", ":")),
+                        now,
+                    ),
+                )
+            await db.execute(
+                """
+                INSERT INTO ai_usage_events (
+                    telegram_user_id, request_id, tool_id, model, input_tokens, output_tokens,
+                    total_tokens, credits_estimated, credits_charged, status, error_message, created_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    tg_text_id(telegram_id),
+                    request_id,
+                    tool_id,
+                    model,
+                    int(input_tokens or 0),
+                    int(output_tokens or 0),
+                    total_tokens,
+                    int(estimated_credits or 0),
+                    charged_credits,
+                    status,
+                    error_message,
+                    now,
+                ),
+            )
+            await db.commit()
+
+    async def refund_reserved_credits(
+        self,
+        telegram_id: int,
+        request_id: str,
+        reason: str,
+        *,
+        tool_id: str | None = None,
+        estimated_credits: int = 0,
+        model: str | None = None,
+    ) -> None:
+        now = utc_now_iso()
+        async with aiosqlite.connect(self.path) as db:
+            cursor = await db.execute(
+                "SELECT reserved_credits, tool_id FROM active_ai_requests WHERE request_id = ?",
+                (request_id,),
+            )
+            row = await cursor.fetchone()
+            reserved = int(row[0]) if row else int(estimated_credits or 0)
+            effective_tool = tool_id or (str(row[1]) if row else None) or "unknown"
+            await db.execute("DELETE FROM active_ai_requests WHERE request_id = ?", (request_id,))
+            await db.execute(
+                """
+                INSERT INTO credit_transactions (
+                    telegram_user_id, request_id, transaction_type, amount, reason, metadata_json, created_at
+                ) VALUES (?, ?, 'refund', ?, ?, ?, ?)
+                """,
+                (
+                    tg_text_id(telegram_id),
+                    request_id,
+                    reserved,
+                    reason,
+                    json.dumps({"tool_id": effective_tool}, ensure_ascii=False, separators=(",", ":")),
+                    now,
+                ),
+            )
+            await db.execute(
+                """
+                INSERT INTO ai_usage_events (
+                    telegram_user_id, request_id, tool_id, model, input_tokens, output_tokens,
+                    total_tokens, credits_estimated, credits_charged, status, error_message, created_at
+                ) VALUES (?, ?, ?, ?, 0, 0, 0, ?, 0, 'error', ?, ?)
+                """,
+                (tg_text_id(telegram_id), request_id, effective_tool, model, int(estimated_credits or 0), reason, now),
+            )
+            await db.commit()
+
     async def get_user_profile(self, telegram_id: int) -> dict[str, Any] | None:
         async with aiosqlite.connect(self.path) as db:
             db.row_factory = aiosqlite.Row
@@ -757,11 +1015,12 @@ class Database:
         paid_period_start = month_start
         if subscription_started_at and subscription_started_at > paid_period_start:
             paid_period_start = subscription_started_at
-
-        used_total = await self.count_requests_total(telegram_id)
-        used_period = await self.count_requests_since(telegram_id, paid_period_start.isoformat())
         day_start = now.replace(hour=0, minute=0, second=0, microsecond=0)
-        used_today = await self.count_requests_since(telegram_id, day_start.isoformat())
+
+        used_total = await self.sum_credits_total(telegram_id)
+        used_today = await self.sum_credits_since(telegram_id, day_start.isoformat())
+        used_period = await self.sum_credits_since(telegram_id, paid_period_start.isoformat())
+        reserved_credits = await self.get_reserved_credits(telegram_id)
 
         blocked = bool(profile.get("blocked")) or raw_plan == "blocked"
         unlimited = bool(profile.get("unlimited_access")) or raw_plan == "unlimited"
@@ -771,8 +1030,10 @@ class Database:
         remaining: int | None
         plan = "free"
         status = "free_trial"
-        status_label = "Пробный доступ"
+        status_label = "Free"
         denial_reason = ""
+        daily_remaining: int | None = None
+        monthly_remaining: int | None = None
 
         if blocked:
             plan = "blocked"
@@ -781,6 +1042,8 @@ class Database:
             current_limit = 0
             used_for_limit = used_total
             remaining = 0
+            daily_remaining = 0
+            monthly_remaining = 0
             can_request = False
             denial_reason = "Доступ к боту отключен администратором."
         elif unlimited:
@@ -790,30 +1053,40 @@ class Database:
             current_limit = None
             used_for_limit = used_period
             remaining = None
+            daily_remaining = None
+            monthly_remaining = None
             can_request = True
         elif subscription_active:
-            plan = "subscriber"
+            plan = raw_plan if raw_plan not in {"subscriber"} else "subscriber"
             status = "active"
             status_label = "Подписка активна"
             current_limit = None if monthly_limit <= 0 else monthly_limit
             used_for_limit = used_period
-            remaining = None if current_limit is None else max(current_limit - used_for_limit, 0)
-            can_request = current_limit is None or used_for_limit < current_limit
+            monthly_remaining = None if current_limit is None else max(current_limit - used_period - reserved_credits, 0)
+            daily_remaining = max(daily_limit - used_today - reserved_credits, 0)
+            if current_limit is None:
+                remaining = daily_remaining
+                can_request = daily_remaining > 0
+            else:
+                remaining = min(daily_remaining, monthly_remaining)
+                can_request = remaining > 0
             if not can_request:
                 denial_reason = (
-                    f"Месячный лимит подписки исчерпан: {monthly_limit} запросов. "
-                    "Напишите администратору для расширения лимита."
+                    "Лимит кредитов подписки исчерпан. "
+                    "Дождитесь обновления лимита или перейдите на более высокий тариф."
                 )
         else:
             status = "expired" if subscription_until else "free_trial"
             status_label = "Free" if not subscription_until else "Подписка истекла"
             current_limit = free_limit
             used_for_limit = used_today
-            remaining = max(free_limit - used_today, 0)
-            can_request = used_today < free_limit
+            daily_remaining = max(free_limit - used_today - reserved_credits, 0)
+            monthly_remaining = None
+            remaining = daily_remaining
+            can_request = remaining > 0
             if not can_request:
                 denial_reason = (
-                    f"Дневной лимит исчерпан: {free_limit} запросов. "
+                    f"Дневной лимит кредитов исчерпан: {free_limit}. "
                     "Попробуйте завтра или перейдите на платный тариф."
                 )
 
@@ -832,14 +1105,21 @@ class Database:
             "monthly_limit": monthly_limit,
             "current_limit": current_limit,
             "remaining": remaining,
+            "daily_remaining": daily_remaining,
+            "monthly_remaining": monthly_remaining,
             "used_today": used_today,
             "used_total": used_total,
             "used_period": used_for_limit,
+            "credits_used_today": used_today,
+            "credits_used_period": used_for_limit,
+            "credits_used_total": used_total,
+            "credits_reserved": reserved_credits,
             "subscription_started_at": profile.get("subscription_started_at"),
             "subscription_until": profile.get("subscription_until") or profile.get("subscription_expires_at"),
             "unlimited": unlimited,
             "blocked": blocked,
             "admin_note": profile.get("admin_note"),
+            "unit_name": "кредиты",
         }
 
     async def list_recent_requests(self, telegram_id: int, limit: int = 10) -> list[dict[str, Any]]:
@@ -1475,9 +1755,12 @@ class Database:
         provider: str,
         order_id: str,
         daily_limit: int,
+        monthly_limit: int | None = None,
         days: int = 30,
     ) -> dict[str, Any]:
         await self.ensure_user(telegram_id)
+        if monthly_limit is None:
+            monthly_limit = daily_limit
         now_dt = datetime.now(timezone.utc)
         expires_dt = now_dt + timedelta(days=days)
         now = now_dt.isoformat()
@@ -1491,7 +1774,7 @@ class Database:
                     unlimited_access = 0, blocked = 0, access_updated_at = ?, updated_at = ?, last_seen_at = ?
                 WHERE telegram_id = ? OR telegram_user_id = ?
                 """,
-                (plan, daily_limit, daily_limit, daily_limit, now, expires_at, expires_at, now, now, now, telegram_id, tg_text_id(telegram_id)),
+                (plan, daily_limit, daily_limit, monthly_limit, now, expires_at, expires_at, now, now, now, telegram_id, tg_text_id(telegram_id)),
             )
             await db.execute(
                 """
@@ -1509,7 +1792,7 @@ class Database:
                 )
                 VALUES (?, ?, 'active', ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
-                (tg_text_id(telegram_id), plan, now, expires_at, daily_limit, daily_limit, provider, order_id, now, now),
+                (tg_text_id(telegram_id), plan, now, expires_at, daily_limit, monthly_limit, provider, order_id, now, now),
             )
             await db.execute(
                 """
@@ -1524,9 +1807,9 @@ class Database:
             telegram_id,
             None,
             "subscription_paid",
-            {"plan": plan, "provider": provider, "order_id": order_id, "daily_limit": daily_limit, "expires_at": expires_at},
+            {"plan": plan, "provider": provider, "order_id": order_id, "daily_limit": daily_limit, "monthly_limit": monthly_limit, "expires_at": expires_at},
         )
-        return {"plan": plan, "daily_limit": daily_limit, "expires_at": expires_at, "status": "active"}
+        return {"plan": plan, "daily_limit": daily_limit, "monthly_limit": monthly_limit, "expires_at": expires_at, "status": "active"}
 
     async def expire_subscription_if_needed(self, telegram_id: int) -> None:
         profile = await self.get_user_profile(telegram_id)
@@ -1543,7 +1826,7 @@ class Database:
             await db.execute(
                 """
                 UPDATE users
-                SET plan = 'free', daily_limit = 20, free_limit = 20, monthly_limit = NULL,
+                SET plan = 'free', daily_limit = 100, free_limit = 100, monthly_limit = NULL,
                     subscription_started_at = NULL, subscription_until = NULL, subscription_expires_at = NULL,
                     updated_at = ?, access_updated_at = ?
                 WHERE telegram_id = ? OR telegram_user_id = ?
@@ -1570,6 +1853,11 @@ class Database:
             "daily_limit": access["current_limit"],
             "daily_used": access["used_today"],
             "remaining": access["remaining"],
+            "credits_daily_limit": access["daily_limit"],
+            "credits_monthly_limit": access["monthly_limit"],
+            "credits_used_today": access["credits_used_today"],
+            "credits_used_month": access["credits_used_period"],
+            "credits_remaining": access["remaining"],
             "subscription_expires_at": access["subscription_until"],
             "bonus_requests": access["bonus_requests"],
         }
@@ -1610,6 +1898,8 @@ class Database:
             return {
                 "users_total": await scalar("SELECT COUNT(*) FROM users"),
                 "requests_today": await scalar("SELECT COUNT(*) FROM usage_logs WHERE created_at >= ?", (day_start,)),
+                "credits_charged_today": await scalar("SELECT COALESCE(SUM(amount), 0) FROM credit_transactions WHERE transaction_type = 'charge' AND created_at >= ?", (day_start,)),
+                "active_ai_requests": await scalar("SELECT COUNT(*) FROM active_ai_requests"),
                 "chat_messages_today": await scalar("SELECT COUNT(*) FROM chat_messages WHERE created_at >= ?", (day_start,)),
                 "tool_runs_today": await scalar("SELECT COUNT(*) FROM tool_runs WHERE created_at >= ?", (day_start,)),
                 "popular_tools": popular_tools,

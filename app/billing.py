@@ -28,6 +28,7 @@ class Plan:
     key: str
     title: str
     daily_limit: int
+    monthly_limit: int
     price_rub: Decimal
     price_stars: int
     price_ton: Decimal
@@ -51,7 +52,8 @@ def plan_catalog(settings: Settings) -> dict[str, Plan]:
         "free": Plan(
             key="free",
             title="Free",
-            daily_limit=settings.daily_free_limit,
+            daily_limit=settings.free_daily_credits,
+            monthly_limit=0,
             price_rub=Decimal("0"),
             price_stars=0,
             price_ton=Decimal("0"),
@@ -60,7 +62,8 @@ def plan_catalog(settings: Settings) -> dict[str, Plan]:
         "pro": Plan(
             key="pro",
             title="Pro",
-            daily_limit=settings.pro_daily_limit,
+            daily_limit=settings.pro_daily_credits,
+            monthly_limit=settings.pro_monthly_credits,
             price_rub=Decimal(str(settings.pro_price_rub)),
             price_stars=settings.pro_price_stars,
             price_ton=Decimal(str(settings.pro_price_ton)),
@@ -69,7 +72,8 @@ def plan_catalog(settings: Settings) -> dict[str, Plan]:
         "business": Plan(
             key="business",
             title="Business",
-            daily_limit=settings.business_daily_limit,
+            daily_limit=settings.business_daily_credits,
+            monthly_limit=settings.business_monthly_credits,
             price_rub=Decimal(str(settings.business_price_rub)),
             price_stars=settings.business_price_stars,
             price_ton=Decimal(str(settings.business_price_ton)),
@@ -265,12 +269,21 @@ async def best_effort_ton_verify(settings: Settings, order: dict[str, Any], tx_h
     return False, "Платёж TON пока не найден. Подождите подтверждения сети и повторите проверку."
 
 
-async def activate_subscription(db: Database, telegram_user_id: int | str, plan_key: str, provider: str, order_id: str, daily_limit: int) -> dict[str, Any]:
+async def activate_subscription(
+    db: Database,
+    telegram_user_id: int | str,
+    plan_key: str,
+    provider: str,
+    order_id: str,
+    daily_limit: int,
+    monthly_limit: int | None = None,
+) -> dict[str, Any]:
     return await db.activate_paid_subscription(
         telegram_id=int(telegram_user_id),
         plan=plan_key,
         provider=provider,
         order_id=order_id,
         daily_limit=daily_limit,
+        monthly_limit=monthly_limit,
         days=PLAN_DAYS,
     )

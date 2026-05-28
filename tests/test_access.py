@@ -1,21 +1,52 @@
 import asyncio
 
-from app.db import Database
+from app.db import CreditLimitError, Database
 
 
-def test_free_trial_blocks_after_limit(tmp_path):
+def test_free_credits_block_after_limit(tmp_path):
     async def scenario():
         db = Database(str(tmp_path / "access.sqlite3"))
         await db.init()
         await db.upsert_user(10, "seller", "Test", "User")
-        for index in range(2):
-            await db.save_request(10, "swot", f"request {index}", "answer")
+        await db.finalize_credit_charge(
+            10,
+            "req_test_1",
+            "chat",
+            2,
+            2,
+            model="test",
+            input_tokens=100,
+            output_tokens=100,
+        )
 
         access = await db.get_access_state(10, free_limit_default=2, monthly_limit_default=300)
 
         assert access["plan"] == "free"
         assert access["remaining"] == 0
         assert access["can_request"] is False
+
+    asyncio.run(scenario())
+
+
+def test_credit_reservation_rejects_too_expensive_request(tmp_path):
+    async def scenario():
+        db = Database(str(tmp_path / "access.sqlite3"))
+        await db.init()
+        await db.upsert_user(10, "seller", "Test", "User")
+
+        try:
+            await db.reserve_credits(
+                10,
+                "req_expensive",
+                "competitor_analysis",
+                50,
+                free_limit_default=20,
+                monthly_limit_default=300,
+            )
+        except CreditLimitError as exc:
+            assert "Недостаточно кредитов" in str(exc)
+        else:
+            raise AssertionError("Expensive request should have been rejected")
 
     asyncio.run(scenario())
 
@@ -36,7 +67,7 @@ def test_unlimited_access_has_no_limit(tmp_path):
     asyncio.run(scenario())
 
 
-def test_chat_messages_count_as_usage(tmp_path):
+def test_chat_messages_are_history_not_credit_charge(tmp_path):
     async def scenario():
         db = Database(str(tmp_path / "chat.sqlite3"))
         await db.init()
@@ -48,7 +79,7 @@ def test_chat_messages_count_as_usage(tmp_path):
         messages = await db.list_chat_messages(conversation_id)
         conversations = await db.list_conversations(20)
 
-        assert access["used_total"] == 1
+        assert access["used_total"] == 0
         assert len(messages) == 2
         assert conversations[0]["id"] == conversation_id
 

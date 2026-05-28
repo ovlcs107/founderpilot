@@ -5,22 +5,19 @@
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
   <meta name="color-scheme" content="light dark" />
   <title>FounderPilot AI</title>
-  <link rel="stylesheet" href="/static/styles.css?v=system-20260528" />
+  <link rel="stylesheet" href="/static/styles.css?v=system-4" />
   <script src="https://telegram.org/js/telegram-web-app.js"></script>
 </head>
 <body>
   <div class="app-shell">
     <nav class="app-nav" aria-label="Главное меню">
       <div class="nav-brand-pc">
-        <span class="product-label-pc">FounderPilot AI</span>
+        <span class="nav-icon" data-icon="target"></span>
+        <span class="product-label-pc">FounderPilot</span>
       </div>
       <button class="nav-item active" data-target="home" type="button">
         <span class="nav-icon" data-icon="home"></span>
         <span class="nav-text">Главная</span>
-      </button>
-      <button class="nav-item" data-target="chat" type="button">
-        <span class="nav-icon" data-icon="chat"></span>
-        <span class="nav-text">Чат</span>
       </button>
       <button class="nav-item" data-target="tools" type="button">
         <span class="nav-icon" data-icon="tools"></span>
@@ -39,54 +36,63 @@
     <div class="main-container">
       <header class="app-header">
         <div class="header-title">
-          <span class="product-label">FounderPilot AI</span>
           <h1 id="pageTitle">Главная</h1>
         </div>
-        <button class="avatar-button" id="headerProfileBtn" type="button" aria-label="Открыть профиль">
+        <button class="avatar-button" id="headerProfileBtn" type="button" aria-label="Профиль">
           <span class="avatar" id="headerUserAvatar">FP</span>
         </button>
       </header>
 
       <main class="content" id="content">
-        <section class="view active" id="view-home" aria-labelledby="homeTitle">
+        <section class="view active" id="view-home" aria-labelledby="homeGreeting">
           <div class="home-heading">
-            <p class="muted" id="homeGreeting">Здравствуйте</p>
-            <h2 id="homeTitle">Чем займёмся сегодня?</h2>
+            <h2 id="homeGreeting">Здравствуйте</h2>
+            <p class="muted mt-2">Чем займёмся сегодня?</p>
           </div>
 
-          <div class="section-head">
-            <h3>Быстрые действия</h3>
-            <button class="text-btn" data-open-view="tools" type="button">Все</button>
-          </div>
-
-          <div class="quick-strip" id="quickStrip">
-            <button class="quick-action" data-prompt="Напиши продающее SEO описание для карточки товара на Wildberries" type="button">
-              <span class="card-icon" data-icon="tools"></span>
-              <strong>Карточка WB/Ozon</strong>
-            </button>
-            <button class="quick-action" data-prompt="Рассчитай юнит-экономику товара, если себестоимость 450₽, а продажа 1200₽" type="button">
-              <span class="card-icon" data-icon="history"></span>
-              <strong>Юнит-экономика</strong>
-            </button>
-            <button class="quick-action" data-prompt="Составь контент-план и идеи для рекламы нового бренда одежды" type="button">
-              <span class="card-icon" data-icon="chat"></span>
-              <strong>План продвижения</strong>
-            </button>
-          </div>
-
-          <div class="main-chat-card h-flexible">
-            <div class="chat-topbar">
-              <h3>Экспресс-анализ бизнеса</h3>
-              <p class="muted">Задайте любой вопрос по маркетплейсам или маркетингу</p>
+          <div class="credits-overview mt-3">
+            <div class="credit-card">
+              <div class="credit-card-header">
+                <span class="small">Кредиты сегодня</span>
+                <span class="nav-icon" data-icon="chart" style="width:14px; height:14px; opacity:0.5;"></span>
+              </div>
+              <div class="credit-value" id="creditsTodayText">- / -</div>
+              <div class="progress-bar"><div class="progress-fill" id="creditsTodayFill" style="width: 0%"></div></div>
             </div>
+            <div class="credit-card">
+              <div class="credit-card-header">
+                <span class="small">Кредиты месяца</span>
+                <span class="nav-icon" data-icon="wallet" style="width:14px; height:14px; opacity:0.5;"></span>
+              </div>
+              <div class="credit-value" id="creditsMonthText">- / -</div>
+              <div class="progress-bar"><div class="progress-fill" id="creditsMonthFill" style="width: 0%"></div></div>
+            </div>
+          </div>
+
+          <div class="quick-strip mt-4" id="quickStrip">
+            <button class="quick-action" data-prompt="Посчитать маржу для моего товара" type="button">
+              <span class="nav-icon" data-icon="calculator"></span> Посчитать маржу
+            </button>
+            <button class="quick-action" data-prompt="Улучшить описание карточки товара" type="button">
+              <span class="nav-icon" data-icon="edit"></span> Улучшить карточку
+            </button>
+            <button class="quick-action" data-prompt="Составить оффер для акции" type="button">
+              <span class="nav-icon" data-icon="target"></span> Сделать оффер
+            </button>
+            <button class="quick-action" data-prompt="Провести анализ конкурентов" type="button">
+              <span class="nav-icon" data-icon="search"></span> Разобрать конкурента
+            </button>
+          </div>
+
+          <div class="main-chat-card mt-3">
             <div class="chat-scroll" id="homeChatScroll">
-              <div class="chat-empty">
-                <span data-icon="chat"></span>
-                <p>История диалога пуста. Введите запрос ниже.</p>
+              <div class="chat-empty skeleton-state" id="chatEmptyState">
+                <span class="nav-icon mb-2" data-icon="message" style="width:32px; height:32px; margin: 0 auto;"></span>
+                <p>Напишите задачу — FounderPilot поможет с расчётами, продажами и карточками товаров.</p>
               </div>
             </div>
             <div class="chat-input-area">
-              <textarea id="homeChatInput" rows="1" placeholder="Задать вопрос ИИ..."></textarea>
+              <textarea id="homeChatInput" rows="1" placeholder="Опишите задачу: карточка товара, маржа, реклама, продажи..."></textarea>
               <button class="send-btn" id="homeChatSendBtn" type="button" disabled aria-label="Отправить">
                 <span data-icon="send"></span>
               </button>
@@ -94,59 +100,67 @@
           </div>
         </section>
 
-        <section class="view" id="view-chat" aria-labelledby="chatTitle">
-          <div class="chat-mode-selector">
-            <button class="mode-tab active" data-mode="strategy" type="button">Стратегия</button>
-            <button class="mode-tab" data-mode="seo" type="button">SEO</button>
-            <button class="mode-tab" data-mode="marketing" type="button">Маркетинг</button>
-          </div>
-          <div class="main-chat-card h-flexible-main">
-            <div class="chat-scroll" id="mainChatScroll"></div>
-            <div class="chat-input-area">
-              <textarea id="mainChatInput" rows="1" placeholder="Напишите детали задачи..."></textarea>
-              <button class="send-btn" id="mainChatSendBtn" type="button" disabled aria-label="Отправить">
-                <span data-icon="send"></span>
-              </button>
-            </div>
-          </div>
-        </section>
-
         <section class="view" id="view-tools" aria-labelledby="toolsTitle">
-          <div class="tools-grid" id="toolsGrid"></div>
+          <h2 class="sr-only" id="toolsTitle">Инструменты</h2>
+          <div class="tools-grid" id="toolsGrid">
+            <div class="skeleton-state">Загрузка инструментов...</div>
+          </div>
         </section>
 
         <section class="view" id="view-history" aria-labelledby="historyTitle">
-          <div class="history-filters" id="historyFilters">
+          <h2 class="sr-only" id="historyTitle">История</h2>
+          <div class="history-filters mb-2" id="historyFilters">
             <button class="filter-btn active" data-filter="all" type="button">Все</button>
-            <button class="filter-btn" data-filter="strategy" type="button">Стратегия</button>
-            <button class="filter-btn" data-filter="seo" type="button">SEO</button>
-            <button class="filter-btn" data-filter="marketing" type="button">Маркетинг</button>
+            <button class="filter-btn" data-filter="chat" type="button">Чаты</button>
+            <button class="filter-btn" data-filter="tools" type="button">Инструменты</button>
+            <button class="filter-btn" data-filter="favorites" type="button">Сохранённое</button>
           </div>
-          <div class="history-list" id="historyList"></div>
+          <div class="history-list" id="historyList">
+            <div class="skeleton-state">Загрузка истории...</div>
+          </div>
         </section>
 
         <section class="view" id="view-profile" aria-labelledby="profileTitle">
+          <h2 class="sr-only" id="profileTitle">Профиль</h2>
           <div class="profile-clean-card">
-            <div class="avatar" id="profileUserAvatar">FP</div>
+            <div class="avatar avatar-large" id="profileUserAvatar">FP</div>
             <div class="profile-meta">
-              <h3 id="profileUserTitle">@username</h3>
-              <div class="plan-badge" id="profilePlanLabel">FREE</div>
+              <h3 id="profileUserTitle">Пользователь</h3>
+              <p class="muted small mt-2" id="profileUserSubtitle">Загрузка...</p>
+              <div class="plan-badge mt-2" id="profilePlanLabel">FREE</div>
             </div>
           </div>
-          <button class="primary" id="openBillingBtn" type="button">Управление подпиской</button>
 
-          <div class="settings-group">
-            <h3>Бизнес-профиль</h3>
-            <p class="muted field-desc">Ниша и оборот для точечной адаптации ответов ИИ под ваш масштаб.</p>
-            <textarea class="profile-textarea" id="profileBusinessDescription" placeholder="Например: Продаю автотовары на WB, оборот 500к/мес." rows="3"></textarea>
-            <button class="secondary" id="saveProfileBtn" type="button">Сохранить профиль</button>
+          <div class="usage-card mt-4">
+            <div class="usage-header">
+              <h4>Подписка и лимиты</h4>
+              <button class="text-btn" id="openBillingBtn" type="button">Управление</button>
+            </div>
+            <div class="credits-overview mt-3">
+              <div class="credit-card">
+                <div class="credit-card-header"><span class="small">Сегодня</span></div>
+                <div class="credit-value" id="profileCreditsTodayText">- / -</div>
+                <div class="progress-bar"><div class="progress-fill" id="profileCreditsTodayFill" style="width: 0%"></div></div>
+              </div>
+              <div class="credit-card">
+                <div class="credit-card-header"><span class="small">В этом месяце</span></div>
+                <div class="credit-value" id="profileCreditsMonthText">- / -</div>
+                <div class="progress-bar"><div class="progress-fill" id="profileCreditsMonthFill" style="width: 0%"></div></div>
+              </div>
+            </div>
           </div>
 
-          <div class="settings-group">
-            <h3>Обратная связь</h3>
-            <p class="muted field-desc">Предложения или найденные баги отправляются напрямую разработчикам.</p>
-            <textarea class="profile-textarea" id="appFeedbackText" placeholder="Опишите вашу идею..." rows="2"></textarea>
-            <button class="secondary" id="submitAppFeedbackBtn" type="button">Отправить отзыв</button>
+          <div class="settings-group mt-4">
+            <h3 class="mb-2">Бизнес-профиль</h3>
+            <p class="muted small mb-3">FounderPilot будет учитывать этот контекст в ответах.</p>
+            <textarea class="profile-textarea" id="profileBusinessDescription" placeholder="Например: Продаю автотовары на WB, оборот 500к/мес." rows="3"></textarea>
+            <button class="secondary mt-3" id="saveProfileBtn" type="button">Сохранить</button>
+          </div>
+
+          <div class="settings-group mt-4">
+            <h3 class="mb-2">Обратная связь</h3>
+            <textarea class="profile-textarea" id="appFeedbackText" placeholder="Что можно улучшить?" rows="2"></textarea>
+            <button class="secondary mt-3" id="submitAppFeedbackBtn" type="button">Отправить</button>
           </div>
         </section>
       </main>
@@ -163,35 +177,32 @@
       </div>
       <div class="billing-plan-list" id="billingPlanList"></div>
       <div class="payment-provider-box" id="paymentProviderBox" hidden>
-        <button class="back-btn" id="backToPlansBtn" type="button">
-          <span data-icon="back"></span>
-          К тарифам
+        <button class="back-btn mb-3" id="backToPlansBtn" type="button">
+          <span data-icon="back" style="width:16px;height:16px;margin-right:4px;"></span> К тарифам
         </button>
-        <h3 id="providerTitle" style="margin: 0 0 12px; font-size: 15px; font-weight: 600;">Выберите способ оплаты</h3>
+        <h3 class="mb-3">Способ оплаты</h3>
         <div class="provider-list" id="providerList"></div>
-        <p class="form-error" id="billingError" hidden></p>
+        <p class="form-error mt-3" id="billingError" hidden></p>
       </div>
     </article>
   </div>
 
   <div class="modal-backdrop" id="onboardingModal" hidden>
     <article class="modal-card" role="dialog" aria-modal="true" aria-labelledby="onboardingTitle">
-      <div class="progress-row" aria-hidden="true">
-        <span class="active"></span>
-        <span></span>
-        <span></span>
+      <div class="progress-row" id="onboardingProgressRow" aria-hidden="true">
+        <span class="active"></span><span></span><span></span>
       </div>
       <h2 id="onboardingTitle">Кто вы?</h2>
       <div class="onboarding-body" id="onboardingBody"></div>
-      <p class="form-error" id="onboardingError" hidden></p>
-      <div class="modal-actions">
-        <button class="ghost" id="onboardingBackBtn" type="button">Назад</button>
+      <p class="form-error mt-3" id="onboardingError" hidden></p>
+      <div class="modal-actions mt-4">
+        <button class="secondary" id="onboardingBackBtn" type="button">Назад</button>
         <button class="primary" id="onboardingNextBtn" type="button">Далее</button>
       </div>
     </article>
   </div>
 
   <div class="toast" id="toast" role="alert" aria-live="assertive"></div>
-  <script src="/static/app.js?v=system-20260528"></script>
+  <script src="/static/app.js?v=system-4"></script>
 </body>
 </html>

@@ -20,7 +20,7 @@ class RateLimiter:
         self.db = db
         self._minute_hits: dict[int, deque[float]] = defaultdict(deque)
 
-    async def check(self, telegram_id: int) -> dict:
+    async def check(self, telegram_id: int, estimated_credits: int = 1) -> dict:
         now = time.time()
         hits = self._minute_hits[telegram_id]
         while hits and now - hits[0] > 60:
@@ -39,6 +39,11 @@ class RateLimiter:
         )
         if not access["can_request"]:
             raise RateLimitError(str(access["denial_reason"]))
+        remaining = access.get("remaining")
+        if remaining is not None and int(estimated_credits or 1) > int(remaining):
+            raise RateLimitError(
+                f"Недостаточно кредитов для этого запроса. Нужно примерно {int(estimated_credits or 1)}, осталось {remaining}."
+            )
 
         hits.append(now)
         return access

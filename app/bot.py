@@ -7,6 +7,7 @@ from aiogram.filters import Command, CommandObject
 from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup, Message, PreCheckoutQuery, WebAppInfo
 
 from app.billing import activate_subscription, plan_catalog
+from app.credits import estimate_credits, estimate_output_tokens
 from app.config import Settings
 from app.db import Database
 from app.openrouter_client import AIClientError, OpenRouterClient
@@ -106,6 +107,7 @@ def build_dispatcher(
             "telegram_stars",
             order_id,
             plan.daily_limit,
+            plan.monthly_limit,
         )
         await db.record_payment(
             order_id=order_id,
@@ -123,7 +125,7 @@ def build_dispatcher(
         await message.answer(
             f"<b>Подписка активирована</b>\n"
             f"Тариф: <b>{html(plan.title)}</b>\n"
-            f"Лимит: <b>{plan.daily_limit}</b> запросов в день.\n"
+            f"Лимит: <b>{plan.daily_limit}</b> кредитов в день.\n"
             f"Действует до: <code>{html(result['expires_at'])}</code>",
             parse_mode=TELEGRAM_PARSE_MODE,
             reply_markup=build_main_keyboard(settings),
@@ -198,8 +200,8 @@ def build_dispatcher(
         await message.answer(
             "<b>Доступ FounderPilot AI</b>\n"
             f"Статус: <b>{html(access['status_label'])}</b>\n"
-            f"Использовано сегодня: <b>{access['used_today']}</b>\n"
-            f"Использовано всего/за период: <b>{access['used_period']}/{format_limit(access['current_limit'])}</b>\n"
+            f"Кредитов сегодня: <b>{access['used_today']}</b>\n"
+            f"Кредитов за период: <b>{access['used_period']}/{format_limit(access['current_limit'])}</b>\n"
             f"Осталось: <b>{format_limit(access['remaining'])}</b>\n"
             f"Антиспам: <b>{settings.per_minute_limit}</b> запросов в минуту.",
             parse_mode=TELEGRAM_PARSE_MODE,
@@ -225,7 +227,7 @@ def build_dispatcher(
             "<code>/grant &lt;id&gt; &lt;days&gt; [monthly_limit] [note]</code> — выдать подписку\n"
             "<code>/unlimited &lt;id&gt; [note]</code> — выдать unlimited\n"
             "<code>/revoke &lt;id&gt; [note]</code> — вернуть на Free\n"
-            "<code>/free_limit &lt;id&gt; &lt;count&gt; [note]</code> — изменить trial\n"
+            "<code>/free_limit &lt;id&gt; &lt;count&gt; [note]</code> — изменить Free-кредиты\n"
             "<code>/block &lt;id&gt; [note]</code> — отключить доступ\n"
             "<code>/unblock &lt;id&gt; [note]</code> — разблокировать",
             parse_mode=TELEGRAM_PARSE_MODE,
@@ -251,7 +253,7 @@ def build_dispatcher(
             title = html(format_user_title(item))
             plan = html(item.get("plan") or "free")
             total = int(item.get("requests_total") or 0)
-            lines.append(f"<code>{item['telegram_id']}</code> — {title} — {plan} — {total} запросов")
+            lines.append(f"<code>{item['telegram_id']}</code> — {title} — {plan} — {total} кредитов")
         await message.answer("\n".join(lines), parse_mode=TELEGRAM_PARSE_MODE)
 
     @router.message(Command("user"))
@@ -282,8 +284,8 @@ def build_dispatcher(
             f"Имя: <b>{html(format_user_title(profile))}</b>\n"
             f"Статус: <b>{html(access['status_label'])}</b>\n"
             f"План: <code>{html(access['plan'])}</code>\n"
-            f"Использовано: <b>{access['used_period']}/{format_limit(access['current_limit'])}</b>\n"
-            f"Всего запросов: <b>{access['used_total']}</b>\n"
+            f"Кредитов за период: <b>{access['used_period']}/{format_limit(access['current_limit'])}</b>\n"
+            f"Всего кредитов: <b>{access['used_total']}</b>\n"
             f"Подписка до: <code>{html(access['subscription_until'] or '—')}</code>\n"
             f"Заметка: {html(access['admin_note'] or '—')}",
             parse_mode=TELEGRAM_PARSE_MODE,
@@ -364,7 +366,7 @@ def build_dispatcher(
             await message.answer("ID и count должны быть числами.")
             return
         await db.set_free_limit(telegram_id, message.from_user.id, free_limit, parts[3] if len(parts) > 3 else None)
-        await message.answer(f"Trial-лимит пользователя <code>{telegram_id}</code> изменен на {free_limit}.", parse_mode=TELEGRAM_PARSE_MODE)
+        await message.answer(f"Free-кредиты пользователя <code>{telegram_id}</code> изменен на {free_limit}.", parse_mode=TELEGRAM_PARSE_MODE)
 
     @router.message(Command("block"))
     async def block_command(message: Message) -> None:
@@ -421,20 +423,45 @@ def build_dispatcher(
         user = message.from_user
         await db.upsert_user(user.id, user.username, user.first_name, user.last_name)
 
+        estimate = estimate_credits("strategy", message.text, model=settings.openrouter_model)
         try:
-            await rate_limiter.check(user.id)
+            await rate_limiter.check(user.id, estimate.credits)
+            await db.reserve_credits(
+                user.id,
+                estimate.request_id,
+                estimate.tool_id,
+                estimate.credits,
+                free_limit_default=settings.free_trial_requests,
+                monthly_limit_default=settings.subscriber_monthly_limit,
+                metadata={"source": "telegram_bot", "reason": estimate.reason},
+            )
         except RateLimitError as exc:
+            await message.answer(str(exc))
+            return
+        except Exception as exc:  # noqa: BLE001
             await message.answer(str(exc))
             return
 
         status = await message.answer("Запрос принят. Готовлю структурированный разбор: выводы, риски и следующие шаги.")
         try:
             answer = await ai_client.ask_business_ai("strategy", message.text)
+            await db.finalize_credit_charge(
+                user.id,
+                estimate.request_id,
+                estimate.tool_id,
+                estimate.credits,
+                estimate.credits,
+                model=settings.openrouter_model,
+                input_tokens=estimate.input_tokens_estimated,
+                output_tokens=estimate_output_tokens(answer),
+            )
             await db.save_request(user.id, "strategy", message.text, answer)
         except AIClientError as exc:
+            await db.refund_reserved_credits(user.id, estimate.request_id, str(exc), tool_id=estimate.tool_id, estimated_credits=estimate.credits, model=settings.openrouter_model)
             await status.edit_text(str(exc))
             return
         except Exception as exc:  # noqa: BLE001
+            await db.refund_reserved_credits(user.id, estimate.request_id, str(exc), tool_id=estimate.tool_id, estimated_credits=estimate.credits, model=settings.openrouter_model)
             await status.edit_text(f"Непредвиденная ошибка: {exc}")
             return
 
