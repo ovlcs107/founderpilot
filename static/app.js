@@ -5,7 +5,7 @@
 
 const tg = window.Telegram?.WebApp || null;
 const OWNER_INN = "713304603876";
-const OWNER_DISPLAY_NAME = "FounderPilot";
+const OWNER_DISPLAY_NAME = "Самозанятый Муравьев К.А";
 
 const iconPaths = {
   home: '<path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path><polyline points="9 22 9 12 15 12 15 22"></polyline>',
