@@ -279,7 +279,8 @@ function updateCreditsUI() {
   const mTxt = format(u.monthly_used, u.monthly_limit);
   const mPct = calcPct(u.monthly_used, u.monthly_limit);
 
-  if ($("creditsTodayText")) $("creditsTodayText").textContent = `Использование сегодня: ${tTxt}`;
+  /* Фикс дублирования текста: убираем лишнюю приставку, так как лейбл уже есть в HTML */
+  if ($("creditsTodayText")) $("creditsTodayText").textContent = tTxt;
   if ($("creditsTodayFill")) $("creditsTodayFill").style.width = `${tPct}%`;
   if ($("profileCreditsTodayPct")) $("profileCreditsTodayPct").textContent = `${tPct}%`;
 
@@ -995,7 +996,7 @@ async function declineOrganizationInvite() {
   }
 }
 
-function showOrganizationJoinedModal(title) {
+ function showOrganizationJoinedModal(title) {
   const modal = $("organizationAcceptedModal");
   if (!modal) return;
   const text = $("organizationAcceptedText");
@@ -1151,7 +1152,7 @@ async function loadBillingPlans() {
         { key: "go", title: "Go", description: "250 в день · 5 000 в месяц", price_text: "299 ₽/мес" },
         { key: "plus", title: "Plus", description: "800 в день · 20 000 в месяц", price_text: "699 ₽/мес" },
         { key: "pro", title: "Pro", description: "2 000 в день · 80 000 в месяц", price_text: "1 490 ₽/мес" },
-        { key: "business", title: "Business", description: "10 000 в день · 300 000 в месяц · компания", price_text: "3 990 ₽/мес" }
+        { key: "business", title: "Business", description: "10 000 в день · 300 000 в месяц · company", price_text: "3 990 ₽/мес" }
       ]
     });
   }
