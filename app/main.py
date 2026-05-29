@@ -5,10 +5,12 @@ import logging
 import json
 import re
 from contextlib import suppress
+from datetime import datetime, timedelta, timezone
 from typing import Any
 
 import uvicorn
 from aiogram import Bot
+from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup, WebAppInfo
 from fastapi import Depends, FastAPI, Header, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, JSONResponse, RedirectResponse, PlainTextResponse
@@ -25,12 +27,14 @@ from app.billing import (
     create_btcpay_invoice,
     create_telegram_stars_invoice,
     create_yookassa_payment,
+    create_yookassa_autopayment,
     enabled_providers,
     make_order_id,
     plan_catalog,
     price_for_provider,
     provider_enabled,
     verify_btcpay_signature,
+    verify_yookassa_payment,
 )
 from app.config import Settings, get_settings, require_runtime_settings
 from app.credits import estimate_credits, estimate_output_tokens
@@ -39,6 +43,7 @@ from app.openrouter_client import AIClientError, OpenRouterClient
 from app.prompts import MODES, get_mini_app_tools
 from app.rate_limit import RateLimitError, RateLimiter
 from app.telegram_auth import TelegramAuthError, TelegramUser, dev_user, validate_telegram_init_data
+from app.secure_store import decrypt_text, encrypt_text, mask_account, mask_token, only_digits
 from app.features import FeatureStore, init_features
 
 logger = logging.getLogger(__name__)
@@ -116,6 +121,20 @@ class BillingOrderRequest(BaseModel):
     plan: str = Field(min_length=2, max_length=40)
     provider: str = Field(min_length=2, max_length=40)
     telegram_user_id: int | None = None
+    auto_renew: bool = False
+
+
+class PayoutMethodRequest(BaseModel):
+    bik: str = Field(min_length=9, max_length=32)
+    account_number: str = Field(min_length=20, max_length=40)
+    bank_name: str | None = Field(default=None, max_length=160)
+    holder_name: str | None = Field(default=None, max_length=160)
+
+
+class AutopaySettingsRequest(BaseModel):
+    enabled: bool
+    plan: str | None = Field(default=None, min_length=2, max_length=40)
+    provider: str = Field(default="yookassa", max_length=40)
 
 
 class TonVerifyRequest(BaseModel):
@@ -168,7 +187,8 @@ class TemplateRequest(BaseModel):
 
 
 class CreditPackOrderRequest(BaseModel):
-    pack_key: str = Field(min_length=3, max_length=80)
+    pack_key: str | None = Field(default=None, min_length=3, max_length=80)
+    pack_id: str | None = Field(default=None, min_length=3, max_length=80)
     provider: str | None = Field(default=None, max_length=80)
     telegram_user_id: int | None = None
 
@@ -178,6 +198,19 @@ class NotificationPrefsRequest(BaseModel):
     subscription_reminders: bool | None = None
     product_updates: bool | None = None
     weekly_digest: bool | None = None
+
+
+class OrganizationRequest(BaseModel):
+    title: str = Field(min_length=1, max_length=120)
+    description: str | None = Field(default=None, max_length=1000)
+
+
+class OrganizationInviteRequest(BaseModel):
+    username: str = Field(min_length=2, max_length=64)
+
+
+class OrganizationAcceptRequest(BaseModel):
+    token: str = Field(min_length=8, max_length=80)
 
 class StatsResponse(BaseModel):
     used_today: int
@@ -419,6 +452,30 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         lines = [f"{label}: {profile.get(key)}" for key, label in labels.items() if profile.get(key)]
         return "\n".join(lines)
 
+    def subscription_next_charge_at() -> str:
+        return (datetime.now(timezone.utc) + timedelta(days=30)).isoformat()
+
+    def validate_payout_payload(payload: PayoutMethodRequest) -> tuple[str, str]:
+        bik = only_digits(payload.bik)
+        account = only_digits(payload.account_number)
+        if len(bik) != 9:
+            raise HTTPException(status_code=422, detail="БИК должен состоять из 9 цифр.")
+        if len(account) != 20:
+            raise HTTPException(status_code=422, detail="Номер счёта должен состоять из 20 цифр. Не указывайте номер карты.")
+        return bik, account
+
+    def metadata_from_order(order: dict[str, Any] | None) -> dict[str, Any]:
+        if not order:
+            return {}
+        raw = order.get("metadata_json")
+        if not raw:
+            return {}
+        try:
+            data = json.loads(raw)
+        except (TypeError, ValueError):
+            return {}
+        return data if isinstance(data, dict) else {}
+
     async def current_user(x_telegram_init_data: str | None = Header(default=None)) -> TelegramUser:
         if settings.allow_dev_auth:
             return dev_user()
@@ -430,6 +487,32 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     def require_admin(x_admin_secret: str | None) -> None:
         if not settings.admin_secret or x_admin_secret != settings.admin_secret:
             raise HTTPException(status_code=403, detail="Доступ запрещён.")
+
+    async def send_organization_invite(invite: dict[str, Any]) -> bool:
+        invited_id = invite.get("invited_telegram_user_id")
+        if not invited_id or not settings.bot_token:
+            return False
+        url = f"{settings.webapp_url}?invite={invite.get('token')}"
+        bot = Bot(token=settings.bot_token)
+        try:
+            await bot.send_message(
+                int(invited_id),
+                (
+                    "<b>Приглашение в FounderPilot</b>\n\n"
+                    f"Вас пригласили в организацию: <b>{invite.get('organization_title') or 'Компания'}</b>.\n"
+                    "Нажмите кнопку ниже, чтобы вступить."
+                ),
+                parse_mode="HTML",
+                reply_markup=InlineKeyboardMarkup(
+                    inline_keyboard=[[InlineKeyboardButton(text="Вступить", web_app=WebAppInfo(url=url))]]
+                ),
+            )
+            return True
+        except Exception as exc:  # noqa: BLE001
+            await db.log_error("organization_invite_notify", str(exc), int(invited_id))
+            return False
+        finally:
+            await bot.session.close()
 
     @app.on_event("startup")
     async def on_startup() -> None:
@@ -489,7 +572,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
 
     @app.get("/api/me")
     async def me(start_param: str | None = None, user: TelegramUser = Depends(current_user)) -> dict[str, Any]:
-        await db.upsert_user(user.id, user.username, user.first_name, user.last_name)
+        await db.upsert_user(user.id, user.username, user.first_name, user.last_name, photo_url=user.photo_url)
         await db.expire_subscription_if_needed(user.id)
         if start_param:
             await db.set_referrer(user.id, start_param.strip())
@@ -502,19 +585,32 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         user_profile = await db.get_user_profile(user.id)
         usage = usage_payload(access)
         active_project = await features.get_active_project(user.id)
+        organizations = await features.list_organizations(user.id, user.username)
+        payout_method = await db.get_payout_method(user.id)
+        autopay = await db.get_autopay_settings(user.id)
+        stored_first = (user_profile or {}).get("first_name")
+        stored_last = (user_profile or {}).get("last_name")
+        stored_username = (user_profile or {}).get("username")
+        stored_photo = (user_profile or {}).get("photo_url")
         return {
             "user": {
                 "id": user.id,
                 "telegram_user_id": str(user.id),
-                "username": user.username,
-                "first_name": user.first_name,
-                "last_name": user.last_name,
+                "username": user.username or stored_username,
+                "first_name": user.first_name or stored_first or "Пользователь",
+                "last_name": user.last_name or stored_last,
+                "photo_url": user.photo_url or stored_photo,
+                "avatar_url": user.photo_url or stored_photo,
                 "plan": (user_profile or {}).get("plan", "free"),
                 "onboarding_completed": bool((user_profile or {}).get("onboarding_completed")),
                 **usage,
             },
             "profile": profile_data,
             "active_project": active_project,
+            "organization": organizations.get("active"),
+            "organizations": organizations,
+            "payout_method": payout_method,
+            "autopay": autopay,
             "usage": usage,
         }
 
@@ -549,7 +645,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
 
     @app.post("/api/ask", response_model=AskResponse)
     async def ask(payload: AskRequest, user: TelegramUser = Depends(current_user)) -> AskResponse:
-        await db.upsert_user(user.id, user.username, user.first_name, user.last_name)
+        await db.upsert_user(user.id, user.username, user.first_name, user.last_name, photo_url=user.photo_url)
         estimate = estimate_credits(payload.mode, payload.text, model=settings.openrouter_model)
 
         try:
@@ -598,7 +694,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     @app.post("/api/generate", response_model=GenerateResponse)
     async def generate(payload: GenerateRequest, user: TelegramUser = Depends(current_user)) -> GenerateResponse:
         telegram_id = resolve_telegram_id(user, payload.telegram_user_id)
-        await db.upsert_user(telegram_id, user.username, user.first_name, user.last_name)
+        await db.upsert_user(telegram_id, user.username, user.first_name, user.last_name, photo_url=user.photo_url)
         await db.expire_subscription_if_needed(telegram_id)
 
         if payload.tool_id not in MODES:
@@ -795,7 +891,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         if len(message) < 2:
             return ChatResponse(ok=False, error="Сообщение слишком короткое. Опишите бизнес-задачу чуть подробнее.")
 
-        await db.upsert_user(telegram_id, user.username, user.first_name, user.last_name)
+        await db.upsert_user(telegram_id, user.username, user.first_name, user.last_name, photo_url=user.photo_url)
         await db.expire_subscription_if_needed(telegram_id)
 
         estimate = None
@@ -967,10 +1063,111 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         )
         return {"ok": True, **status}
 
+    @app.get("/api/billing/payout-method")
+    async def get_payout_method(user: TelegramUser = Depends(current_user)) -> dict[str, Any]:
+        method = await db.get_payout_method(user.id)
+        return {"ok": True, "payout_method": method, "safe_storage": True}
+
+    @app.post("/api/billing/payout-method")
+    async def save_payout_method(payload: PayoutMethodRequest, user: TelegramUser = Depends(current_user)) -> dict[str, Any]:
+        bik, account = validate_payout_payload(payload)
+        # Храним полный номер счёта только в зашифрованном виде. Во frontend отдаём только маску.
+        saved = await db.upsert_payout_method(
+            user.id,
+            bik=bik,
+            account_number_encrypted=encrypt_text(account, settings.app_secret) or "",
+            account_last4=account[-4:],
+            account_mask=mask_account(account),
+            bank_name=(payload.bank_name or "").strip() or None,
+            holder_name=(payload.holder_name or "").strip() or None,
+        )
+        return {"ok": True, "payout_method": saved, "safe_storage": True}
+
+    @app.delete("/api/billing/payout-method")
+    async def delete_payout_method(user: TelegramUser = Depends(current_user)) -> dict[str, Any]:
+        return {"ok": await db.delete_payout_method(user.id)}
+
+    @app.get("/api/billing/autopay")
+    async def get_autopay(user: TelegramUser = Depends(current_user)) -> dict[str, Any]:
+        return {"ok": True, "autopay": await db.get_autopay_settings(user.id)}
+
+    @app.post("/api/billing/autopay")
+    async def update_autopay(payload: AutopaySettingsRequest, user: TelegramUser = Depends(current_user)) -> dict[str, Any]:
+        if payload.provider != "yookassa":
+            return {"ok": False, "error": "Автоподписка сейчас поддерживается только через ЮKassa."}
+        plan_key = (payload.plan or "").lower() or None
+        if payload.enabled:
+            plans = plan_catalog(settings)
+            if not plan_key or plan_key not in plans or plan_key == "free":
+                return {"ok": False, "error": "Выберите платный тариф для автоподписки."}
+            existing_secret = await db.get_autopay_settings_secret(user.id)
+            if not existing_secret or not existing_secret.get("payment_method_id_encrypted"):
+                autopay = await db.upsert_autopay_settings(user.id, enabled=True, provider="yookassa", plan=plan_key, status="pending_payment_method")
+                return {
+                    "ok": False,
+                    "requires_payment_method": True,
+                    "error": "Сначала оплатите тариф картой/СБП с включённой автоподпиской — FounderPilot сохранит только безопасный токен ЮKassa, не данные карты.",
+                    "autopay": autopay,
+                }
+        autopay = await db.upsert_autopay_settings(
+            user.id,
+            enabled=payload.enabled,
+            provider="yookassa",
+            plan=plan_key,
+            status="active" if payload.enabled else "disabled",
+        )
+        return {"ok": True, "autopay": autopay}
+
+    @app.post("/api/billing/autopay/run-due")
+    async def run_due_autopay(limit: int = 25, x_admin_secret: str | None = Header(default=None)) -> dict[str, Any]:
+        require_admin(x_admin_secret)
+        results: list[dict[str, Any]] = []
+        plans = plan_catalog(settings)
+        for item in await db.list_due_autopay(limit=limit):
+            telegram_id = int(item.get("telegram_id") or item.get("telegram_user_id"))
+            plan_key = str(item.get("plan") or "").lower()
+            plan = plans.get(plan_key)
+            encrypted_method = item.get("payment_method_id_encrypted")
+            payment_method_id = decrypt_text(encrypted_method, settings.app_secret)
+            if not plan or plan.key == "free" or not payment_method_id:
+                await db.mark_autopay_charge(telegram_id, status="disabled")
+                results.append({"telegram_user_id": telegram_id, "ok": False, "error": "invalid_autopay_config"})
+                continue
+            order_id = make_order_id()
+            amount, currency = price_for_provider(plan, "yookassa")
+            order = await db.create_billing_order(
+                order_id,
+                telegram_id,
+                plan.key,
+                "yookassa",
+                float(amount),
+                currency,
+                metadata={"plan_title": plan.title, "auto_renewal_charge": True},
+            )
+            try:
+                external_id, status, raw_payment = await create_yookassa_autopayment(
+                    settings,
+                    payment_method_id=payment_method_id,
+                    order=order,
+                    plan=plan,
+                )
+                await db.update_billing_order(order_id, external_payment_id=external_id, payload=json.dumps(raw_payment, ensure_ascii=False), status=status)
+                if status == "succeeded":
+                    await activate_subscription(db, telegram_id, plan.key, "yookassa", order_id, plan.daily_limit, plan.monthly_limit)
+                    await db.mark_autopay_charge(telegram_id, status="active", next_charge_at=subscription_next_charge_at())
+                else:
+                    await db.mark_autopay_charge(telegram_id, status="retry")
+                results.append({"telegram_user_id": telegram_id, "order_id": order_id, "status": status})
+            except Exception as exc:  # noqa: BLE001
+                await db.mark_autopay_charge(telegram_id, status="retry")
+                await db.log_error("autopay", str(exc), telegram_id)
+                results.append({"telegram_user_id": telegram_id, "ok": False, "error": str(exc)})
+        return {"ok": True, "results": results}
+
     @app.post("/api/billing/create-order")
     async def billing_create_order(payload: BillingOrderRequest, user: TelegramUser = Depends(current_user)) -> dict[str, Any]:
         telegram_id = resolve_telegram_id(user, payload.telegram_user_id)
-        await db.upsert_user(telegram_id, user.username, user.first_name, user.last_name)
+        await db.upsert_user(telegram_id, user.username, user.first_name, user.last_name, photo_url=user.photo_url)
         plans = plan_catalog(settings)
         plan = plans.get(payload.plan)
         if not plan or plan.key == "free":
@@ -987,7 +1184,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             payload.provider,
             float(amount),
             currency,
-            metadata={"plan_title": plan.title},
+            metadata={"plan_title": plan.title, "auto_renew": bool(payload.auto_renew)},
         )
 
         try:
@@ -998,7 +1195,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                 await db.update_billing_order(order_id, payment_url=invoice_link, payload=order_id)
                 return {"ok": True, "order_id": order_id, "provider": payload.provider, "payment_url": invoice_link}
             if payload.provider == "yookassa":
-                external_id, payment_url = await create_yookassa_payment(settings, order, plan)
+                external_id, payment_url = await create_yookassa_payment(settings, order, plan, save_payment_method=payload.auto_renew)
                 await db.update_billing_order(order_id, external_payment_id=external_id, payment_url=payment_url)
                 await db.record_payment(
                     order_id=order_id,
@@ -1100,7 +1297,19 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         status = obj.get("status")
         if event_type == "payment.succeeded" or status == "succeeded":
             plan = plan_catalog(settings)[str(order["plan"])]
+            verified_payment = await verify_yookassa_payment(settings, order, external_id)
             await activate_subscription(db, order["telegram_user_id"], plan.key, "yookassa", order["id"], plan.daily_limit, plan.monthly_limit)
+            method = verified_payment.get("payment_method") or {}
+            method_id = method.get("id")
+            metadata = metadata_from_order(order)
+            if method_id and (metadata.get("auto_renew") or str((verified_payment.get("metadata") or {}).get("auto_renew")) == "1"):
+                await db.save_autopay_payment_method(
+                    int(order["telegram_user_id"]),
+                    plan=plan.key,
+                    payment_method_id_encrypted=encrypt_text(str(method_id), settings.app_secret) or "",
+                    payment_method_mask=mask_token(str(method_id)),
+                    next_charge_at=subscription_next_charge_at(),
+                )
             await db.record_payment(
                 order_id=order["id"],
                 telegram_id=int(order["telegram_user_id"]),
@@ -1178,7 +1387,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
 
     @app.get("/api/profile")
     async def profile(user: TelegramUser = Depends(current_user)) -> dict[str, Any]:
-        await db.upsert_user(user.id, user.username, user.first_name, user.last_name)
+        await db.upsert_user(user.id, user.username, user.first_name, user.last_name, photo_url=user.photo_url)
         access = await db.get_access_state(
             user.id,
             free_limit_default=settings.free_trial_requests,
@@ -1265,7 +1474,10 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     @app.post("/api/credits/packs/order")
     async def create_credit_pack_order(payload: CreditPackOrderRequest, user: TelegramUser = Depends(current_user)) -> dict[str, Any]:
         telegram_id = resolve_telegram_id(user, payload.telegram_user_id)
-        return await features.create_credit_pack_order(telegram_id, payload.pack_key, payload.provider)
+        pack_key = payload.pack_key or payload.pack_id
+        if not pack_key:
+            return {"ok": False, "error": "Пакет кредитов не выбран."}
+        return await features.create_credit_pack_order(telegram_id, pack_key, payload.provider)
 
     @app.post("/api/credits/packs/{order_id}/grant")
     async def grant_credit_pack(order_id: str, telegram_user_id: int, x_admin_secret: str | None = Header(default=None)) -> dict[str, Any]:
@@ -1294,6 +1506,75 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     @app.post("/api/notifications/preferences")
     async def update_notification_preferences(payload: NotificationPrefsRequest, user: TelegramUser = Depends(current_user)) -> dict[str, Any]:
         return {"ok": True, "preferences": await features.update_notification_preferences(user.id, payload.model_dump(exclude_none=True))}
+
+
+    @app.get("/api/organizations")
+    async def organizations(user: TelegramUser = Depends(current_user)) -> dict[str, Any]:
+        return {"ok": True, **await features.list_organizations(user.id, user.username)}
+
+    @app.get("/api/organizations/current")
+    async def current_organization(user: TelegramUser = Depends(current_user)) -> dict[str, Any]:
+        data = await features.list_organizations(user.id, user.username)
+        return {"ok": True, "organization": data.get("active"), **data}
+
+    @app.get("/api/organizations/members")
+    async def organization_members(organization_id: str | None = None, user: TelegramUser = Depends(current_user)) -> dict[str, Any]:
+        try:
+            return {"ok": True, "items": await features.list_organization_members(user.id, organization_id)}
+        except PermissionError as exc:
+            return {"ok": False, "error": str(exc)}
+
+    @app.post("/api/organizations")
+    async def create_organization(payload: OrganizationRequest, user: TelegramUser = Depends(current_user)) -> dict[str, Any]:
+        try:
+            org = await features.create_organization(user.id, payload.model_dump(exclude_none=True))
+            return {"ok": True, "organization": org}
+        except PermissionError as exc:
+            return {"ok": False, "error": str(exc)}
+
+    @app.post("/api/organizations/{organization_id}/invites")
+    async def invite_organization_member(organization_id: str, payload: OrganizationInviteRequest, user: TelegramUser = Depends(current_user)) -> dict[str, Any]:
+        try:
+            invite = await features.invite_organization_member(user.id, organization_id, payload.username)
+            sent = await send_organization_invite(invite)
+            return {"ok": True, "invite": invite, "notification_sent": sent}
+        except (PermissionError, ValueError) as exc:
+            return {"ok": False, "error": str(exc)}
+
+    @app.post("/api/organizations/invite")
+    async def invite_organization_member_fallback(payload: OrganizationInviteRequest, user: TelegramUser = Depends(current_user)) -> dict[str, Any]:
+        data = await features.list_organizations(user.id, user.username)
+        owned = data.get("owned") or []
+        if not owned:
+            return {"ok": False, "error": "Сначала создайте организацию."}
+        return await invite_organization_member(str(owned[0]["id"]), payload, user)
+
+    @app.get("/api/organizations/invites/pending")
+    async def pending_organization_invites(user: TelegramUser = Depends(current_user)) -> dict[str, Any]:
+        return {"ok": True, "items": await features.pending_invites(user.id, user.username)}
+
+    @app.post("/api/organizations/invites/{token}/accept")
+    async def accept_organization_invite(token: str, user: TelegramUser = Depends(current_user)) -> dict[str, Any]:
+        try:
+            result = await features.accept_organization_invite(user.id, user.username, token)
+            return result
+        except (PermissionError, ValueError) as exc:
+            return {"ok": False, "error": str(exc)}
+
+    @app.post("/api/organizations/invites/accept")
+    async def accept_organization_invite_body(payload: OrganizationAcceptRequest, user: TelegramUser = Depends(current_user)) -> dict[str, Any]:
+        try:
+            result = await features.accept_organization_invite(user.id, user.username, payload.token)
+            return result
+        except (PermissionError, ValueError) as exc:
+            return {"ok": False, "error": str(exc)}
+
+    @app.post("/api/organizations/invites/decline")
+    async def decline_organization_invite_body(payload: OrganizationAcceptRequest, user: TelegramUser = Depends(current_user)) -> dict[str, Any]:
+        try:
+            return await features.decline_organization_invite(user.id, user.username, payload.token)
+        except (PermissionError, ValueError) as exc:
+            return {"ok": False, "error": str(exc)}
 
     @app.get("/api/admin/overview")
     async def admin_overview(x_admin_secret: str | None = Header(default=None)) -> dict[str, Any]:

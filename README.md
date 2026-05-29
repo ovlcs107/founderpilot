@@ -316,3 +316,34 @@ python -m compileall app run.py tests
 pytest -q
 node --check static/app.js
 ```
+
+## Обновление backend: Telegram profile, безопасные реквизиты и автоподписка
+
+В этой версии backend дополнительно поддерживает:
+
+- корректное имя Telegram из Mini App `initData`, без hardcoded имени в API;
+- `photo_url` из Telegram WebApp user и возврат `photo_url/avatar_url` в `/api/me`;
+- безопасное сохранение банковских реквизитов для выплат: полный 20-значный счёт хранится только зашифрованно, во frontend возвращается только маска;
+- настройки автоподписки через ЮKassa: FounderPilot хранит только токен `payment_method_id`, а не данные карты;
+- проверку YooKassa webhook через запрос к YooKassa API перед активацией тарифа;
+- endpoint для безопасного админского запуска автопродлений.
+
+Дополнительная переменная:
+
+```env
+YOOKASSA_ENABLE_SAVED_PAYMENT_METHOD=true
+```
+
+Новые API:
+
+```text
+GET    /api/billing/payout-method
+POST   /api/billing/payout-method
+DELETE /api/billing/payout-method
+
+GET    /api/billing/autopay
+POST   /api/billing/autopay
+POST   /api/billing/autopay/run-due  # только с X-Admin-Secret
+```
+
+Важно: FounderPilot не хранит номера банковских карт, CVV и полные данные платёжных карт. Для автосписаний используется токен ЮKassa.

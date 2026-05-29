@@ -17,6 +17,7 @@ CREATE TABLE IF NOT EXISTS users (
     first_name TEXT,
     last_name TEXT,
     language_code TEXT,
+    photo_url TEXT,
     plan TEXT DEFAULT 'free',
     daily_limit INTEGER DEFAULT 20,
     bonus_requests INTEGER DEFAULT 0,
@@ -201,6 +202,35 @@ CREATE TABLE IF NOT EXISTS payment_events (
     created_at TEXT NOT NULL
 );
 
+
+CREATE TABLE IF NOT EXISTS payout_methods (
+    telegram_user_id TEXT PRIMARY KEY,
+    bik TEXT NOT NULL,
+    bank_name TEXT,
+    account_number_encrypted TEXT,
+    account_last4 TEXT,
+    account_mask TEXT,
+    holder_name TEXT,
+    status TEXT NOT NULL DEFAULT 'saved',
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS autopay_settings (
+    telegram_user_id TEXT PRIMARY KEY,
+    enabled INTEGER NOT NULL DEFAULT 0,
+    provider TEXT NOT NULL DEFAULT 'yookassa',
+    plan TEXT,
+    payment_method_id_encrypted TEXT,
+    payment_method_mask TEXT,
+    status TEXT NOT NULL DEFAULT 'disabled',
+    consent_at TEXT,
+    last_charge_at TEXT,
+    next_charge_at TEXT,
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL
+);
+
 CREATE TABLE IF NOT EXISTS error_logs (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     telegram_user_id TEXT,
@@ -329,6 +359,9 @@ ON ai_usage_events(telegram_user_id, created_at);
 CREATE INDEX IF NOT EXISTS idx_active_ai_requests_user
 ON active_ai_requests(telegram_user_id);
 
+CREATE INDEX IF NOT EXISTS idx_autopay_enabled_next
+ON autopay_settings(enabled, next_charge_at);
+
 """
 
 
@@ -338,6 +371,7 @@ USER_ADD_COLUMNS = {
     "first_name": "ALTER TABLE users ADD COLUMN first_name TEXT",
     "last_name": "ALTER TABLE users ADD COLUMN last_name TEXT",
     "language_code": "ALTER TABLE users ADD COLUMN language_code TEXT",
+    "photo_url": "ALTER TABLE users ADD COLUMN photo_url TEXT",
     "plan": "ALTER TABLE users ADD COLUMN plan TEXT DEFAULT 'free'",
     "daily_limit": "ALTER TABLE users ADD COLUMN daily_limit INTEGER DEFAULT 20",
     "bonus_requests": "ALTER TABLE users ADD COLUMN bonus_requests INTEGER DEFAULT 0",
@@ -440,6 +474,7 @@ class Database:
             await self._migrate_simple_add_columns(db, "users", USER_BILLING_ADD_COLUMNS)
             await self._migrate_simple_add_columns(db, "subscriptions", SUBSCRIPTION_ADD_COLUMNS)
             await self._migrate_simple_add_columns(db, "payments", PAYMENT_ADD_COLUMNS)
+            await self._migrate_payout_tables(db)
             await db.executescript(INDEXES)
             await db.commit()
             await db.execute("PRAGMA foreign_keys=ON")
@@ -481,6 +516,7 @@ class Database:
                     first_name TEXT,
                     last_name TEXT,
                     language_code TEXT,
+                    photo_url TEXT,
                     plan TEXT DEFAULT 'free',
                     daily_limit INTEGER DEFAULT 20,
                     bonus_requests INTEGER DEFAULT 0,
@@ -526,7 +562,7 @@ class Database:
             await db.execute(
                 f"""
                 INSERT OR IGNORE INTO users_new (
-                    telegram_user_id, telegram_id, username, first_name, last_name, language_code,
+                    telegram_user_id, telegram_id, username, first_name, last_name, language_code, photo_url,
                     plan, daily_limit, bonus_requests, purchased_credits, referral_code, referred_by, onboarding_completed,
                     free_limit, monthly_limit, subscription_started_at,
                     subscription_until, subscription_expires_at, unlimited_access, blocked, admin_note, access_updated_at,
@@ -539,6 +575,7 @@ class Database:
                     {expr("first_name")},
                     {expr("last_name")},
                     {expr("language_code")},
+                    {expr("photo_url")},
                     {expr("plan", "'free'")},
                     {expr("daily_limit", "20")},
                     {expr("bonus_requests", "0")},
@@ -659,6 +696,60 @@ class Database:
         await db.execute("DROP TABLE chat_messages")
         await db.execute("ALTER TABLE chat_messages_new RENAME TO chat_messages")
 
+    async def _migrate_payout_tables(self, db: aiosqlite.Connection) -> None:
+        await db.execute("""
+        CREATE TABLE IF NOT EXISTS payout_methods (
+            telegram_user_id TEXT PRIMARY KEY,
+            bik TEXT NOT NULL,
+            bank_name TEXT,
+            account_number_encrypted TEXT,
+            account_last4 TEXT,
+            account_mask TEXT,
+            holder_name TEXT,
+            status TEXT NOT NULL DEFAULT 'saved',
+            created_at TEXT NOT NULL,
+            updated_at TEXT NOT NULL
+        )
+        """)
+        await db.execute("""
+        CREATE TABLE IF NOT EXISTS autopay_settings (
+            telegram_user_id TEXT PRIMARY KEY,
+            enabled INTEGER NOT NULL DEFAULT 0,
+            provider TEXT NOT NULL DEFAULT 'yookassa',
+            plan TEXT,
+            payment_method_id_encrypted TEXT,
+            payment_method_mask TEXT,
+            status TEXT NOT NULL DEFAULT 'disabled',
+            consent_at TEXT,
+            last_charge_at TEXT,
+            next_charge_at TEXT,
+            created_at TEXT NOT NULL,
+            updated_at TEXT NOT NULL
+        )
+        """)
+        await self._migrate_simple_add_columns(db, "payout_methods", {
+            "bank_name": "ALTER TABLE payout_methods ADD COLUMN bank_name TEXT",
+            "account_number_encrypted": "ALTER TABLE payout_methods ADD COLUMN account_number_encrypted TEXT",
+            "account_last4": "ALTER TABLE payout_methods ADD COLUMN account_last4 TEXT",
+            "account_mask": "ALTER TABLE payout_methods ADD COLUMN account_mask TEXT",
+            "holder_name": "ALTER TABLE payout_methods ADD COLUMN holder_name TEXT",
+            "status": "ALTER TABLE payout_methods ADD COLUMN status TEXT NOT NULL DEFAULT 'saved'",
+            "created_at": "ALTER TABLE payout_methods ADD COLUMN created_at TEXT",
+            "updated_at": "ALTER TABLE payout_methods ADD COLUMN updated_at TEXT",
+        })
+        await self._migrate_simple_add_columns(db, "autopay_settings", {
+            "provider": "ALTER TABLE autopay_settings ADD COLUMN provider TEXT NOT NULL DEFAULT 'yookassa'",
+            "plan": "ALTER TABLE autopay_settings ADD COLUMN plan TEXT",
+            "payment_method_id_encrypted": "ALTER TABLE autopay_settings ADD COLUMN payment_method_id_encrypted TEXT",
+            "payment_method_mask": "ALTER TABLE autopay_settings ADD COLUMN payment_method_mask TEXT",
+            "status": "ALTER TABLE autopay_settings ADD COLUMN status TEXT NOT NULL DEFAULT 'disabled'",
+            "consent_at": "ALTER TABLE autopay_settings ADD COLUMN consent_at TEXT",
+            "last_charge_at": "ALTER TABLE autopay_settings ADD COLUMN last_charge_at TEXT",
+            "next_charge_at": "ALTER TABLE autopay_settings ADD COLUMN next_charge_at TEXT",
+            "created_at": "ALTER TABLE autopay_settings ADD COLUMN created_at TEXT",
+            "updated_at": "ALTER TABLE autopay_settings ADD COLUMN updated_at TEXT",
+        })
+
     async def ensure_user(self, telegram_id: int) -> None:
         now = utc_now_iso()
         async with aiosqlite.connect(self.path) as db:
@@ -683,6 +774,7 @@ class Database:
         first_name: str | None = None,
         last_name: str | None = None,
         language_code: str | None = None,
+        photo_url: str | None = None,
     ) -> None:
         now = utc_now_iso()
         async with aiosqlite.connect(self.path) as db:
@@ -690,15 +782,16 @@ class Database:
                 """
                 INSERT INTO users (
                     telegram_user_id, telegram_id, username, first_name, last_name,
-                    language_code, referral_code, created_at, updated_at, last_seen_at
+                    language_code, photo_url, referral_code, created_at, updated_at, last_seen_at
                 )
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 ON CONFLICT(telegram_user_id) DO UPDATE SET
                     telegram_id=excluded.telegram_id,
                     username=excluded.username,
                     first_name=excluded.first_name,
                     last_name=excluded.last_name,
                     language_code=COALESCE(excluded.language_code, users.language_code),
+                    photo_url=COALESCE(excluded.photo_url, users.photo_url),
                     referral_code=COALESCE(users.referral_code, excluded.referral_code),
                     updated_at=excluded.updated_at,
                     last_seen_at=excluded.last_seen_at
@@ -710,6 +803,7 @@ class Database:
                     first_name,
                     last_name,
                     language_code,
+                    photo_url,
                     referral_code_for(telegram_id),
                     now,
                     now,
@@ -992,6 +1086,45 @@ class Database:
             row = await cursor.fetchone()
             return dict(row) if row else None
 
+
+    async def get_organization_member_access(self, telegram_id: int, now: datetime | None = None) -> dict[str, Any] | None:
+        now = (now or datetime.now(timezone.utc)).astimezone(timezone.utc)
+        try:
+            async with aiosqlite.connect(self.path) as db:
+                db.row_factory = aiosqlite.Row
+                cur = await db.execute(
+                    """
+                    SELECT
+                        o.id AS organization_id,
+                        o.title AS organization_title,
+                        o.owner_telegram_user_id,
+                        om.role,
+                        om.limited_access,
+                        u.plan AS owner_plan,
+                        u.subscription_until AS owner_subscription_until,
+                        u.subscription_expires_at AS owner_subscription_expires_at,
+                        u.unlimited_access AS owner_unlimited_access
+                    FROM organization_members om
+                    JOIN organizations o ON o.id = om.organization_id
+                    LEFT JOIN users u ON u.telegram_user_id = o.owner_telegram_user_id OR CAST(u.telegram_id AS TEXT) = o.owner_telegram_user_id
+                    WHERE om.telegram_user_id = ? AND om.status = 'active'
+                    ORDER BY om.joined_at DESC
+                    LIMIT 1
+                    """,
+                    (tg_text_id(telegram_id),),
+                )
+                row = await cur.fetchone()
+                if not row:
+                    return None
+                item = dict(row)
+                owner_until = parse_iso_datetime(item.get("owner_subscription_until") or item.get("owner_subscription_expires_at"))
+                owner_active = bool(item.get("owner_unlimited_access")) or (str(item.get("owner_plan") or "").lower() == "business" and bool(owner_until and owner_until >= now))
+                if not owner_active:
+                    return None
+                return item
+        except Exception:
+            return None
+
     async def get_access_state(
         self,
         telegram_id: int,
@@ -1019,6 +1152,7 @@ class Database:
         subscription_started_at = parse_iso_datetime(profile.get("subscription_started_at"))
         subscription_until = parse_iso_datetime(profile.get("subscription_until") or profile.get("subscription_expires_at"))
         subscription_active = bool(subscription_until and subscription_until >= now)
+        organization_access = await self.get_organization_member_access(telegram_id, now)
 
         month_start = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
         paid_period_start = month_start
@@ -1084,6 +1218,23 @@ class Database:
                     "Лимит кредитов подписки исчерпан. "
                     "Дождитесь обновления лимита или перейдите на более высокий тариф."
                 )
+        elif organization_access:
+            plan = "business_member"
+            status = "organization_active"
+            status_label = f"Участник: {organization_access.get('organization_title') or 'Business'}"
+            # Ограниченный доступ участника организации: полезно для команды, но не полный Business владельца.
+            org_daily_limit = max(int(free_limit_default), 300)
+            org_monthly_limit = max(int(monthly_limit_default), 10000)
+            current_limit = org_monthly_limit
+            used_for_limit = used_period
+            monthly_remaining = max(org_monthly_limit - used_period - reserved_credits, 0)
+            daily_remaining = max(org_daily_limit - used_today - reserved_credits, 0)
+            remaining = min(daily_remaining, monthly_remaining)
+            can_request = remaining > 0
+            daily_limit = org_daily_limit
+            monthly_limit = org_monthly_limit
+            if not can_request:
+                denial_reason = "Лимит участника организации исчерпан. Попросите владельца выдать больший доступ или купите личный тариф."
         else:
             status = "expired" if subscription_until else "free_trial"
             status_label = "Free" if not subscription_until else "Подписка истекла"
@@ -1130,6 +1281,7 @@ class Database:
             "blocked": blocked,
             "admin_note": profile.get("admin_note"),
             "unit_name": "кредиты",
+            "organization": organization_access,
         }
 
     async def list_recent_requests(self, telegram_id: int, limit: int = 10) -> list[dict[str, Any]]:
@@ -1823,6 +1975,196 @@ class Database:
             {"plan": plan, "provider": provider, "order_id": order_id, "daily_limit": daily_limit, "monthly_limit": monthly_limit, "expires_at": expires_at},
         )
         return {"plan": plan, "daily_limit": daily_limit, "monthly_limit": monthly_limit, "expires_at": expires_at, "status": "active"}
+
+    async def upsert_payout_method(
+        self,
+        telegram_id: int,
+        *,
+        bik: str,
+        account_number_encrypted: str,
+        account_last4: str,
+        account_mask: str,
+        bank_name: str | None = None,
+        holder_name: str | None = None,
+    ) -> dict[str, Any]:
+        now = utc_now_iso()
+        await self.ensure_user(telegram_id)
+        async with aiosqlite.connect(self.path) as db:
+            await db.execute(
+                """
+                INSERT INTO payout_methods(
+                    telegram_user_id, bik, bank_name, account_number_encrypted,
+                    account_last4, account_mask, holder_name, status, created_at, updated_at
+                )
+                VALUES (?, ?, ?, ?, ?, ?, ?, 'saved', ?, ?)
+                ON CONFLICT(telegram_user_id) DO UPDATE SET
+                    bik=excluded.bik,
+                    bank_name=excluded.bank_name,
+                    account_number_encrypted=excluded.account_number_encrypted,
+                    account_last4=excluded.account_last4,
+                    account_mask=excluded.account_mask,
+                    holder_name=excluded.holder_name,
+                    status='saved',
+                    updated_at=excluded.updated_at
+                """,
+                (str(telegram_id), bik, bank_name, account_number_encrypted, account_last4, account_mask, holder_name, now, now),
+            )
+            await db.commit()
+        saved = await self.get_payout_method(telegram_id)
+        return saved or {}
+
+    async def get_payout_method(self, telegram_id: int) -> dict[str, Any] | None:
+        async with aiosqlite.connect(self.path) as db:
+            db.row_factory = aiosqlite.Row
+            cur = await db.execute(
+                """
+                SELECT telegram_user_id, bik, bank_name, account_last4, account_mask, holder_name, status, created_at, updated_at
+                FROM payout_methods
+                WHERE telegram_user_id = ?
+                """,
+                (str(telegram_id),),
+            )
+            row = await cur.fetchone()
+            return dict(row) if row else None
+
+    async def get_payout_method_secret(self, telegram_id: int) -> dict[str, Any] | None:
+        async with aiosqlite.connect(self.path) as db:
+            db.row_factory = aiosqlite.Row
+            cur = await db.execute("SELECT * FROM payout_methods WHERE telegram_user_id = ?", (str(telegram_id),))
+            row = await cur.fetchone()
+            return dict(row) if row else None
+
+    async def delete_payout_method(self, telegram_id: int) -> bool:
+        async with aiosqlite.connect(self.path) as db:
+            cur = await db.execute("DELETE FROM payout_methods WHERE telegram_user_id = ?", (str(telegram_id),))
+            await db.commit()
+            return cur.rowcount > 0
+
+    async def upsert_autopay_settings(
+        self,
+        telegram_id: int,
+        *,
+        enabled: bool,
+        provider: str = "yookassa",
+        plan: str | None = None,
+        status: str | None = None,
+        payment_method_id_encrypted: str | None = None,
+        payment_method_mask: str | None = None,
+        next_charge_at: str | None = None,
+    ) -> dict[str, Any]:
+        now = utc_now_iso()
+        existing = await self.get_autopay_settings_secret(telegram_id)
+        encrypted = payment_method_id_encrypted if payment_method_id_encrypted is not None else (existing or {}).get("payment_method_id_encrypted")
+        mask = payment_method_mask if payment_method_mask is not None else (existing or {}).get("payment_method_mask")
+        final_status = status or ("active" if enabled and encrypted else "pending_payment_method" if enabled else "disabled")
+        consent_at = now if enabled else (existing or {}).get("consent_at")
+        created_at = (existing or {}).get("created_at") or now
+        async with aiosqlite.connect(self.path) as db:
+            await db.execute(
+                """
+                INSERT INTO autopay_settings(
+                    telegram_user_id, enabled, provider, plan, payment_method_id_encrypted,
+                    payment_method_mask, status, consent_at, next_charge_at, created_at, updated_at
+                )
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                ON CONFLICT(telegram_user_id) DO UPDATE SET
+                    enabled=excluded.enabled,
+                    provider=excluded.provider,
+                    plan=COALESCE(excluded.plan, autopay_settings.plan),
+                    payment_method_id_encrypted=COALESCE(excluded.payment_method_id_encrypted, autopay_settings.payment_method_id_encrypted),
+                    payment_method_mask=COALESCE(excluded.payment_method_mask, autopay_settings.payment_method_mask),
+                    status=excluded.status,
+                    consent_at=COALESCE(excluded.consent_at, autopay_settings.consent_at),
+                    next_charge_at=COALESCE(excluded.next_charge_at, autopay_settings.next_charge_at),
+                    updated_at=excluded.updated_at
+                """,
+                (str(telegram_id), 1 if enabled else 0, provider, plan, encrypted, mask, final_status, consent_at, next_charge_at, created_at, now),
+            )
+            await db.commit()
+        public = await self.get_autopay_settings(telegram_id)
+        return public or {}
+
+    async def get_autopay_settings(self, telegram_id: int) -> dict[str, Any] | None:
+        async with aiosqlite.connect(self.path) as db:
+            db.row_factory = aiosqlite.Row
+            cur = await db.execute(
+                """
+                SELECT telegram_user_id, enabled, provider, plan, payment_method_mask, status,
+                       consent_at, last_charge_at, next_charge_at, created_at, updated_at
+                FROM autopay_settings
+                WHERE telegram_user_id = ?
+                """,
+                (str(telegram_id),),
+            )
+            row = await cur.fetchone()
+            if not row:
+                return None
+            item = dict(row)
+            item["enabled"] = bool(item.get("enabled"))
+            item["has_payment_method"] = bool(item.get("payment_method_mask"))
+            return item
+
+    async def get_autopay_settings_secret(self, telegram_id: int) -> dict[str, Any] | None:
+        async with aiosqlite.connect(self.path) as db:
+            db.row_factory = aiosqlite.Row
+            cur = await db.execute("SELECT * FROM autopay_settings WHERE telegram_user_id = ?", (str(telegram_id),))
+            row = await cur.fetchone()
+            return dict(row) if row else None
+
+    async def save_autopay_payment_method(
+        self,
+        telegram_id: int,
+        *,
+        plan: str,
+        payment_method_id_encrypted: str,
+        payment_method_mask: str,
+        next_charge_at: str | None,
+    ) -> dict[str, Any]:
+        await self.upsert_autopay_settings(
+            telegram_id,
+            enabled=True,
+            provider="yookassa",
+            plan=plan,
+            status="active",
+            payment_method_id_encrypted=payment_method_id_encrypted,
+            payment_method_mask=payment_method_mask,
+            next_charge_at=next_charge_at,
+        )
+        public = await self.get_autopay_settings(telegram_id)
+        return public or {}
+
+    async def mark_autopay_charge(self, telegram_id: int, *, status: str, next_charge_at: str | None = None) -> None:
+        now = utc_now_iso()
+        async with aiosqlite.connect(self.path) as db:
+            await db.execute(
+                """
+                UPDATE autopay_settings
+                SET status = ?, last_charge_at = ?, next_charge_at = COALESCE(?, next_charge_at), updated_at = ?
+                WHERE telegram_user_id = ?
+                """,
+                (status, now, next_charge_at, now, str(telegram_id)),
+            )
+            await db.commit()
+
+    async def list_due_autopay(self, limit: int = 50) -> list[dict[str, Any]]:
+        now = utc_now_iso()
+        async with aiosqlite.connect(self.path) as db:
+            db.row_factory = aiosqlite.Row
+            cur = await db.execute(
+                """
+                SELECT ap.*, u.telegram_id, u.subscription_until, u.subscription_expires_at
+                FROM autopay_settings ap
+                JOIN users u ON u.telegram_user_id = ap.telegram_user_id OR CAST(u.telegram_id AS TEXT) = ap.telegram_user_id
+                WHERE ap.enabled = 1
+                  AND ap.status IN ('active', 'retry')
+                  AND ap.payment_method_id_encrypted IS NOT NULL
+                  AND (u.subscription_until IS NULL OR u.subscription_until <= ? OR ap.next_charge_at <= ?)
+                ORDER BY COALESCE(ap.next_charge_at, u.subscription_until, ap.updated_at) ASC
+                LIMIT ?
+                """,
+                (now, now, int(limit)),
+            )
+            return [dict(row) for row in await cur.fetchall()]
 
     async def expire_subscription_if_needed(self, telegram_id: int) -> None:
         profile = await self.get_user_profile(telegram_id)

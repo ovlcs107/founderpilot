@@ -117,6 +117,58 @@ CREATE TABLE IF NOT EXISTS notification_preferences (
     weekly_digest INTEGER NOT NULL DEFAULT 0,
     updated_at TEXT NOT NULL
 );
+
+
+CREATE TABLE IF NOT EXISTS organizations (
+    id TEXT PRIMARY KEY,
+    owner_telegram_user_id TEXT NOT NULL,
+    title TEXT NOT NULL,
+    slug TEXT,
+    description TEXT,
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_organizations_owner
+ON organizations(owner_telegram_user_id, updated_at);
+
+CREATE TABLE IF NOT EXISTS organization_members (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    organization_id TEXT NOT NULL,
+    telegram_user_id TEXT NOT NULL,
+    role TEXT NOT NULL DEFAULT 'member',
+    status TEXT NOT NULL DEFAULT 'active',
+    limited_access INTEGER NOT NULL DEFAULT 1,
+    invited_by TEXT,
+    joined_at TEXT,
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL,
+    UNIQUE(organization_id, telegram_user_id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_org_members_user
+ON organization_members(telegram_user_id, status, updated_at);
+
+CREATE INDEX IF NOT EXISTS idx_org_members_org
+ON organization_members(organization_id, status, updated_at);
+
+CREATE TABLE IF NOT EXISTS organization_invites (
+    token TEXT PRIMARY KEY,
+    organization_id TEXT NOT NULL,
+    inviter_telegram_user_id TEXT NOT NULL,
+    invited_username TEXT NOT NULL,
+    invited_telegram_user_id TEXT,
+    status TEXT NOT NULL DEFAULT 'pending',
+    created_at TEXT NOT NULL,
+    accepted_at TEXT,
+    expires_at TEXT
+);
+
+CREATE INDEX IF NOT EXISTS idx_org_invites_username
+ON organization_invites(invited_username, status, created_at);
+
+CREATE INDEX IF NOT EXISTS idx_org_invites_user
+ON organization_invites(invited_telegram_user_id, status, created_at);
 """
 
 
@@ -467,6 +519,249 @@ class FeatureStore:
                 (max(1, min(int(limit), 200)),),
             )
             return [dict(row) for row in await cur.fetchall()]
+
+
+    async def user_plan(self, telegram_id: int) -> dict[str, Any]:
+        async with aiosqlite.connect(self.db_path) as db:
+            db.row_factory = aiosqlite.Row
+            cur = await db.execute(
+                "SELECT telegram_id, telegram_user_id, username, first_name, plan, subscription_until, subscription_expires_at, unlimited_access FROM users WHERE telegram_id = ? OR telegram_user_id = ?",
+                (telegram_id, str(telegram_id)),
+            )
+            row = await cur.fetchone()
+            return dict(row) if row else {}
+
+    async def can_manage_organization(self, telegram_id: int) -> tuple[bool, str]:
+        user = await self.user_plan(telegram_id)
+        plan = str(user.get("plan") or "free").lower()
+        if plan == "business" or bool(user.get("unlimited_access")):
+            return True, "ok"
+        return False, "Создание компании доступно только на тарифе Business."
+
+    async def list_organizations(self, telegram_id: int, username: str | None = None) -> dict[str, Any]:
+        clean_username = (username or "").strip().lstrip("@").lower()
+        async with aiosqlite.connect(self.db_path) as db:
+            db.row_factory = aiosqlite.Row
+            owned_cur = await db.execute(
+                "SELECT * FROM organizations WHERE owner_telegram_user_id = ? ORDER BY updated_at DESC",
+                (str(telegram_id),),
+            )
+            owned = [dict(row) for row in await owned_cur.fetchall()]
+
+            member_cur = await db.execute(
+                """
+                SELECT o.*, om.role, om.limited_access, om.joined_at, om.status AS member_status
+                FROM organization_members om
+                JOIN organizations o ON o.id = om.organization_id
+                WHERE om.telegram_user_id = ? AND om.status = 'active'
+                ORDER BY om.updated_at DESC
+                """,
+                (str(telegram_id),),
+            )
+            memberships = [dict(row) for row in await member_cur.fetchall()]
+
+            pending: list[dict[str, Any]] = []
+            if clean_username:
+                inv_cur = await db.execute(
+                    """
+                    SELECT oi.*, o.title AS organization_title, o.owner_telegram_user_id
+                    FROM organization_invites oi
+                    JOIN organizations o ON o.id = oi.organization_id
+                    WHERE oi.status = 'pending' AND (oi.invited_telegram_user_id = ? OR lower(oi.invited_username) = ?)
+                    ORDER BY oi.created_at DESC
+                    """,
+                    (str(telegram_id), clean_username),
+                )
+                pending = [dict(row) for row in await inv_cur.fetchall()]
+            else:
+                inv_cur = await db.execute(
+                    """
+                    SELECT oi.*, o.title AS organization_title, o.owner_telegram_user_id
+                    FROM organization_invites oi
+                    JOIN organizations o ON o.id = oi.organization_id
+                    WHERE oi.status = 'pending' AND oi.invited_telegram_user_id = ?
+                    ORDER BY oi.created_at DESC
+                    """,
+                    (str(telegram_id),),
+                )
+                pending = [dict(row) for row in await inv_cur.fetchall()]
+
+        active = memberships[0] if memberships else None
+        return {"owned": owned, "memberships": memberships, "active": active, "pending_invites": pending}
+
+    async def create_organization(self, telegram_id: int, payload: dict[str, Any]) -> dict[str, Any]:
+        allowed, reason = await self.can_manage_organization(telegram_id)
+        if not allowed:
+            raise PermissionError(reason)
+        now = utc_now()
+        org_id = f"org_{uuid4().hex[:16]}"
+        title = str(payload.get("title") or payload.get("name") or "Моя компания").strip()[:120]
+        description = str(payload.get("description") or "").strip()[:1000]
+        slug = "".join(ch.lower() for ch in title if ch.isalnum())[:40] or org_id
+        async with aiosqlite.connect(self.db_path) as db:
+            await db.execute(
+                """
+                INSERT INTO organizations(id, owner_telegram_user_id, title, slug, description, created_at, updated_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?)
+                """,
+                (org_id, str(telegram_id), title, slug, description, now, now),
+            )
+            await db.execute(
+                """
+                INSERT OR REPLACE INTO organization_members(organization_id, telegram_user_id, role, status, limited_access, invited_by, joined_at, created_at, updated_at)
+                VALUES (?, ?, 'owner', 'active', 0, ?, ?, ?, ?)
+                """,
+                (org_id, str(telegram_id), str(telegram_id), now, now, now),
+            )
+            await db.commit()
+        return {"id": org_id, "title": title, "slug": slug, "description": description, "role": "owner"}
+
+    async def list_organization_members(self, telegram_id: int, organization_id: str | None = None) -> list[dict[str, Any]]:
+        org_id = organization_id
+        if not org_id:
+            orgs = (await self.list_organizations(telegram_id)).get("owned", [])
+            org_id = orgs[0].get("id") if orgs else None
+        if not org_id:
+            return []
+        async with aiosqlite.connect(self.db_path) as db:
+            db.row_factory = aiosqlite.Row
+            cur_owner = await db.execute(
+                "SELECT id FROM organizations WHERE id = ? AND owner_telegram_user_id = ?",
+                (str(org_id), str(telegram_id)),
+            )
+            if not await cur_owner.fetchone():
+                cur_member = await db.execute(
+                    "SELECT id FROM organization_members WHERE organization_id = ? AND telegram_user_id = ? AND status = 'active'",
+                    (str(org_id), str(telegram_id)),
+                )
+                if not await cur_member.fetchone():
+                    raise PermissionError("Нет доступа к участникам этой организации.")
+            cur = await db.execute(
+                """
+                SELECT om.organization_id, om.telegram_user_id, om.role, om.status, om.limited_access,
+                       om.joined_at, u.username, u.first_name, u.last_name, u.photo_url
+                FROM organization_members om
+                LEFT JOIN users u ON u.telegram_user_id = om.telegram_user_id OR CAST(u.telegram_id AS TEXT) = om.telegram_user_id
+                WHERE om.organization_id = ?
+                ORDER BY CASE om.role WHEN 'owner' THEN 0 WHEN 'admin' THEN 1 ELSE 2 END, om.created_at ASC
+                """,
+                (str(org_id),),
+            )
+            return [dict(row) for row in await cur.fetchall()]
+
+    async def get_organization_for_owner(self, telegram_id: int, organization_id: str) -> dict[str, Any] | None:
+        async with aiosqlite.connect(self.db_path) as db:
+            db.row_factory = aiosqlite.Row
+            cur = await db.execute(
+                "SELECT * FROM organizations WHERE id = ? AND owner_telegram_user_id = ?",
+                (organization_id, str(telegram_id)),
+            )
+            row = await cur.fetchone()
+            return dict(row) if row else None
+
+    async def find_user_by_username(self, username: str) -> dict[str, Any] | None:
+        clean_username = username.strip().lstrip("@").lower()
+        async with aiosqlite.connect(self.db_path) as db:
+            db.row_factory = aiosqlite.Row
+            cur = await db.execute(
+                "SELECT telegram_id, telegram_user_id, username, first_name, plan FROM users WHERE lower(username) = ? ORDER BY id DESC LIMIT 1",
+                (clean_username,),
+            )
+            row = await cur.fetchone()
+            return dict(row) if row else None
+
+    async def invite_organization_member(self, telegram_id: int, organization_id: str, username: str) -> dict[str, Any]:
+        org = await self.get_organization_for_owner(telegram_id, organization_id)
+        if not org:
+            raise PermissionError("Приглашать людей может только владелец компании.")
+        clean_username = username.strip().lstrip("@").lower()
+        if not clean_username:
+            raise ValueError("Укажите username Telegram.")
+        invited_user = await self.find_user_by_username(clean_username)
+        now_dt = datetime.now(timezone.utc)
+        now = now_dt.isoformat()
+        expires_at = (now_dt + timedelta(days=14)).isoformat()
+        token = f"inv_{uuid4().hex}"
+        invited_tg = str(invited_user.get("telegram_id")) if invited_user and invited_user.get("telegram_id") else None
+        async with aiosqlite.connect(self.db_path) as db:
+            await db.execute(
+                """
+                INSERT INTO organization_invites(token, organization_id, inviter_telegram_user_id, invited_username, invited_telegram_user_id, status, created_at, expires_at)
+                VALUES (?, ?, ?, ?, ?, 'pending', ?, ?)
+                """,
+                (token, organization_id, str(telegram_id), clean_username, invited_tg, now, expires_at),
+            )
+            await db.commit()
+        return {
+            "token": token,
+            "organization_id": organization_id,
+            "organization_title": org.get("title"),
+            "invited_username": clean_username,
+            "invited_telegram_user_id": invited_tg,
+            "status": "pending",
+            "expires_at": expires_at,
+        }
+
+    async def pending_invites(self, telegram_id: int, username: str | None = None) -> list[dict[str, Any]]:
+        return (await self.list_organizations(telegram_id, username)).get("pending_invites", [])
+
+    async def decline_organization_invite(self, telegram_id: int, username: str | None, token: str) -> dict[str, Any]:
+        clean_username = (username or "").strip().lstrip("@").lower()
+        async with aiosqlite.connect(self.db_path) as db:
+            db.row_factory = aiosqlite.Row
+            cur = await db.execute("SELECT * FROM organization_invites WHERE token = ? AND status = 'pending'", (token,))
+            invite = await cur.fetchone()
+            if not invite:
+                raise ValueError("Приглашение не найдено или уже использовано.")
+            invite_dict = dict(invite)
+            invited_tg = invite_dict.get("invited_telegram_user_id")
+            invited_username = str(invite_dict.get("invited_username") or "").lower()
+            if invited_tg and str(invited_tg) != str(telegram_id):
+                raise PermissionError("Это приглашение предназначено для другого пользователя.")
+            if (not invited_tg) and clean_username and invited_username != clean_username:
+                raise PermissionError("Это приглашение предназначено для другого username.")
+            await db.execute("UPDATE organization_invites SET status = 'declined' WHERE token = ?", (token,))
+            await db.commit()
+        return {"ok": True, "status": "declined"}
+
+    async def accept_organization_invite(self, telegram_id: int, username: str | None, token: str) -> dict[str, Any]:
+        clean_username = (username or "").strip().lstrip("@").lower()
+        now = utc_now()
+        async with aiosqlite.connect(self.db_path) as db:
+            db.row_factory = aiosqlite.Row
+            cur = await db.execute(
+                """
+                SELECT oi.*, o.title AS organization_title, o.owner_telegram_user_id
+                FROM organization_invites oi
+                JOIN organizations o ON o.id = oi.organization_id
+                WHERE oi.token = ? AND oi.status = 'pending'
+                """,
+                (token,),
+            )
+            invite = await cur.fetchone()
+            if not invite:
+                raise ValueError("Приглашение не найдено или уже использовано.")
+            invite_dict = dict(invite)
+            invited_tg = invite_dict.get("invited_telegram_user_id")
+            invited_username = str(invite_dict.get("invited_username") or "").lower()
+            if invited_tg and str(invited_tg) != str(telegram_id):
+                raise PermissionError("Это приглашение предназначено для другого пользователя.")
+            if (not invited_tg) and clean_username and invited_username != clean_username:
+                raise PermissionError("Это приглашение предназначено для другого username.")
+
+            await db.execute(
+                """
+                INSERT OR REPLACE INTO organization_members(organization_id, telegram_user_id, role, status, limited_access, invited_by, joined_at, created_at, updated_at)
+                VALUES (?, ?, 'member', 'active', 1, ?, ?, ?, ?)
+                """,
+                (invite_dict["organization_id"], str(telegram_id), invite_dict["inviter_telegram_user_id"], now, now, now),
+            )
+            await db.execute(
+                "UPDATE organization_invites SET status = 'accepted', invited_telegram_user_id = ?, accepted_at = ? WHERE token = ?",
+                (str(telegram_id), now, token),
+            )
+            await db.commit()
+        return {"ok": True, "organization_id": invite_dict["organization_id"], "organization_title": invite_dict["organization_title"], "role": "member", "limited_access": True}
 
     async def record_abuse_event(self, *, telegram_id: int | None, ip: str, fingerprint_hash: str | None, path: str, event_type: str, risk_score: int, metadata: dict[str, Any], secret: str) -> None:
         async with aiosqlite.connect(self.db_path) as db:

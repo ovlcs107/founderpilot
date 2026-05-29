@@ -59,6 +59,26 @@ def plan_catalog(settings: Settings) -> dict[str, Plan]:
             price_ton=Decimal("0"),
             price_btc=Decimal("0"),
         ),
+        "go": Plan(
+            key="go",
+            title="Go",
+            daily_limit=settings.go_daily_credits,
+            monthly_limit=settings.go_monthly_credits,
+            price_rub=Decimal(str(settings.go_price_rub)),
+            price_stars=settings.go_price_stars,
+            price_ton=Decimal(str(settings.go_price_ton)),
+            price_btc=Decimal(str(settings.go_price_btc)),
+        ),
+        "plus": Plan(
+            key="plus",
+            title="Plus",
+            daily_limit=settings.plus_daily_credits,
+            monthly_limit=settings.plus_monthly_credits,
+            price_rub=Decimal(str(settings.plus_price_rub)),
+            price_stars=settings.plus_price_stars,
+            price_ton=Decimal(str(settings.plus_price_ton)),
+            price_btc=Decimal(str(settings.plus_price_btc)),
+        ),
         "pro": Plan(
             key="pro",
             title="Pro",
@@ -80,7 +100,6 @@ def plan_catalog(settings: Settings) -> dict[str, Plan]:
             price_btc=Decimal(str(settings.business_price_btc)),
         ),
     }
-
 
 def enabled_providers(settings: Settings) -> list[dict[str, Any]]:
     providers: list[dict[str, Any]] = []
@@ -145,7 +164,7 @@ async def create_telegram_stars_invoice(settings: Settings, bot: Bot, order: dic
         )
 
 
-async def create_yookassa_payment(settings: Settings, order: dict[str, Any], plan: Plan) -> tuple[str, str]:
+async def create_yookassa_payment(settings: Settings, order: dict[str, Any], plan: Plan, *, save_payment_method: bool = False) -> tuple[str, str]:
     if not settings.yookassa_shop_id or not settings.yookassa_secret_key:
         raise BillingError("ЮKassa не настроена: заполните YOOKASSA_SHOP_ID и YOOKASSA_SECRET_KEY.")
 
@@ -160,8 +179,13 @@ async def create_yookassa_payment(settings: Settings, order: dict[str, Any], pla
             "order_id": order["id"],
             "telegram_user_id": order["telegram_user_id"],
             "plan": plan.key,
+            "auto_renew": "1" if save_payment_method else "0",
         },
     }
+    if save_payment_method and settings.yookassa_enable_saved_payment_method:
+        # YooKassa stores the payment method on its side and returns only a reusable token.
+        # We never store card numbers or CVV in FounderPilot.
+        body["save_payment_method"] = True
     headers = {"Idempotence-Key": order["id"]}
     async with httpx.AsyncClient(timeout=30) as client:
         response = await client.post("https://api.yookassa.ru/v3/payments", json=body, auth=auth, headers=headers)
@@ -173,6 +197,63 @@ async def create_yookassa_payment(settings: Settings, order: dict[str, Any], pla
     if not payment_url or not external_id:
         raise BillingError("ЮKassa не вернула ссылку оплаты.")
     return external_id, payment_url
+
+
+
+async def fetch_yookassa_payment(settings: Settings, payment_id: str) -> dict[str, Any]:
+    if not settings.yookassa_shop_id or not settings.yookassa_secret_key:
+        raise BillingError("ЮKassa не настроена.")
+    auth = (settings.yookassa_shop_id, settings.yookassa_secret_key)
+    async with httpx.AsyncClient(timeout=20) as client:
+        response = await client.get(f"https://api.yookassa.ru/v3/payments/{payment_id}", auth=auth)
+        if response.status_code >= 400:
+            raise BillingError(f"Не удалось проверить платёж ЮKassa: {response.status_code} {response.text[:300]}")
+        return response.json()
+
+
+async def verify_yookassa_payment(settings: Settings, order: dict[str, Any], payment_id: str) -> dict[str, Any]:
+    data = await fetch_yookassa_payment(settings, payment_id)
+    metadata = data.get("metadata") or {}
+    amount = data.get("amount") or {}
+    expected_value = rub_value(Decimal(str(order["amount"])))
+    if str(metadata.get("order_id") or "") != str(order["id"]):
+        raise BillingError("ЮKassa: metadata.order_id не совпадает с заказом.")
+    if str(amount.get("currency") or "").upper() != "RUB":
+        raise BillingError("ЮKassa: валюта платежа не совпадает.")
+    if str(amount.get("value") or "") != expected_value:
+        raise BillingError("ЮKassa: сумма платежа не совпадает.")
+    if data.get("status") != "succeeded":
+        raise BillingError("ЮKassa: платёж ещё не подтверждён.")
+    return data
+
+
+async def create_yookassa_autopayment(settings: Settings, *, payment_method_id: str, order: dict[str, Any], plan: Plan) -> tuple[str, str, dict[str, Any]]:
+    if not settings.yookassa_shop_id or not settings.yookassa_secret_key:
+        raise BillingError("ЮKassa не настроена: заполните YOOKASSA_SHOP_ID и YOOKASSA_SECRET_KEY.")
+    auth = (settings.yookassa_shop_id, settings.yookassa_secret_key)
+    body = {
+        "amount": {"value": rub_value(Decimal(str(order["amount"]))), "currency": "RUB"},
+        "capture": True,
+        "payment_method_id": payment_method_id,
+        "description": f"Автопродление FounderPilot AI {plan.title} на {PLAN_DAYS} дней",
+        "metadata": {
+            "order_id": order["id"],
+            "telegram_user_id": order["telegram_user_id"],
+            "plan": plan.key,
+            "auto_renewal_charge": "1",
+        },
+    }
+    headers = {"Idempotence-Key": order["id"]}
+    async with httpx.AsyncClient(timeout=30) as client:
+        response = await client.post("https://api.yookassa.ru/v3/payments", json=body, auth=auth, headers=headers)
+        if response.status_code >= 400:
+            raise BillingError(f"ЮKassa автосписание вернуло ошибку: {response.status_code} {response.text[:300]}")
+        data = response.json()
+    external_id = data.get("id")
+    status = str(data.get("status") or "pending")
+    if not external_id:
+        raise BillingError("ЮKassa не вернула id автоплатежа.")
+    return external_id, status, data
 
 
 async def create_btcpay_invoice(settings: Settings, order: dict[str, Any], plan: Plan) -> tuple[str, str]:

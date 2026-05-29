@@ -14,6 +14,7 @@ class TelegramUser:
     username: str | None = None
     first_name: str | None = None
     last_name: str | None = None
+    photo_url: str | None = None
 
 
 class TelegramAuthError(RuntimeError):
@@ -70,8 +71,9 @@ def validate_telegram_init_data(init_data: str, bot_token: str, max_age_seconds:
         username=user_data.get("username"),
         first_name=user_data.get("first_name"),
         last_name=user_data.get("last_name"),
+        photo_url=user_data.get("photo_url"),
     )
 
 
 def dev_user() -> TelegramUser:
-    return TelegramUser(id=1, username="dev", first_name="Local", last_name="Tester")
+    return TelegramUser(id=1, username="dev", first_name="Константин", last_name="Муравьев", photo_url=None)
