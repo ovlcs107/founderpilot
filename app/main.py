@@ -653,12 +653,22 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         method_id = method.get("id")
         saved_meta = metadata_from_order(order)
         payment_meta = verified_payment.get("metadata") or {}
+        card = method.get("card") or {}
+        last4 = card.get("last4") or card.get("last_4") or card.get("last_four")
+        method_title = method.get("title") or method.get("saved_payment_method_title")
+        if last4:
+            card_type = str(card.get("card_type") or card.get("issuer_name") or "Карта").strip() or "Карта"
+            payment_method_mask = f"{card_type} •••• {last4}"
+        elif method_title:
+            payment_method_mask = str(method_title)
+        else:
+            payment_method_mask = f"Карта {mask_token(str(method_id))}"
         if settings.yookassa_enable_saved_payment_method and method_id and (saved_meta.get("auto_renew") or str(payment_meta.get("auto_renew")) == "1"):
             await db.save_autopay_payment_method(
                 int(order["telegram_user_id"]),
                 plan=plan.key,
                 payment_method_id_encrypted=encrypt_text(str(method_id), settings.app_secret) or "",
-                payment_method_mask=mask_token(str(method_id)),
+                payment_method_mask=payment_method_mask,
                 next_charge_at=subscription_next_charge_at(),
             )
 

@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
   <title>FounderPilot AI</title>
-  <link rel="stylesheet" href="/static/styles.css?v=mega-features-v1">
+  <link rel="stylesheet" href="/static/styles.css?v=desktop-polish-1">
   <script src="https://telegram.org/js/telegram-web-app.js"></script>
 </head>
 <body>
@@ -207,10 +207,10 @@
                   <div class="settings-row card-info-flex">
                     <span class="card-icon" data-icon="credit-card"></span>
                     <div class="card-masked-numbers">
-                      <strong>Способ оплаты не выбран</strong>
-                      <small>Будет выбран при оплате тарифа</small>
+                      <strong id="autopayStatusTitle">Карта не привязана</strong>
+                      <small id="autopayStatusSubtitle">После первой оплаты с сохранением карты здесь появится способ оплаты</small>
                     </div>
-                    <button type="button" class="change-payment-method-btn text-link-action-btn">Изменить</button>
+                    <button type="button" class="change-payment-method-btn text-link-action-btn" id="unlinkAutopayCardBtn" hidden>Отвязать</button>
                   </div>
                 </div>
               </section>
@@ -330,7 +330,8 @@
                 </div>
                 <div class="settings-list app-style-list">
                   <button type="button" class="settings-row" onclick="switchView('subscription')"><span><b>Управление подпиской</b><small>Открыть тарифы и кредиты</small></span></button>
-                  <button type="button" class="settings-row" id="unlinkAutopayCardBtn"><span><b>Отвязать карту</b><small>Отключить автопродление и удалить сохранённый способ оплаты</small></span></button>
+                  <div class="settings-row" id="profileAutopayStatusRow"><span data-icon="credit-card"></span><span><b id="profileAutopayStatusTitle">Карта не привязана</b><small id="profileAutopayStatusSubtitle">Сохранённый способ оплаты появится после подключения автопродления</small></span></div>
+                  <button type="button" class="settings-row danger-soft-row" id="profileUnlinkAutopayCardBtn" hidden><span><b>Отключить автопродление и отвязать карту</b><small>Удалить сохранённый способ оплаты из FounderPilot</small></span></button>
                 </div>
               </div>
 
@@ -656,6 +657,6 @@
   <div id="profileCreditsMonthPct" style="display:none;"></div>
   <div id="profileCreditsTodayPct" style="display:none;"></div>
   <div id="toast" class="toast-component">Оповещение</div>
-  <script src="/static/app.js?v=mega-features-v1"></script>
+  <script src="/static/app.js?v=desktop-polish-1"></script>
 </body>
 </html>

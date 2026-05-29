@@ -3821,3 +3821,270 @@ button:focus-visible {
   .score-bars div { grid-template-columns: 68px minmax(0, 1fr) 28px; }
   .workspace-doc-row { align-items: center; }
 }
+
+/* Autopay card state */
+.danger-soft-row { color: var(--red); }
+.danger-soft-row b { color: var(--red); }
+.settings-row[hidden], .change-payment-method-btn[hidden] { display: none !important; }
+.card-masked-numbers strong { display: block; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.card-masked-numbers small { display: block; margin-top: 2px; line-height: 1.35; }
+
+/* === FounderPilot desktop polish pass: subscription, workspace, support === */
+@media (min-width: 1100px) {
+  /* Desktop already has global controls in the top bar/sidebar. Keep the chat header clean. */
+  #view-home .home-head-actions,
+  .desktop-credit-pill {
+    display: none !important;
+  }
+  .desktop-top-bar {
+    gap: 10px !important;
+  }
+  .desktop-new-chat-btn {
+    height: 38px !important;
+    padding: 0 14px !important;
+    border-radius: 14px !important;
+  }
+
+  /* Subscription: compact desktop layout without endless page scrolling */
+  #view-subscription .view-inner.subscription-page {
+    max-width: 1080px !important;
+    padding-top: 42px !important;
+    padding-bottom: 34px !important;
+  }
+  #view-subscription .page-head {
+    margin-bottom: 14px !important;
+  }
+  #view-subscription .page-head h2 {
+    font-size: 29px !important;
+  }
+  #view-subscription .subscription-tabs {
+    margin-bottom: 14px !important;
+  }
+  #view-subscription .subscription-layout {
+    grid-template-columns: minmax(420px, .98fr) minmax(360px, .88fr) !important;
+    gap: 16px !important;
+    align-items: start !important;
+  }
+  #view-subscription .subscription-main,
+  #view-subscription .subscription-side {
+    gap: 14px !important;
+  }
+  #view-subscription .current-plan-card,
+  #view-subscription .benefits-card-container,
+  #view-subscription .settings-section,
+  #view-subscription .pane-card {
+    border-radius: 18px !important;
+    padding: 16px !important;
+    box-shadow: 0 12px 28px rgba(22, 28, 45, .035) !important;
+  }
+  #view-subscription .current-plan-card {
+    min-height: 112px !important;
+  }
+  #view-subscription .current-plan-card h3,
+  #view-subscription .pane-card h3 {
+    font-size: 26px !important;
+  }
+  #view-subscription .benefits-checklist {
+    gap: 9px !important;
+    margin-top: 10px !important;
+  }
+  #view-subscription .benefits-checklist li {
+    font-size: 13.5px !important;
+  }
+  #view-subscription .plan-safety-note {
+    padding: 10px 12px !important;
+    border-radius: 12px !important;
+    font-size: 12.5px !important;
+  }
+  #view-subscription .subscription-plan-list {
+    max-height: min(54vh, 460px) !important;
+    overflow-y: auto !important;
+    overscroll-behavior: contain !important;
+    border-radius: 18px !important;
+  }
+  #view-subscription .subscription-plan-list .subscription-plan-row,
+  #view-subscription .subscription-plan-list .plan-card {
+    min-height: 68px !important;
+    padding: 12px 14px !important;
+  }
+  #view-subscription .subscription-plan-row h4,
+  #view-subscription .plan-card strong {
+    font-size: 15px !important;
+  }
+  #view-subscription .subscription-plan-row small,
+  #view-subscription .plan-card p {
+    font-size: 12.5px !important;
+  }
+  #view-subscription .plan-feature-chips {
+    display: flex !important;
+    flex-wrap: wrap !important;
+    gap: 5px !important;
+    margin-top: 7px !important;
+  }
+  #view-subscription .plan-feature-chips span {
+    font-size: 11.5px !important;
+    padding: 4px 7px !important;
+    border-radius: 999px !important;
+    background: #eef4ff !important;
+    color: #47658f !important;
+  }
+  #view-subscription .subscription-price {
+    font-size: 15px !important;
+  }
+  #view-subscription .payment-method-mask-card .settings-row,
+  #view-subscription .settings-list .settings-row,
+  #view-subscription .toggle-row {
+    min-height: 58px !important;
+    padding: 12px 14px !important;
+  }
+  #view-subscription .payment-grid,
+  #view-subscription #subscriptionPaymentProviders {
+    gap: 9px !important;
+  }
+  #view-subscription .provider-btn,
+  #view-subscription .payment-btn {
+    min-height: 54px !important;
+    padding: 11px 12px !important;
+  }
+  #view-subscription.tab-credits .subscription-side,
+  #view-subscription .subscription-page.tab-credits .subscription-side,
+  #view-subscription .subscription-page.tab-credits .subscription-layout {
+    max-width: none !important;
+  }
+  #view-subscription .credit-pack-list {
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+    gap: 12px !important;
+  }
+  #view-subscription .credit-pack.polished-pack {
+    min-height: 104px !important;
+    align-items: stretch !important;
+    border-radius: 18px !important;
+    padding: 14px !important;
+  }
+
+  /* Workspace: denser, cleaner desktop layout */
+  #pane-workspace.profile-sub-pane.active {
+    max-width: 960px !important;
+  }
+  #pane-workspace .workspace-dashboard-grid {
+    grid-template-columns: minmax(0, 1.35fr) minmax(280px, .75fr) !important;
+    gap: 14px !important;
+    margin-bottom: 14px !important;
+  }
+  #pane-workspace .workspace-card {
+    border-radius: 18px !important;
+    padding: 15px !important;
+    box-shadow: 0 12px 28px rgba(22, 28, 45, .035) !important;
+  }
+  #pane-workspace .support-card-head {
+    margin-bottom: 10px !important;
+  }
+  #pane-workspace .support-card-head h3 {
+    font-size: 16px !important;
+  }
+  #pane-workspace .workspace-project-card,
+  #pane-workspace .workspace-empty,
+  #pane-workspace .score-box-empty {
+    border-radius: 15px !important;
+    padding: 12px !important;
+    margin-bottom: 10px !important;
+  }
+  #pane-workspace .workspace-mini-form {
+    grid-template-columns: minmax(180px, .9fr) minmax(0, 1.1fr) auto !important;
+    align-items: stretch !important;
+    gap: 8px !important;
+  }
+  #pane-workspace .workspace-mini-form textarea {
+    min-height: 44px !important;
+    max-height: 74px !important;
+  }
+  #pane-workspace .workspace-mini-form .primary-btn {
+    min-width: 150px !important;
+    padding-left: 14px !important;
+    padding-right: 14px !important;
+  }
+  #pane-workspace .workspace-tabs {
+    width: 100% !important;
+    margin: 10px 0 12px !important;
+  }
+  #pane-workspace .workspace-tabs .segmented-btn {
+    min-width: 0 !important;
+  }
+  #pane-workspace .workspace-actions-row {
+    flex-wrap: wrap !important;
+    overflow: visible !important;
+    padding-bottom: 10px !important;
+  }
+  #pane-workspace .workspace-actions-row .plain-btn {
+    min-height: 38px !important;
+    padding: 9px 13px !important;
+    border-radius: 13px !important;
+  }
+  #pane-workspace .settings-list .settings-row {
+    min-height: 58px !important;
+    padding: 12px 14px !important;
+  }
+
+  /* Support: pleasant desktop panel width and less air */
+  #pane-support.profile-sub-pane.active {
+    max-width: 920px !important;
+  }
+  #pane-support .support-tabs {
+    margin-bottom: 14px !important;
+  }
+  #pane-support .support-layout {
+    max-width: 840px !important;
+  }
+  #pane-support .support-create-card,
+  #pane-support .support-history-card,
+  #pane-support .support-chat-card {
+    border-radius: 20px !important;
+    padding: 18px !important;
+    box-shadow: 0 14px 32px rgba(22, 28, 45, .04) !important;
+  }
+  #pane-support .support-create-card textarea {
+    min-height: 92px !important;
+  }
+  #pane-support .fp-select-trigger,
+  #pane-support .support-create-card input,
+  #pane-support .support-create-card textarea {
+    border-radius: 15px !important;
+  }
+}
+
+/* Tabs: clear active state + smooth movement, same on desktop and mobile */
+.segmented-control {
+  position: relative;
+  isolation: isolate;
+}
+.segmented-btn {
+  transition: color .18s ease, background .18s ease, box-shadow .18s ease, transform .18s ease;
+}
+.segmented-btn:hover {
+  color: var(--blue);
+  background: rgba(37, 111, 244, .055);
+}
+.segmented-btn.active {
+  color: #fff !important;
+  background: linear-gradient(180deg, #377df7, var(--blue)) !important;
+  box-shadow: 0 10px 22px rgba(37,111,244,.22), inset 0 1px 0 rgba(255,255,255,.18) !important;
+  transform: translateY(-1px);
+}
+.workspace-tab-panel.active,
+.support-tab-panel.active,
+.subscription-panel:not([style*="display: none"]) {
+  animation: fpPanelIn .22s ease both;
+}
+@keyframes fpPanelIn {
+  from { opacity: 0; transform: translateY(6px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@media (max-width: 1099px) {
+  /* Keep mobile clean but compact. */
+  #pane-workspace .workspace-mini-form textarea { min-height: 76px; }
+  #pane-workspace .workspace-actions-row .plain-btn { flex: 0 0 auto; }
+  #view-subscription .subscription-plan-list .subscription-plan-row,
+  #view-subscription .subscription-plan-list .plan-card { min-height: 68px !important; }
+  #pane-support .support-create-card textarea { min-height: 100px; }
+}

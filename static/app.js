@@ -45,6 +45,7 @@ const state = {
   plans: {},
   providers: [],
   billingCapabilities: { autopay_available: false, yookassa_recurring_available: false },
+  autopay: null,
   creditPacks: [],
   organizations: { active: null, owned: [], memberships: [] },
   supportTickets: [],
@@ -375,6 +376,38 @@ function applyAvatar(el, user) {
 function setText(id, value) {
   const el = $(id);
   if (el) el.textContent = value;
+}
+
+
+function renderAutopayCardState() {
+  const ap = state.autopay || state.user?.autopay || null;
+  const hasMethod = Boolean(ap && (ap.has_payment_method || ap.payment_method_mask));
+  const enabled = Boolean(ap && ap.enabled && hasMethod);
+  const mask = ap?.payment_method_mask || 'Карта не привязана';
+  const nextCharge = ap?.next_charge_at ? formatDateRu(ap.next_charge_at) : '—';
+
+  const statusTitle = $('autopayStatusTitle');
+  const statusSubtitle = $('autopayStatusSubtitle');
+  const profileTitle = $('profileAutopayStatusTitle');
+  const profileSubtitle = $('profileAutopayStatusSubtitle');
+  const unlinkBtn = $('unlinkAutopayCardBtn');
+  const profileUnlinkBtn = $('profileUnlinkAutopayCardBtn');
+
+  if (statusTitle) statusTitle.textContent = hasMethod ? mask : 'Карта не привязана';
+  if (statusSubtitle) statusSubtitle.textContent = hasMethod
+    ? (enabled ? `Автопродление включено · следующее списание ${nextCharge}` : 'Автопродление отключено')
+    : 'После первой оплаты с сохранением карты здесь появится способ оплаты';
+
+  if (profileTitle) profileTitle.textContent = hasMethod ? mask : 'Карта не привязана';
+  if (profileSubtitle) profileSubtitle.textContent = hasMethod
+    ? (enabled ? `Автопродление включено · следующее списание ${nextCharge}` : 'Автопродление отключено')
+    : 'Сохранённый способ оплаты появится после подключения автопродления';
+
+  [unlinkBtn, profileUnlinkBtn].forEach(btn => {
+    if (!btn) return;
+    btn.hidden = !hasMethod;
+    btn.style.display = hasMethod ? '' : 'none';
+  });
 }
 
 function updateProfileUI() {
@@ -1698,6 +1731,7 @@ function updateProfileUI() {
   assignValue('profileBusinessDescription', u.business_profile || '');
 
   updateMobileCreditsUI(u);
+  renderAutopayCardState();
 
   const isBusiness = canUseBusinessFeatures();
   const teamNotice = $('teamBusinessNotice');
@@ -1914,7 +1948,7 @@ async function loadAppMeta() {
 }
 
 async function loadData() {
-  try { const userData = await apiRequest('/api/me'); state.user = userData.user || userData || {}; }
+  try { const userData = await apiRequest('/api/me'); state.user = userData.user || userData || {}; state.autopay = userData.autopay || null; }
   catch (err) { console.warn('Telegram profile load failed', err); state.user = buildTelegramFallbackUser(); }
   updateProfileUI();
   try { const tData = await apiRequest('/api/tools'); state.tools = Array.isArray(tData) ? tData : (tData.tools || getFallbackTools()); }
@@ -2513,8 +2547,19 @@ async function updateWorkspaceTaskStatus(id, oldStatus) {
 }
 
 async function unlinkAutopayCard() {
+  const ap = state.autopay || state.user?.autopay || null;
+  const hasMethod = Boolean(ap && (ap.has_payment_method || ap.payment_method_mask));
+  if (!hasMethod) {
+    showToast('Карта ещё не привязана');
+    renderAutopayCardState();
+    return;
+  }
+  const ok = window.confirm('Отвязать карту? Автопродление будет отключено, сохранённый способ оплаты будет удалён, повторные списания станут невозможны.');
+  if (!ok) return;
   try {
-    await apiRequest('/api/billing/autopay/payment-method', { method: 'DELETE' });
+    const data = await apiRequest('/api/billing/autopay/payment-method', { method: 'DELETE' });
+    state.autopay = data.autopay || { enabled: false, status: 'unlinked', has_payment_method: false };
+    renderAutopayCardState();
     showToast('Карта отвязана');
     await loadData();
   } catch (err) { showToast(friendlyError(err, 'Не удалось отвязать карту')); }
@@ -2538,6 +2583,7 @@ function bindMegaFeatureEvents() {
   $('createRoadmapBtn')?.addEventListener('click', createWorkspaceRoadmap);
   $('addWorkspaceTaskBtn')?.addEventListener('click', addWorkspaceTask);
   $('unlinkAutopayCardBtn')?.addEventListener('click', unlinkAutopayCard);
+  $('profileUnlinkAutopayCardBtn')?.addEventListener('click', unlinkAutopayCard);
   document.addEventListener('click', e => {
     const gen = e.target.closest('[data-generate-document]');
     if (gen) { e.preventDefault(); generateWorkspaceDocument(gen.dataset.generateDocument); return; }
