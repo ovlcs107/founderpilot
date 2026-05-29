@@ -38,6 +38,7 @@ const state = {
   history: [],
   plans: {},
   providers: [],
+  billingCapabilities: { autopay_available: false, yookassa_recurring_available: false },
   creditPacks: [],
   organizations: { active: null, owned: [], memberships: [] },
   historyFilter: 'all'
@@ -167,7 +168,7 @@ function providerInfo(id) {
   const key = normalizeProviderId(id);
   const map = {
     telegram_stars: { id: "telegram_stars", title: "Telegram Stars", description: "Внутри Telegram", icon: "stars" },
-    yookassa: { id: "yookassa", title: "Карта / СБП", description: "Банковские карты РФ", icon: "credit-card" },
+    yookassa: { id: "yookassa", title: "Карта / СБП", description: "Разовая оплата картой", icon: "credit-card" },
     ton: { id: "ton", title: "TON", description: "Tonkeeper / TON", icon: "ton" },
     btcpay_btc: { id: "btcpay_btc", title: "BTC", description: "Bitcoin invoice", icon: "btc" }
   };
@@ -181,6 +182,7 @@ function enabledProviderIds(plan = null) {
 
 function friendlyError(err, fallback = "Что-то пошло не так") {
   const raw = String(err?.message || err || fallback);
+  if (/recurring|автопродлен|автосписан|save_payment_method|forbidden/i.test(raw)) return "Автопродление в ЮKassa не подключено. Разовая оплата работает — выключил автопродление, попробуйте оплатить ещё раз.";
   if (/not\s*found|404/i.test(raw)) return "Функция пока недоступна";
   if (/failed to fetch|network/i.test(raw)) return "Сервер временно недоступен";
   if (/undefined|null|\[object Object\]/i.test(raw)) return fallback;
@@ -586,6 +588,23 @@ function renderHistory() {
   injectIcons(container);
 }
 
+function renderAutopayControl() {
+  const toggle = $("subscriptionAutopayToggle");
+  const note = $("subscriptionAutopayNote");
+  const row = toggle?.closest(".toggle-row");
+  const available = Boolean(state.billingCapabilities?.autopay_available || state.billingCapabilities?.yookassa_recurring_available);
+  if (toggle) {
+    toggle.disabled = !available;
+    if (!available) toggle.checked = false;
+  }
+  if (row) row.classList.toggle("disabled-row", !available);
+  if (note) {
+    note.textContent = available
+      ? "Можно включить после первой оплаты картой"
+      : "Разовая оплата включена. Автопродление требует отдельного подключения recurring в ЮKassa.";
+  }
+}
+
 function renderSubscription() {
   const planList = $("subscriptionPlanList");
   if (!planList) return;
@@ -614,6 +633,7 @@ function renderSubscription() {
     `;
   }).join("");
   updateProfileUI();
+  renderAutopayControl();
 }
 
 function chooseAutoProvider(enabled) {
@@ -651,8 +671,8 @@ function selectPlan(key) {
         <button class="provider-btn provider-primary" data-provider="${escapeHTML(autoProvider)}" data-plan="${escapeHTML(key)}">
           <span class="icon" data-icon="credit-card"></span>
           <div class="info">
-            <h5>Оплатить автоматически</h5>
-            <p>Выберем лучший доступный способ</p>
+            <h5>Оплатить тариф</h5>
+            <p>Безопасная разовая оплата доступным способом</p>
           </div>
         </button>`;
       const providerCards = preferred.map(prov => {
@@ -710,7 +730,7 @@ async function checkout(planKey, providerId) {
     const payload = withTelegramUser({
       plan: planKey,
       provider: providerId || "auto",
-      auto_renew: Boolean($("subscriptionAutopayToggle")?.checked)
+      auto_renew: Boolean($("subscriptionAutopayToggle")?.checked && !$("subscriptionAutopayToggle")?.disabled && state.billingCapabilities?.autopay_available)
     });
     const res = await apiRequest("/api/billing/create-order", {
       method: "POST",
@@ -878,7 +898,12 @@ async function saveNotificationPrefs() {
 }
 
 async function saveAutopaySettings() {
-  const enabled = Boolean($("subscriptionAutopayToggle")?.checked);
+  const toggle = $("subscriptionAutopayToggle");
+  const enabled = Boolean(toggle?.checked);
+  if (enabled && !state.billingCapabilities?.autopay_available) {
+    if (toggle) toggle.checked = false;
+    return showToast("Автопродление в ЮKassa ещё не подключено. Разовая оплата работает.");
+  }
   const activePlan = document.querySelector(".plan-card.active")?.dataset.plan || state.user?.plan || "go";
   try {
     await apiRequest("/api/billing/autopay", {
@@ -927,6 +952,10 @@ async function loadData() {
     if (Array.isArray(raw)) backendPlans = raw;
     else if (raw && typeof raw === "object") backendPlans = Object.entries(raw).map(([key, plan]) => ({ key, ...plan }));
     const globalProviders = Array.isArray(pData?.providers) ? pData.providers : [];
+    state.billingCapabilities = pData?.capabilities || {
+      autopay_available: globalProviders.some(p => normalizeProviderId(p.id || p.key) === "yookassa" && p.recurring_available),
+      yookassa_recurring_available: globalProviders.some(p => normalizeProviderId(p.id || p.key) === "yookassa" && p.recurring_available)
+    };
     const fallbackByKey = Object.fromEntries(getFallbackPlans().map(p => [p.key, p]));
     state.providers = globalProviders;
     state.plans = (backendPlans.length ? backendPlans : getFallbackPlans()).map(plan => {
@@ -943,7 +972,7 @@ async function loadData() {
         providers: key === "free" ? [] : (Array.isArray(plan.providers) && plan.providers.length ? plan.providers : globalProviders)
       };
     });
-  } catch { state.providers = []; state.plans = getFallbackPlans(); }
+  } catch { state.providers = []; state.billingCapabilities = { autopay_available: false, yookassa_recurring_available: false }; state.plans = getFallbackPlans(); }
   renderSubscription();
 
   try {

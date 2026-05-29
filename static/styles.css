@@ -1749,3 +1749,160 @@ input:focus, textarea:focus, button:focus-visible { outline: none; box-shadow: v
   .plan-feature-chips span { font-size: 10px; padding: 3px 7px; }
   .plan-safety-note { font-size: 11px; }
 }
+
+/* === FounderPilot final mobile/YooKassa UX fix === */
+.disabled-row {
+  opacity: .62;
+}
+.disabled-row input {
+  cursor: not-allowed;
+}
+
+.toast-component {
+  max-width: min(520px, calc(100vw - 28px));
+  width: max-content;
+  white-space: normal;
+  text-align: center;
+  border-radius: 18px;
+  line-height: 1.35;
+}
+
+@media (max-width: 899px) {
+  body { background: #fff; }
+  .main-content { height: 100dvh; }
+  .view-inner {
+    padding: calc(16px + var(--safe-top)) 16px calc(82px + var(--safe-bottom)) !important;
+  }
+  .home-inner {
+    gap: 12px !important;
+  }
+  .compact-head h2,
+  .page-head h2 {
+    font-size: 24px !important;
+    line-height: 1.12 !important;
+    letter-spacing: -.02em;
+  }
+  .compact-head p,
+  .page-head p {
+    font-size: 14px !important;
+    margin-top: 3px !important;
+  }
+  #view-home .chat-container,
+  #view-home:not(.chat-active) .chat-container {
+    min-height: 0 !important;
+    height: auto !important;
+    background: transparent !important;
+    border: 0 !important;
+    box-shadow: none !important;
+    overflow: visible !important;
+  }
+  #view-home:not(.chat-active) .chat-scroll {
+    display: none !important;
+  }
+  #view-home .chat-composer-zone {
+    min-height: 120px !important;
+    padding: 12px 11px 10px !important;
+    border: 1px solid var(--line) !important;
+    border-radius: 21px !important;
+    background: #fff !important;
+    box-shadow: 0 10px 28px rgba(20, 28, 45, .055) !important;
+  }
+  #view-home .chat-composer-zone textarea {
+    min-height: 44px !important;
+    font-size: 15px !important;
+    line-height: 1.35 !important;
+  }
+  .composer-actions-row {
+    min-height: 36px !important;
+    margin-top: auto !important;
+  }
+  .chat-composer-zone .icon-soft-btn,
+  .chat-composer-zone .send-btn-circular {
+    width: 36px !important;
+    height: 36px !important;
+  }
+  .ai-disclaimer-label {
+    display: none !important;
+  }
+  .quick-section {
+    margin-top: 0 !important;
+    padding-bottom: 4px;
+  }
+  .quick-section h3 {
+    margin-bottom: 8px !important;
+    font-size: 16px !important;
+  }
+  .quick-strip {
+    grid-template-columns: 1fr !important;
+    gap: 8px !important;
+  }
+  .quick-pill {
+    min-height: 64px !important;
+    padding: 10px 12px !important;
+    border-radius: 15px !important;
+    grid-template-columns: 36px minmax(0, 1fr) 12px !important;
+    gap: 10px !important;
+    box-shadow: none !important;
+  }
+  .quick-pill::after {
+    display: block !important;
+    content: '›' !important;
+    color: var(--ghost) !important;
+    font-size: 20px !important;
+  }
+  .quick-pill > span[data-icon],
+  .quick-pill .icon-box,
+  .quick-pill > .icon-box {
+    width: 34px !important;
+    height: 34px !important;
+    border-radius: 11px !important;
+  }
+  .quick-pill b,
+  .quick-pill .text-box b {
+    font-size: 14px !important;
+    line-height: 1.15 !important;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .quick-pill small,
+  .quick-pill .text-box small {
+    font-size: 12px !important;
+    line-height: 1.2 !important;
+    margin-top: 2px !important;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .mobile-nav {
+    height: calc(64px + var(--safe-bottom)) !important;
+    padding: 6px 8px calc(5px + var(--safe-bottom)) !important;
+  }
+  .mobile-nav .nav-item {
+    border: 0 !important;
+    outline: 0 !important;
+    box-shadow: none !important;
+    background: transparent !important;
+    border-radius: 12px !important;
+  }
+  .mobile-nav .nav-item.active {
+    color: var(--blue) !important;
+    background: transparent !important;
+  }
+  .toast-component {
+    bottom: calc(82px + var(--safe-bottom)) !important;
+    width: calc(100vw - 28px);
+    max-width: 420px;
+    padding: 12px 14px;
+    border-radius: 16px;
+    font-size: 13px;
+  }
+}
+
+@media (max-width: 390px) {
+  .view-inner { padding-left: 14px !important; padding-right: 14px !important; }
+  .compact-head h2,
+  .page-head h2 { font-size: 23px !important; }
+  #view-home .chat-composer-zone { min-height: 116px !important; }
+  .quick-pill { min-height: 62px !important; }
+}
