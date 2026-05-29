@@ -4,7 +4,7 @@ from html import escape
 
 from aiogram import Dispatcher, F, Router
 from aiogram.filters import Command, CommandObject
-from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup, Message, PreCheckoutQuery, WebAppInfo
+from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup, Message, PreCheckoutQuery
 
 from app.billing import activate_subscription, plan_catalog
 from app.credits import estimate_credits, estimate_output_tokens
@@ -39,16 +39,15 @@ def split_for_telegram(text: str, limit: int = 3900) -> list[str]:
 
 def build_main_keyboard(settings: Settings) -> InlineKeyboardMarkup:
     keyboard: list[list[InlineKeyboardButton]] = []
-    if settings.telegram_webapp_enabled:
+    if settings.telegram_channel_enabled:
         keyboard.append(
             [
                 InlineKeyboardButton(
-                    text="Открыть FounderPilot AI",
-                    web_app=WebAppInfo(url=settings.webapp_url),
+                    text="📣 Telegram канал",
+                    url=settings.telegram_channel_url,
                 )
             ]
         )
-    keyboard.append([InlineKeyboardButton(text="Как получить сильный разбор", callback_data="help")])
     return InlineKeyboardMarkup(inline_keyboard=keyboard)
 
 
@@ -139,30 +138,30 @@ def build_dispatcher(
             if command.args:
                 await db.set_referrer(user.id, command.args.strip())
 
-        action_hint = "Откройте Mini App или отправьте задачу прямо в чат."
+        action_hint = "Откройте Mini App через меню бота или отправьте задачу прямо сюда."
         if not settings.telegram_webapp_enabled:
-            action_hint = (
-                "Mini App будет доступен после подключения публичного HTTPS-адреса. "
-                "Сейчас можно отправить задачу прямо в чат."
-            )
+            action_hint = "Пока Mini App подключается, можно отправлять задачи прямо в этот чат."
         text = (
-            "<b>FounderPilot AI</b>\n"
-            "FounderPilot AI - помощник для предпринимателей и селлеров WB/Ozon. "
-            "Поможет собрать оффер, карточку товара, рекламу, SWOT, план продаж, контент и расчет маржи.\n\n"
-            "<b>Примеры задач:</b>\n"
-            "- улучшить карточку товара для WB/Ozon;\n"
-            "- посчитать маржу и риски цены;\n"
-            "- написать ответ на отзыв или рекламный оффер.\n\n"
-            "<b>Как начать:</b>\n"
-            f"{action_hint} Чем точнее вводные, тем практичнее результат."
+            "🚀 <b>FounderPilot AI</b>\n"
+            "AI-помощник для предпринимателей, селлеров и команд, которые хотят быстрее проверять идеи, "
+            "считать экономику и собирать понятные планы роста.\n\n"
+            "✨ <b>Что можно сделать:</b>\n"
+            "• разобрать идею бизнеса или продукта;\n"
+            "• посчитать маржу, риски и точку безубыточности;\n"
+            "• улучшить карточку WB/Ozon и оффер;\n"
+            "• подготовить план продаж, рекламу и контент;\n"
+            "• получить краткий разбор без лишней воды.\n\n"
+            "🧭 <b>Как начать:</b>\n"
+            f"{action_hint} Чем точнее вводные, тем полезнее результат."
         )
         await message.answer(text, parse_mode=TELEGRAM_PARSE_MODE, reply_markup=build_main_keyboard(settings))
 
     @router.message(Command("app"))
     async def app_command(message: Message) -> None:
         await message.answer(
-            "<b>FounderPilot AI Mini App</b>\n\n"
-            "Основной интерфейс находится в Mini App: AI Chat, инструменты, история, профиль бизнеса и сохраненные результаты.",
+            "📱 <b>FounderPilot Mini App</b>\n\n"
+            "В Mini App доступны чат, инструменты, история, подписка, профиль и рабочие пространства. "
+            "Откройте приложение через меню бота, а новости и обновления — в Telegram-канале ниже.",
             parse_mode=TELEGRAM_PARSE_MODE,
             reply_markup=build_main_keyboard(settings),
         )
@@ -175,16 +174,17 @@ def build_dispatcher(
             else "Для Mini App укажите публичный HTTPS <code>WEBAPP_PUBLIC_URL</code>. До этого можно отправлять запросы прямо в чат.\n"
         )
         await message.answer(
-            "<b>Что умеет FounderPilot AI</b>\n\n"
+            "💡 <b>FounderPilot AI помогает быстро разбирать бизнес-задачи</b>\n\n"
             f"{webapp_step}"
-            "\n<b>Основные задачи:</b>\n"
-            "- AI Chat для бизнес-вопросов;\n"
-            "- карточки WB/Ozon, офферы, реклама и ответы на отзывы;\n"
-            "- расчет маржи, SWOT, контент-план и план продаж;\n"
-            "- история, сохраненные результаты и профиль бизнеса.\n\n"
-            "<b>Шаблон запроса:</b>\n"
+            "\n<b>Подходит для:</b>\n"
+            "• идей стартапов и MVP;\n"
+            "• WB/Ozon карточек и офферов;\n"
+            "• юнит-экономики, маржи и рисков;\n"
+            "• контента, рекламы и планов продаж.\n\n"
+            "<b>Хороший запрос:</b>\n"
             "<pre>Ниша:\nКлиент:\nПродукт:\nЦена:\nЦель:\nОграничения:</pre>",
             parse_mode=TELEGRAM_PARSE_MODE,
+            reply_markup=build_main_keyboard(settings),
         )
 
     @router.message(Command("stats"))

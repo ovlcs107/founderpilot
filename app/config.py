@@ -16,6 +16,7 @@ class Settings(BaseSettings):
     openrouter_api_key: str = Field(default="", alias="OPENROUTER_API_KEY")
     openrouter_model: str = Field(default="openrouter/free", alias="OPENROUTER_MODEL")
     webapp_public_url: str = Field(default="http://127.0.0.1:8000", alias="WEBAPP_PUBLIC_URL")
+    telegram_channel_url: str = Field(default="https://t.me/founderpilot", alias="TELEGRAM_CHANNEL_URL")
     app_secret: str = Field(default="change-this-super-secret-string", alias="APP_SECRET")
     admin_secret: str = Field(default="", alias="ADMIN_SECRET")
     database_path: str = Field(default="founderpilot.sqlite3", alias="DATABASE_PATH")
@@ -76,7 +77,7 @@ class Settings(BaseSettings):
     btcpay_api_key: str = Field(default="", alias="BTCPAY_API_KEY")
     btcpay_webhook_secret: str = Field(default="", alias="BTCPAY_WEBHOOK_SECRET")
 
-    @field_validator("webapp_public_url")
+    @field_validator("webapp_public_url", "telegram_channel_url")
     @classmethod
     def strip_trailing_slash(cls, value: str) -> str:
         return value.rstrip("/")
@@ -89,6 +90,12 @@ class Settings(BaseSettings):
     def telegram_webapp_enabled(self) -> bool:
         parsed = urlparse(self.webapp_url)
         return parsed.scheme.lower() == "https" and bool(parsed.netloc)
+
+
+    @property
+    def telegram_channel_enabled(self) -> bool:
+        parsed = urlparse(self.telegram_channel_url)
+        return parsed.scheme.lower() in {"http", "https"} and bool(parsed.netloc)
 
     @property
     def admin_telegram_ids(self) -> set[int]:

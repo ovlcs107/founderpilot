@@ -81,7 +81,6 @@ Object.assign(state, {
   toolSearch: "",
   historySearch: "",
   organizations: { owned: [], memberships: [], pending_invites: [], active: null },
-  organizationMembers: [],
   activeOrganization: null,
   activeInviteToken: null
 });
@@ -240,8 +239,7 @@ function getPlanProviders(plan) {
   return [
     { id: "telegram_stars", title: "Telegram Stars", description: "Внутри Telegram" },
     { id: "yookassa", title: "Карта / СБП", description: "Банковские карты РФ" },
-    { id: "ton", title: "TON", description: "Tonkeeper / TON" },
-    { id: "btcpay_btc", title: "BTC", description: "Bitcoin invoice" }
+    { id: "ton", title: "TON", description: "Оплата криптовалютой" }
   ];
 }
 
@@ -335,7 +333,7 @@ function getPlanPriceText(planKey = null) {
   const key = String(planKey || getCurrentPlanKey()).toLowerCase();
   const plan = state.plans?.[key];
   if (plan) return plan.price_text || plan.price || "";
-  const fallback = { free: "0 ₽", go: "399 ₽ / мес", plus: "990 ₽ / мес", pro: "2 490 ₽ / мес", business: "7 990 ₽ / мес" };
+  const fallback = { free: "0 ₽", go: "299 ₽ / мес", plus: "699 ₽ / мес", pro: "1 490 ₽ / мес", business: "2 990 ₽ / мес" };
   return fallback[key] || "0 ₽";
 }
 
@@ -447,10 +445,9 @@ function getFallbackTemplates() {
 
 function getFallbackCreditPacks() {
   return [
-    { id: "credits_1000", key: "credits_1000", title: "1 000 кредитов", description: "Для разовых задач", credits: 1000, price_text: "199 ₽" },
-    { id: "credits_5000", key: "credits_5000", title: "5 000 кредитов", description: "Для активной работы", credits: 5000, price_text: "799 ₽" },
-    { id: "credits_15000", key: "credits_15000", title: "15 000 кредитов", description: "Для плотной рабочей недели", credits: 15000, price_text: "1 990 ₽" },
-    { id: "credits_50000", key: "credits_50000", title: "50 000 кредитов", description: "Большой запас для Pro/Business", credits: 50000, price_text: "5 490 ₽" }
+    { id: "starter", title: "1 000 кредитов", description: "Для разовых задач", price_text: "149 ₽" },
+    { id: "growth", title: "5 000 кредитов", description: "Для active работы", price_text: "499 ₽" },
+    { id: "scale", title: "20 000 кредитов", description: "Для плотного использования", price_text: "1 490 ₽" }
   ];
 }
 
@@ -460,22 +457,6 @@ function renderNotifications() {
   set("notifyLimitToggle", prefs.limit_alerts ?? true);
   set("notifyBillingToggle", prefs.billing_alerts ?? true);
   set("notifyProductToggle", prefs.product_news ?? false);
-}
-
-function renderCreditPacks() {
-  const list = $("creditPackList");
-  if (!list) return;
-  const packs = state.creditPacks.length ? state.creditPacks : getFallbackCreditPacks();
-  list.innerHTML = packs.map(pack => {
-    const key = pack.key || pack.id || "";
-    const price = pack.price_text || pack.price_formatted || (pack.amount ? `${pack.amount} ₽` : "");
-    return `
-      <button type="button" class="pack-row" data-credit-pack="${escapeHTML(key)}">
-        <span><b>${escapeHTML(pack.title || pack.name || "Пакет кредитов")}</b><small>${escapeHTML(pack.description || "")}</small></span>
-        <b class="subscription-price">${escapeHTML(price)}</b>
-      </button>
-    `;
-  }).join("");
 }
 
 function renderTools() {
@@ -627,7 +608,7 @@ function renderSubscriptionProviders() {
   const providers = getPlanProviders(state.plans?.[state.activePlanKey] || getCurrentPlan() || {});
   box.innerHTML = providers.map(p => `
     <button type="button" class="payment-btn subscription-provider-btn" data-provider="${escapeHTML(p.id)}">
-      <span data-icon="${p.id === 'ton' ? 'ton' : (p.id === 'btc' || p.id === 'btcpay_btc') ? 'btc' : p.id === 'telegram_stars' ? 'stars' : 'credit-card'}"></span>
+      <span data-icon="${p.id === 'ton' ? 'ton' : p.id === 'btc' ? 'btc' : p.id === 'telegram_stars' ? 'stars' : 'credit-card'}"></span>
       <span><b>${escapeHTML(p.title || p.name || p.id)}</b><small style="display:block;">${escapeHTML(p.description || '')}</small></span>
     </button>
   `).join("");
@@ -646,7 +627,8 @@ function renderSubscriptionPage() {
   if ($("profileSubscriptionPlanTitle")) $("profileSubscriptionPlanTitle").textContent = currentPlanObj?.title || state.user?.plan || "Free";
   if ($("profileSubscriptionPrice")) $("profileSubscriptionPrice").textContent = getPlanPriceText();
 
-  const displayPlans = plans;
+  // Отфильтруем Free, оставим платные как в макете, либо покажем все
+  const displayPlans = plans.filter(p => p.key !== 'go' && p.key !== 'plus');
 
   planBox.innerHTML = displayPlans.map(p => {
     const key = String(p.key || '').toLowerCase();
@@ -680,20 +662,17 @@ function renderProviders(planKey) {
 async function checkout(providerId) {
   showToast("Оформление подписки...");
   try {
-    const res = await apiTry("/api/billing/create-order", "/api/billing/checkout", {
+    const res = await apiRequest("/api/billing/checkout", {
       method: "POST",
       body: JSON.stringify({
         plan: state.activePlanKey,
         provider: providerId,
-        telegram_user_id: getTelegramUserId(),
-        auto_renew: Boolean($("subscriptionAutopayToggle")?.checked)
+        telegram_user_id: getTelegramUserId()
       })
     });
     const link = res.payment_url || res.invoice_url || res.invoice_link || res.url;
-    const orderId = res.order_id || res.id;
     if (link) openExternal(link);
-    if (orderId) pollOrderStatus(orderId);
-    $("billingModal")?.classList.remove("active");
+    $("billingModal").classList.remove("active");
   } catch (err) {
     showToast(err.message || "Ошибка оплаты");
   }
@@ -771,24 +750,19 @@ async function nextOnboarding() {
   }
 }
 
-function pollOrderStatus(orderId, attempt = 0) {
+function pollOrderStatus(orderId) {
   clearTimeout(state.orderPollTimer);
-  if (!orderId || attempt > 20) return;
   state.orderPollTimer = setTimeout(async () => {
     try {
-      const res = await apiRequest(`/api/billing/order/${orderId}`);
-      const order = res.order || res;
-      const status = String(order.status || res.status || "").toLowerCase();
-      if (["paid", "success", "succeeded", "active"].includes(status) || res.success || res.paid) {
-        showToast("Оплата успешно получена");
-        await loadMe();
-      } else if (["failed", "cancelled", "canceled", "expired"].includes(status)) {
-        showToast("Оплата не прошла или была отменена");
+      const res = await apiRequest(`/api/credits/packs/order/${orderId}`);
+      if (res.status === "paid" || res.success || res.paid) {
+        showToast("Оплата успешно получена!");
+        loadMe();
       } else {
-        pollOrderStatus(orderId, attempt + 1);
+        pollOrderStatus(orderId);
       }
     } catch {
-      pollOrderStatus(orderId, attempt + 1);
+      pollOrderStatus(orderId);
     }
   }, 3000);
 }
@@ -829,7 +803,6 @@ async function loadCreditPacks() {
   } catch {
     state.creditPacks = getFallbackCreditPacks();
   }
-  renderCreditPacks();
 }
 
 async function loadNotificationPrefs() {
@@ -950,50 +923,32 @@ function renderOrganizations() {
   const owned = orgs.owned || [];
   const memberships = orgs.memberships || [];
   const pending = orgs.pending_invites || [];
-  const active = state.activeOrganization || orgs.active || owned[0] || memberships[0] || null;
+  const active = state.activeOrganization || orgs.active || memberships[0] || null;
 
-  const isBusiness = String(state.user?.plan || '').toLowerCase() === 'business' || Boolean(active);
-
+  const isBusiness = String(state.user?.plan || '').toLowerCase() === 'business';
+  
   if ($("teamBusinessNotice")) $("teamBusinessNotice").style.display = isBusiness ? "none" : "block";
   if ($("teamActiveContent")) $("teamActiveContent").style.display = isBusiness ? "block" : "none";
-  if ($("organizationCreateBox")) $("organizationCreateBox").style.display = active ? "none" : "block";
-
-  const title = active?.title || active?.organization_title || (isBusiness ? "Моя организация" : "Организация");
-  const members = state.organizationMembers || [];
-  if ($("organizationTitleText")) $("organizationTitleText").textContent = title;
-  if ($("organizationSubtitleText")) $("organizationSubtitleText").textContent = active ? `Business • ${members.length || 1} участник(ов)` : "Создайте командное пространство";
-  if ($("organizationAvatarText")) $("organizationAvatarText").textContent = String(title || "FP").trim().slice(0, 2).toUpperCase();
 
   if (orgBox) {
-    const rows = members.length ? members : (active ? [{
-      telegram_user_id: state.user?.telegram_id,
-      first_name: state.user?.first_name,
-      username: state.user?.username,
-      role: active.role || "owner",
-      photo_url: state.user?.photo_url
-    }] : []);
-
-    if (!rows.length) {
-      orgBox.innerHTML = `<div class="subtle-empty">Создайте организацию, чтобы увидеть участников команды.</div>`;
-    } else {
-      orgBox.innerHTML = rows.map(member => {
-        const name = member.first_name || member.name || member.username || `ID ${member.telegram_user_id || ""}`;
-        const username = member.username ? `@${member.username}` : (member.telegram_user_id ? `ID ${member.telegram_user_id}` : "");
-        const role = member.role || "member";
-        const initial = String(name || "U").trim().slice(0, 1).toUpperCase();
-        const photo = member.photo_url ? `background-image:url(&quot;${escapeHTML(member.photo_url)}&quot;);background-size:cover;background-position:center;` : "";
-        return `
-          <div class="organization-row">
-            <div class="avatar compact-avatar" style="width:36px;height:36px;font-size:14px;${photo}">${photo ? "" : escapeHTML(initial)}</div>
-            <div style="flex:1;">
-              <strong>${escapeHTML(name || "Участник")}</strong>
-              <small>${escapeHTML(username)}</small>
-            </div>
-            <b style="color:${role === 'owner' ? 'var(--green)' : 'var(--text)'}; font-size:14px; font-weight:600;">${escapeHTML(role)}</b>
-          </div>
-        `;
-      }).join("");
-    }
+    const all = [
+      { id: 'me', title: state.user?.first_name || 'Максим', role: 'Владелец', avatar: 'M' },
+      { id: 'user1', title: 'Ирина', sub: '@irina_example', role: 'Админ', avatar: 'И' },
+      { id: 'user2', title: 'Алексей', sub: '@alex_example', role: 'Участник', avatar: 'А' }
+    ];
+    // Если есть реальные данные, можно заменить моки
+    // const all = [...owned.map(o => ({ ...o, role: 'owner' })), ...memberships.filter(m => !owned.some(o => String(o.id) === String(m.id)))];
+    
+    orgBox.innerHTML = all.map(o => `
+      <div class="organization-row">
+        <div class="avatar compact-avatar" style="width:36px;height:36px;font-size:14px;background:linear-gradient(135deg, #a6b1ff, #7b8cff);">${o.avatar}</div>
+        <div style="flex:1;">
+          <strong>${escapeHTML(o.title || o.organization_title || 'Участник')}</strong>
+          <small>${escapeHTML(o.sub || o.role === 'owner' ? '@max_example' : '')}</small>
+        </div>
+        <b style="color:${o.role === 'Владелец' ? 'var(--green)' : 'var(--text)'}; font-size:14px; font-weight:600;">${escapeHTML(o.role || 'member')} <span style="color:var(--ghost); margin-left:8px;">v</span></b>
+      </div>
+    `).join("");
   }
 
   if (inviteBox) {
@@ -1015,24 +970,12 @@ async function loadOrganizations() {
   try {
     const data = await apiTry("/api/organizations", "/api/organizations/current");
     state.organizations = data?.organizations || data;
-    state.activeOrganization = data?.active || data?.current || data?.organization || state.organizations?.active || null;
+    state.activeOrganization = data?.active || data?.current || null;
   } catch {
     state.organizations = { owned: [], memberships: [], pending_invites: [], active: null };
     state.activeOrganization = null;
   }
-  await loadOrganizationMembers();
   renderOrganizations();
-}
-
-async function loadOrganizationMembers() {
-  try {
-    const org = state.activeOrganization || state.organizations?.active || (state.organizations?.owned || [])[0] || (state.organizations?.memberships || [])[0];
-    const query = org?.id ? `?organization_id=${encodeURIComponent(org.id)}` : "";
-    const data = await apiRequest(`/api/organizations/members${query}`);
-    state.organizationMembers = normalizeArrayPayload(data, ["items", "members"]);
-  } catch {
-    state.organizationMembers = [];
-  }
 }
 
 async function createOrganization() {
@@ -1367,11 +1310,9 @@ async function loadBillingPlans() {
     console.error("billing fail", err);
     state.plans = normalizeBillingPlans({
       plans: [
-        { key: "free", title: "Free", description: "100 кредитов в месяц · 20 в день", price_text: "0 ₽", providers: [] },
-        { key: "go", title: "Go", description: "3 000 кредитов в месяц · 300 в день", price_text: "399 ₽ / мес" },
-        { key: "plus", title: "Plus", description: "10 000 кредитов в месяц · 800 в день", price_text: "990 ₽ / мес" },
-        { key: "pro", title: "Pro", description: "30 000 кредитов в месяц · 2 500 в день", price_text: "2 490 ₽ / мес" },
-        { key: "business", title: "Business", description: "100 000 кредитов в месяц · команда", price_text: "7 990 ₽ / мес" }
+        { key: "free", title: "Free", description: "Базовые инструменты и лимиты", price_text: "0 ₽ / мес", providers: [] },
+        { key: "pro", title: "Pro", description: "Полный доступ ко всем функциям", price_text: "1 490 ₽ / мес" },
+        { key: "business", title: "Business", description: "Для команд и масштабирования", price_text: "2 990 ₽ / мес" }
       ]
     });
   }
@@ -1403,16 +1344,7 @@ function bindEvents() {
   });
   $("subscriptionProviderList")?.addEventListener("click", e => {
     const btn = e.target.closest(".subscription-provider-btn");
-    if (!btn) return;
-    if (!state.activePlanKey || state.activePlanKey === "free") {
-      showToast("Сначала выберите платный тариф");
-      return;
-    }
-    checkout(btn.dataset.provider);
-  });
-  $("creditPackList")?.addEventListener("click", e => {
-    const row = e.target.closest("[data-credit-pack]");
-    if (row) buyCreditPack(row.dataset.creditPack);
+    if (btn) checkout(btn.dataset.provider);
   });
   $("subscriptionAutopayToggle")?.addEventListener("change", () => {
     showToast("Настройка автопродления сохранена");
