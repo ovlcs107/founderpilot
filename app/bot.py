@@ -473,6 +473,19 @@ def build_dispatcher(
             status="answered",
         )
         await support_store.update_support_ticket_bridge(ticket["id"], message.chat.id, message.message_id)
+        try:
+            user_id_for_notification = int(ticket.get("telegram_user_id") or 0)
+            if user_id_for_notification:
+                await support_store.create_notification(
+                    user_id_for_notification,
+                    title="Поддержка ответила",
+                    body=message.text[:500],
+                    type="support",
+                    action_url="profile:support",
+                    metadata={"ticket_id": ticket["id"], "support_message_id": saved.get("id")},
+                )
+        except Exception:  # noqa: BLE001
+            pass
         # Best-effort notification to the user. The Mini App remains the source of truth.
         try:
             user_id = int(ticket.get("telegram_user_id") or 0)

@@ -115,6 +115,10 @@ class Settings(BaseSettings):
     support_group_thread_id: int | None = Field(default=None, alias="SUPPORT_GROUP_THREAD_ID")
     support_public_name: str = Field(default="FounderPilot Support", alias="SUPPORT_PUBLIC_NAME")
 
+    app_version: str = Field(default="1.3.0", alias="APP_VERSION")
+    app_updated_at: str = Field(default="2026-05-29", alias="APP_UPDATED_AT")
+    app_changelog: str = Field(default="Глобальная полировка интерфейса, поддержка, уведомления и история", alias="APP_CHANGELOG")
+
 
     @property
     def is_railway_runtime(self) -> bool:

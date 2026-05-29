@@ -91,7 +91,7 @@ class OpenRouterClient:
         business_context: str | None = None,
     ) -> str:
         if not user_message.strip():
-            raise AIClientError("Пустое сообщение. Напишите бизнес-задачу или вопрос.")
+            raise AIClientError("Пустое сообщение. Напишите вопрос или сообщение.")
 
         system_prompt = self._with_runtime_context(CHAT_SYSTEM_PROMPT)
         if business_context:
@@ -107,7 +107,7 @@ class OpenRouterClient:
         payload = {
             "model": self.settings.openrouter_model,
             "messages": messages,
-            "temperature": 0.45,
+            "temperature": 0.55,
             "max_tokens": 1600,
         }
 

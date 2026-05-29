@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
   <title>FounderPilot AI</title>
-  <link rel="stylesheet" href="/static/styles.css?v=global-polish-1">
+  <link rel="stylesheet" href="/static/styles.css?v=final-ui-systems-1">
   <script src="https://telegram.org/js/telegram-web-app.js"></script>
 </head>
 <body>
@@ -41,7 +41,7 @@
         <span>Кредиты</span>
         <div class="credits-counter-row">
           <strong id="desktopTopCreditsValue">1 250</strong>
-          <span class="coin-badge">C</span>
+          <span class="coin-badge" aria-hidden="true">✦</span>
         </div>
       </div>
 
@@ -100,12 +100,11 @@
           <header class="page-head split-head">
             <div>
               <h2>Инструменты</h2>
-              <p>Все инструменты в одном месте</p>
+              <p>Готовые AI-режимы. Нажмите инструмент — промпт откроется в чате.</p>
             </div>
           </header>
           <div class="toolbar-filtering-flex">
             <div class="search-box"><span data-icon="search"></span><input type="text" id="toolsSearchInput" placeholder="Поиск инструментов..."></div>
-            <button type="button" class="selector-dropdown-filter-btn">Все категории <span class="arrow-indicator">⌃</span></button>
           </div>
           <div class="list-panel app-style-list" id="toolsGrid"></div>
         </div>
@@ -148,12 +147,17 @@
           <header class="page-head split-head mobile-hidden-head">
             <div>
               <h2>Подписка</h2>
-              <p>Планы и возможности</p>
+              <p>Планы, кредиты и оплата</p>
             </div>
           </header>
 
+          <div class="segmented-control subscription-tabs" id="subscriptionTabs">
+            <button class="segmented-btn active" type="button" data-subscription-tab="plans">Подписки</button>
+            <button class="segmented-btn" type="button" data-subscription-tab="credits">Кредиты</button>
+          </div>
+
           <div class="subscription-layout">
-            <div class="subscription-main">
+            <div class="subscription-main subscription-panel" data-subscription-panel="plans">
               <div class="current-plan-card app-card-shadow">
                 <div class="plan-meta-left">
                   <span>Текущий план</span>
@@ -178,12 +182,12 @@
             </div>
 
             <aside class="subscription-side">
-              <section class="settings-section">
+              <section class="settings-section subscription-panel" data-subscription-panel="plans">
                 <h3 class="section-ios-title">Доступные планы</h3>
                 <div class="subscription-plan-list app-style-list" id="subscriptionPlanList"></div>
               </section>
 
-              <section class="settings-section">
+              <section class="settings-section subscription-panel" data-subscription-panel="plans">
                 <h3 class="section-ios-title">Способ оплаты</h3>
                 <div class="payment-method-mask-card settings-list app-style-list single-row">
                   <div class="settings-row card-info-flex">
@@ -197,7 +201,7 @@
                 </div>
               </section>
 
-              <section class="settings-section">
+              <section class="settings-section subscription-panel" data-subscription-panel="plans">
                 <div class="settings-list app-style-list single-row">
                   <label class="settings-row toggle-row">
                     <span><b>Автопродление</b><small id="subscriptionAutopayNote">Разовая оплата включена</small></span>
@@ -207,12 +211,12 @@
               </section>
 
 
-              <section class="settings-section" id="paymentSection" style="display:none;">
+              <section class="settings-section subscription-panel" data-subscription-panel="plans" id="paymentSection" style="display:none;">
                 <h3 class="section-ios-title">Выберите способ оплаты</h3>
                 <div class="payment-grid" id="subscriptionPaymentProviders"></div>
               </section>
 
-              <section class="settings-section">
+              <section class="settings-section subscription-panel" data-subscription-panel="credits">
                 <h3 class="section-ios-title">Пакеты кредитов</h3>
                 <div class="credit-pack-list" id="creditPackList"></div>
               </section>
@@ -284,12 +288,11 @@
                   <div class="account-plan-side"><span>Текущий план</span><b id="profilePlanLabelMirror">Free</b><small id="profilePlanPriceMirror">0 ₽</small></div>
                 </div>
                 <div class="settings-list app-style-list">
-                  <div class="settings-row"><span><b>Имя</b></span><em id="profileNameValue">Пользователь</em><span class="chevron">›</span></div>
-                  <div class="settings-row"><span><b>Username</b></span><em id="profileUsernameValue">ID: —</em><span class="chevron">›</span></div>
+                  <div class="settings-row"><span><b>Имя</b></span><em id="profileNameValue">Пользователь</em></div>
+                  <div class="settings-row"><span><b>Username</b></span><em id="profileUsernameValue">ID: —</em></div>
                   <div class="settings-row"><span id="copyTgIdBtn" class="copy-icon-action-trigger" data-copy-trigger="telegram_id" title="Копировать ID"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg></span><span><b>Telegram ID</b></span><em id="profileTelegramIdValue">—</em></div>
-                  <div class="settings-row"><span><b>Дата регистрации</b></span><em>—</em><span class="chevron">›</span></div>
+                  <div class="settings-row"><span><b>Дата регистрации</b></span><em id="profileRegistrationDateValue">—</em></div>
                 </div>
-                <button class="danger-row app-card-shadow" type="button">Выйти из аккаунта</button>
               </div>
 
               <div class="profile-sub-pane" id="pane-subscription">
@@ -310,7 +313,7 @@
                   </div>
                 </div>
                 <div class="settings-list app-style-list">
-                  <button type="button" class="settings-row" onclick="switchView('subscription')"><span><b>Управление подпиской</b></span><span class="chevron">›</span></button>
+                  <button type="button" class="settings-row" onclick="switchView('subscription')"><span><b>Управление подпиской</b><small>Открыть тарифы и кредиты</small></span></button>
                 </div>
               </div>
 
@@ -401,8 +404,12 @@
                     <input type="checkbox" id="notifyProductToggle" checked>
                   </label>
                 </div>
-                <p class="section-ios-desc" style="margin-top: 12px; font-size: 12px;">Уведомления приходят в Telegram.</p>
+                <p class="section-ios-desc" style="margin-top: 12px; font-size: 12px;">Уведомления приходят в Telegram и сохраняются здесь.</p>
                 <button class="primary-btn stretch" id="saveNotificationsBtn" type="button" style="margin-top: 16px;">Сохранить настройки</button>
+                <div class="notification-feed-card app-card-shadow">
+                  <div class="support-card-head"><h3>Лента уведомлений</h3><button class="text-link-action-btn" id="markNotificationsReadBtn" type="button">Прочитать всё</button></div>
+                  <div class="notification-feed" id="notificationFeed"></div>
+                </div>
               </div>
 
               <div class="profile-sub-pane" id="pane-support">
@@ -411,8 +418,14 @@
                   <h3>Поддержка</h3>
                 </header>
 
+                <div class="segmented-control support-tabs" id="supportTabs">
+                  <button class="segmented-btn active" type="button" data-support-tab="new">Новое</button>
+                  <button class="segmented-btn" type="button" data-support-tab="history">История</button>
+                  <button class="segmented-btn" type="button" data-support-tab="chat">Чат</button>
+                </div>
+
                 <div class="support-layout">
-                  <section class="support-create-card form-card app-card-shadow">
+                  <section class="support-create-card form-card app-card-shadow support-tab-panel" data-support-panel="new">
                     <h3>Новое обращение</h3>
                     <p class="field-description">Опишите баг, проблему с оплатой или идею. Бот отправит обращение в группу поддержки.</p>
                     <label>Категория</label>
@@ -430,12 +443,12 @@
                     <button class="primary-btn" id="sendSupportTicketBtn" type="button">Отправить в поддержку</button>
                   </section>
 
-                  <section class="support-history-card app-card-shadow">
+                  <section class="support-history-card app-card-shadow support-tab-panel" data-support-panel="history">
                     <div class="support-card-head"><h3>История обращений</h3><button class="text-link-action-btn" id="closeSupportTicketBtn" type="button">Закрыть тикет</button></div>
                     <div class="settings-list app-style-list" id="supportTicketList"></div>
                   </section>
 
-                  <section class="support-chat-card app-card-shadow">
+                  <section class="support-chat-card app-card-shadow support-tab-panel" data-support-panel="chat">
                     <div class="support-card-head"><h3>Чат поддержки</h3><span>Ответы появляются после reply в группе саппортов</span></div>
                     <div class="support-chat-messages" id="supportChatMessages"></div>
                     <div class="support-reply-box">
@@ -466,14 +479,9 @@
                   <h3>О FounderPilot</h3>
                 </header>
                 <div class="settings-list app-style-list single-row">
-                  <div class="settings-row"><span><b>Версия сервиса</b></span><em>1.2.0</em></div>
-                  <div class="settings-row"><span><b>Дата обновления</b></span><em>—</em></div>
-                  <div class="settings-row"><span><b>Поддержка</b></span><em style="color: var(--blue);">@founderpilot_support</em></div>
-                </div>
-                <div class="form-card app-card-shadow" style="margin-top: 16px;">
-                  <label>Обратная связь</label>
-                  <textarea id="appFeedbackText" placeholder="Опишите баг или идею..."></textarea>
-                  <button class="primary-btn" id="submitAppFeedbackBtn" type="button">Отправить</button>
+                  <div class="settings-row"><span><b>Версия сервиса</b></span><em id="appVersionValue">—</em></div>
+                  <div class="settings-row"><span><b>Дата обновления</b></span><em id="appUpdatedAtValue">—</em></div>
+                  <div class="settings-row"><span><b>Поддержка</b><small>Профиль → Поддержка</small></span><em id="appSupportValue" style="color: var(--blue);">FounderPilot Support</em></div>
                 </div>
               </div>
             </section>
@@ -541,6 +549,6 @@
   <div id="profileCreditsMonthPct" style="display:none;"></div>
   <div id="profileCreditsTodayPct" style="display:none;"></div>
   <div id="toast" class="toast-component">Оповещение</div>
-  <script src="/static/app.js?v=global-polish-1"></script>
+  <script src="/static/app.js?v=final-ui-systems-1"></script>
 </body>
 </html>

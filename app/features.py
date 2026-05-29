@@ -126,6 +126,21 @@ CREATE TABLE IF NOT EXISTS notification_preferences (
     updated_at TEXT NOT NULL
 );
 
+CREATE TABLE IF NOT EXISTS notification_events (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    telegram_user_id TEXT NOT NULL,
+    type TEXT NOT NULL DEFAULT 'system',
+    title TEXT NOT NULL,
+    body TEXT,
+    action_url TEXT,
+    metadata_json TEXT,
+    read_at TEXT,
+    created_at TEXT NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_notification_events_user_created
+ON notification_events(telegram_user_id, created_at);
+
 
 CREATE TABLE IF NOT EXISTS organizations (
     id TEXT PRIMARY KEY,
@@ -239,6 +254,13 @@ async def init_features(db_path: str) -> None:
             cols = await _columns(db, "users")
             if "purchased_credits" not in cols:
                 await db.execute("ALTER TABLE users ADD COLUMN purchased_credits INTEGER DEFAULT 0")
+        notification_cols = await _columns(db, "notification_events")
+        if "action_url" not in notification_cols:
+            await db.execute("ALTER TABLE notification_events ADD COLUMN action_url TEXT")
+        if "metadata_json" not in notification_cols:
+            await db.execute("ALTER TABLE notification_events ADD COLUMN metadata_json TEXT")
+        if "read_at" not in notification_cols:
+            await db.execute("ALTER TABLE notification_events ADD COLUMN read_at TEXT")
         credit_cols = await _columns(db, "credit_pack_orders")
         if "external_payment_id" not in credit_cols:
             await db.execute("ALTER TABLE credit_pack_orders ADD COLUMN external_payment_id TEXT")
@@ -972,6 +994,79 @@ class FeatureStore:
                 await db.execute(f"UPDATE notification_preferences SET {', '.join(updates)} WHERE telegram_user_id = ?", tuple(values))
                 await db.commit()
         return await self.notification_preferences(telegram_id)
+
+    async def create_notification(
+        self,
+        telegram_id: int | str,
+        *,
+        title: str,
+        body: str = "",
+        type: str = "system",
+        action_url: str | None = None,
+        metadata: dict[str, Any] | None = None,
+    ) -> dict[str, Any]:
+        now = utc_now()
+        clean_title = (title or "Уведомление").strip()[:180] or "Уведомление"
+        clean_body = (body or "").strip()[:2000]
+        clean_type = (type or "system").strip().lower()[:40] or "system"
+        async with aiosqlite.connect(self.db_path) as db:
+            db.row_factory = aiosqlite.Row
+            cur = await db.execute(
+                """
+                INSERT INTO notification_events(telegram_user_id, type, title, body, action_url, metadata_json, created_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?)
+                """,
+                (str(telegram_id), clean_type, clean_title, clean_body, action_url, json_dumps(metadata or {}), now),
+            )
+            await db.commit()
+            row = await db.execute("SELECT * FROM notification_events WHERE id = ?", (int(cur.lastrowid),))
+            saved = await row.fetchone()
+            return dict(saved) if saved else {"id": int(cur.lastrowid), "title": clean_title, "body": clean_body, "created_at": now}
+
+    async def list_notifications(self, telegram_id: int | str, limit: int = 50, unread_only: bool = False) -> list[dict[str, Any]]:
+        async with aiosqlite.connect(self.db_path) as db:
+            db.row_factory = aiosqlite.Row
+            if unread_only:
+                cur = await db.execute(
+                    """
+                    SELECT * FROM notification_events
+                    WHERE telegram_user_id = ? AND read_at IS NULL
+                    ORDER BY created_at DESC, id DESC
+                    LIMIT ?
+                    """,
+                    (str(telegram_id), int(limit)),
+                )
+            else:
+                cur = await db.execute(
+                    """
+                    SELECT * FROM notification_events
+                    WHERE telegram_user_id = ?
+                    ORDER BY created_at DESC, id DESC
+                    LIMIT ?
+                    """,
+                    (str(telegram_id), int(limit)),
+                )
+            return [dict(row) for row in await cur.fetchall()]
+
+    async def mark_notifications_read(self, telegram_id: int | str, ids: list[int] | None = None) -> int:
+        now = utc_now()
+        async with aiosqlite.connect(self.db_path) as db:
+            if ids:
+                clean_ids = [int(x) for x in ids if str(x).isdigit()]
+                if not clean_ids:
+                    return 0
+                placeholders = ",".join("?" for _ in clean_ids)
+                cur = await db.execute(
+                    f"UPDATE notification_events SET read_at = COALESCE(read_at, ?) WHERE telegram_user_id = ? AND id IN ({placeholders})",
+                    tuple([now, str(telegram_id), *clean_ids]),
+                )
+            else:
+                cur = await db.execute(
+                    "UPDATE notification_events SET read_at = COALESCE(read_at, ?) WHERE telegram_user_id = ? AND read_at IS NULL",
+                    (now, str(telegram_id)),
+                )
+            await db.commit()
+            return int(cur.rowcount or 0)
     async def create_support_ticket(
         self,
         telegram_id: int,

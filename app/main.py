@@ -600,6 +600,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
 
         verified_payment = await verify_yookassa_payment(settings, order, external_id)
         await activate_subscription(db, order["telegram_user_id"], plan.key, "yookassa", order["id"], plan.daily_limit, plan.monthly_limit)
+        await notify_user(order["telegram_user_id"], title="Подписка активна", body=f"Тариф {plan.title} успешно подключён.", type="billing", action_url="subscription", metadata={"order_id": order["id"], "plan": plan.key})
 
         method = verified_payment.get("payment_method") or {}
         method_id = method.get("id")
@@ -676,6 +677,13 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         if not isinstance(value, dict):
             raise HTTPException(status_code=400, detail="JSON body must be an object.")
         return value
+
+    async def notify_user(telegram_id: int | str, *, title: str, body: str = "", type: str = "system", action_url: str | None = None, metadata: dict[str, Any] | None = None) -> None:
+        try:
+            await features.create_notification(telegram_id, title=title, body=body, type=type, action_url=action_url, metadata=metadata or {})
+        except Exception as exc:  # noqa: BLE001
+            with suppress(Exception):
+                await db.log_error("notification_create", str(exc), int(telegram_id) if str(telegram_id).isdigit() else None)
 
     def support_ticket_public_text(ticket: dict[str, Any], message: str) -> str:
         username = ticket.get("username") or ""
@@ -864,7 +872,12 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         return {
             "user": {
                 "id": user.id,
+                "telegram_id": user.id,
                 "telegram_user_id": str(user.id),
+                "created_at": (user_profile or {}).get("created_at"),
+                "updated_at": (user_profile or {}).get("updated_at"),
+                "last_seen_at": (user_profile or {}).get("last_seen_at"),
+                "subscription_until": (user_profile or {}).get("subscription_until") or (user_profile or {}).get("subscription_expires_at"),
                 "username": user.username or stored_username,
                 "first_name": user.first_name or stored_first or "Пользователь",
                 "last_name": user.last_name or stored_last,
@@ -1165,8 +1178,8 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     async def chat(payload: ChatRequest, user: TelegramUser = Depends(current_user)) -> ChatResponse:
         telegram_id = resolve_telegram_id(user, payload.telegram_user_id)
         message = payload.message.strip()
-        if len(message) < 2:
-            return ChatResponse(ok=False, error="Сообщение слишком короткое. Опишите бизнес-задачу чуть подробнее.")
+        if len(message) < 1:
+            return ChatResponse(ok=False, error="Напишите сообщение.")
 
         await db.upsert_user(telegram_id, user.username, user.first_name, user.last_name, photo_url=user.photo_url)
         await db.expire_subscription_if_needed(telegram_id)
@@ -1491,6 +1504,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                 await db.update_billing_order(order_id, external_payment_id=external_id, payload=json.dumps(raw_payment, ensure_ascii=False), status=status)
                 if status == "succeeded":
                     await activate_subscription(db, telegram_id, plan.key, "yookassa", order_id, plan.daily_limit, plan.monthly_limit)
+                    await notify_user(telegram_id, title="Подписка продлена", body=f"Тариф {plan.title} продлён автоматически.", type="billing", action_url="subscription", metadata={"order_id": order_id, "plan": plan.key})
                     await db.mark_autopay_charge(telegram_id, status="active", next_charge_at=subscription_next_charge_at())
                 else:
                     await db.mark_autopay_charge(telegram_id, status="retry")
@@ -1716,6 +1730,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         if any(word in event_text or word in status_text for word in ["settled", "confirmed", "complete", "paid"]):
             plan = plan_catalog(settings)[str(order["plan"])]
             await activate_subscription(db, order["telegram_user_id"], plan.key, "btcpay_btc", order["id"], plan.daily_limit, plan.monthly_limit)
+            await notify_user(order["telegram_user_id"], title="Подписка активна", body=f"Тариф {plan.title} успешно подключён.", type="billing", action_url="subscription", metadata={"order_id": order["id"], "plan": plan.key})
             await db.record_payment(
                 order_id=order["id"],
                 telegram_id=int(order["telegram_user_id"]),
@@ -1981,6 +1996,16 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             lines.append("---")
         return PlainTextResponse("\n".join(lines), media_type="text/plain; charset=utf-8")
 
+    @app.get("/api/app/meta")
+    async def app_meta() -> dict[str, Any]:
+        return {
+            "ok": True,
+            "version": settings.app_version,
+            "updated_at": settings.app_updated_at,
+            "changelog": settings.app_changelog,
+            "support": settings.support_public_name,
+        }
+
     @app.get("/api/notifications/preferences")
     async def notification_preferences(user: TelegramUser = Depends(current_user)) -> dict[str, Any]:
         return {"ok": True, "preferences": await features.notification_preferences(user.id)}
@@ -1988,6 +2013,21 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     @app.post("/api/notifications/preferences")
     async def update_notification_preferences(payload: NotificationPrefsRequest, user: TelegramUser = Depends(current_user)) -> dict[str, Any]:
         return {"ok": True, "preferences": await features.update_notification_preferences(user.id, payload.model_dump(exclude_none=True))}
+
+    @app.get("/api/notifications")
+    async def notifications(unread: bool = False, user: TelegramUser = Depends(current_user)) -> dict[str, Any]:
+        items = await features.list_notifications(user.id, unread_only=unread)
+        unread_count = len([item for item in items if not item.get("read_at")]) if not unread else len(items)
+        return {"ok": True, "items": items, "unread_count": unread_count}
+
+    @app.post("/api/notifications/read")
+    async def notifications_read(request: Request, user: TelegramUser = Depends(current_user)) -> dict[str, Any]:
+        payload = await read_json_dict(request)
+        ids = payload.get("ids")
+        if ids is not None and not isinstance(ids, list):
+            raise HTTPException(status_code=422, detail="ids должен быть списком.")
+        changed = await features.mark_notifications_read(user.id, ids)
+        return {"ok": True, "updated": changed}
 
 
     @app.get("/api/support/tickets")
@@ -2013,6 +2053,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         )
         group_sent = await send_support_ticket_to_group(ticket, payload.message)
         messages = await features.list_support_messages(ticket["id"])
+        await notify_user(user.id, title="Обращение создано", body=f"Тикет {ticket['id']} отправлен в поддержку.", type="support", action_url="profile:support", metadata={"ticket_id": ticket["id"]})
         return {"ok": True, "ticket": ticket, "messages": messages, "group_sent": group_sent}
 
     @app.get("/api/support/tickets/{ticket_id}")
@@ -2040,6 +2081,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         )
         sent = await send_support_followup_to_group(ticket, payload.message)
         ticket = await features.get_support_ticket_for_user(user.id, ticket_id) or ticket
+        await notify_user(user.id, title="Сообщение отправлено", body="Мы передали уточнение в поддержку.", type="support", action_url="profile:support", metadata={"ticket_id": ticket_id})
         return {"ok": True, "ticket": ticket, "message": message, "group_sent": sent}
 
     @app.post("/api/support/tickets/{ticket_id}/status")
