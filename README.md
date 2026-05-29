@@ -18,6 +18,9 @@
 - Убрана визуальная ошибка с повторяющимся subtitle в мобильном профиле.
 - Усилены защитные заголовки, CORS, лимит тела запроса, проверка владельца заказа, безопасное хранение платёжных токенов.
 - Из архива убраны секреты, `.env`, локальная `.venv`, sqlite-база и кэш-файлы.
+- Добавлен полноценный Support Center: пользователь создаёт тикет в Mini App, бот отправляет его в Telegram-группу поддержки, саппорты отвечают строго reply на сообщение бота, ответ сохраняется в backend и появляется у пользователя в отдельном чате поддержки.
+- Главная очищена от быстрых действий: теперь это центрированный AI-чат, который после первого сообщения раскрывается на весь экран.
+- Все декоративные кнопки без backend-действия теперь дают понятный feedback, а не молчат как кнопка лифта в заброшенном ТЦ.
 
 ## Как работает математика, чтобы не уходить в минус
 
@@ -136,6 +139,31 @@ TELEGRAM_STARS_RUB_VALUE=0.80
 
 `TELEGRAM_STARS_RUB_VALUE` — ваша консервативная оценка, сколько рублей реально остаётся FounderPilot за 1 Star после всех комиссий/вывода. Если не знаете — оставьте Stars выключенным и принимайте оплату через YooKassa.
 
+## Настройка поддержки через Telegram-группу
+
+1. Создайте приватную группу для саппортов.
+2. Добавьте туда вашего бота FounderPilot.
+3. Дайте боту право читать сообщения и отправлять ответы.
+4. Узнайте chat id группы и добавьте в `.env`:
+
+```env
+SUPPORT_GROUP_CHAT_ID=-1001234567890
+SUPPORT_GROUP_THREAD_ID=
+SUPPORT_PUBLIC_NAME=FounderPilot Support
+```
+
+Сценарий работы:
+
+```text
+Mini App → Профиль → Поддержка → пользователь создаёт тикет
+backend сохраняет тикет и просит бота отправить сообщение в группу
+саппорт отвечает именно reply на сообщение бота
+бот сохраняет ответ в backend
+пользователь видит ответ в Mini App → Профиль → Поддержка
+```
+
+Важно: для приёма reply из группы нужен отдельный Railway worker с `RUN_BOT_POLLING=true`. Web-сервис оставьте с `RUN_BOT_POLLING=false`, чтобы healthcheck не зависел от Telegram polling.
+
 ## Railway deploy
 
 1. Загрузите проект на GitHub без `.env`.
@@ -174,6 +202,11 @@ GET  /api/economics/plans              admin only
 GET  /api/economics/credit-packs       admin only
 GET  /api/notifications/preferences
 POST /api/notifications/preferences
+GET  /api/support/tickets
+POST /api/support/tickets
+GET  /api/support/tickets/{ticket_id}
+POST /api/support/tickets/{ticket_id}/messages
+POST /api/support/tickets/{ticket_id}/status
 GET  /api/organizations
 POST /api/organizations
 ```
@@ -192,7 +225,7 @@ node --check static/app.js
 ```text
 python -m compileall app run.py tests  ✅
 node --check static/app.js             ✅
-pytest                                 ✅ 22 passed
+pytest                                 ✅ 25 passed
 ```
 
 ## Важные ограничения

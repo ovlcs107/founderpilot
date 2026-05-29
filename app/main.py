@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+from html import escape as html_escape
 import hashlib
 import hmac
 import logging
@@ -212,6 +213,20 @@ class NotificationPrefsRequest(BaseModel):
     subscription_reminders: bool | None = None
     product_updates: bool | None = None
     weekly_digest: bool | None = None
+
+
+class SupportTicketRequest(BaseModel):
+    subject: str | None = Field(default=None, max_length=160)
+    message: str = Field(min_length=3, max_length=5000)
+    category: str = Field(default="bug", max_length=40)
+
+
+class SupportMessageRequest(BaseModel):
+    message: str = Field(min_length=1, max_length=5000)
+
+
+class SupportTicketStatusRequest(BaseModel):
+    status: str = Field(default="closed", max_length=40)
 
 
 class OrganizationRequest(BaseModel):
@@ -521,7 +536,16 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         if user.username:
             lines.append(f"Username Telegram: @{user.username}")
         if profile and profile.get("plan"):
-            lines.append(f"Тариф пользователя: {profile.get('plan')}")
+            plan_key = str(profile.get("plan") or "free").lower()
+            lines.append(f"Активный тариф FounderPilot: {plan_key}")
+            if profile.get("subscription_until") or profile.get("subscription_expires_at"):
+                lines.append(f"Подписка действует до: {profile.get('subscription_until') or profile.get('subscription_expires_at')}")
+            if profile.get("daily_limit"):
+                lines.append(f"Дневной лимит тарифа: {profile.get('daily_limit')} кредитов")
+            if profile.get("monthly_limit"):
+                lines.append(f"Месячный лимит тарифа: {profile.get('monthly_limit')} кредитов")
+            if plan_key in {"pro", "business"}:
+                lines.append("Отвечай с уровнем глубины платного тарифа: больше конкретики, шагов, рисков и чисел.")
         active_org = (organizations or {}).get("active") if isinstance(organizations, dict) else None
         if active_org:
             org_title = active_org.get("title") or active_org.get("organization_title") or active_org.get("name")
@@ -652,6 +676,67 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         if not isinstance(value, dict):
             raise HTTPException(status_code=400, detail="JSON body must be an object.")
         return value
+
+    def support_ticket_public_text(ticket: dict[str, Any], message: str) -> str:
+        username = ticket.get("username") or ""
+        user_name = ticket.get("user_name") or "Пользователь"
+        user_line = f"@{username}" if username else str(ticket.get("telegram_user_id") or "—")
+        return (
+            f"<b>Новый тикет FounderPilot</b>\n"
+            f"ID: <code>{html_escape(str(ticket.get('id') or ''))}</code>\n"
+            f"Пользователь: <b>{html_escape(user_name)}</b> ({html_escape(user_line)})\n"
+            f"Тариф: <code>{html_escape(str(ticket.get('plan') or 'free'))}</code>\n"
+            f"Категория: <code>{html_escape(str(ticket.get('category') or 'bug'))}</code>\n"
+            f"Тема: <b>{html_escape(str(ticket.get('subject') or 'Обращение'))}</b>\n\n"
+            f"{html_escape(message)}\n\n"
+            f"<i>Ответьте именно reply на это сообщение — ответ автоматически появится у пользователя в Mini App.</i>"
+        )
+
+    async def send_support_ticket_to_group(ticket: dict[str, Any], message: str) -> bool:
+        if not settings.bot_token or not settings.support_group_chat_id:
+            return False
+        bot = Bot(token=settings.bot_token)
+        try:
+            kwargs: dict[str, Any] = {}
+            if settings.support_group_thread_id:
+                kwargs["message_thread_id"] = settings.support_group_thread_id
+            sent = await bot.send_message(
+                settings.support_group_chat_id,
+                support_ticket_public_text(ticket, message),
+                parse_mode="HTML",
+                **kwargs,
+            )
+            await features.update_support_ticket_bridge(ticket["id"], sent.chat.id, sent.message_id)
+            return True
+        except Exception as exc:  # noqa: BLE001
+            await db.log_error("support_group_send", str(exc), int(ticket.get("telegram_user_id") or 0) or None)
+            return False
+        finally:
+            await bot.session.close()
+
+    async def send_support_followup_to_group(ticket: dict[str, Any], message: str) -> bool:
+        if not settings.bot_token or not settings.support_group_chat_id:
+            return False
+        bot = Bot(token=settings.bot_token)
+        try:
+            kwargs: dict[str, Any] = {}
+            if settings.support_group_thread_id:
+                kwargs["message_thread_id"] = settings.support_group_thread_id
+            if ticket.get("group_message_id"):
+                kwargs["reply_to_message_id"] = int(ticket["group_message_id"])
+            sent = await bot.send_message(
+                settings.support_group_chat_id,
+                f"<b>Новое сообщение по тикету</b> <code>{html_escape(str(ticket.get('id') or ''))}</code>\n\n{html_escape(message)}",
+                parse_mode="HTML",
+                **kwargs,
+            )
+            await features.update_support_ticket_bridge(ticket["id"], sent.chat.id, sent.message_id)
+            return True
+        except Exception as exc:  # noqa: BLE001
+            await db.log_error("support_group_followup", str(exc), int(ticket.get("telegram_user_id") or 0) or None)
+            return False
+        finally:
+            await bot.session.close()
 
     async def send_organization_invite(invite: dict[str, Any]) -> bool:
         invited_id = invite.get("invited_telegram_user_id")
@@ -1905,6 +1990,67 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         return {"ok": True, "preferences": await features.update_notification_preferences(user.id, payload.model_dump(exclude_none=True))}
 
 
+    @app.get("/api/support/tickets")
+    async def support_tickets(user: TelegramUser = Depends(current_user)) -> dict[str, Any]:
+        return {"ok": True, "items": await features.list_support_tickets(user.id)}
+
+    @app.post("/api/support/tickets")
+    async def create_support_ticket(payload: SupportTicketRequest, user: TelegramUser = Depends(current_user)) -> dict[str, Any]:
+        await db.upsert_user(user.id, user.username, user.first_name, user.last_name, photo_url=user.photo_url)
+        user_profile = await db.get_user_profile(user.id) or {}
+        subject = (payload.subject or "").strip()
+        if not subject:
+            compact = " ".join(payload.message.strip().split())
+            subject = compact[:80] or "Обращение в поддержку"
+        ticket = await features.create_support_ticket(
+            user.id,
+            subject=subject,
+            message=payload.message,
+            category=payload.category,
+            user_name=" ".join(part for part in [user.first_name, user.last_name] if part).strip() or user.username or str(user.id),
+            username=user.username,
+            plan=str(user_profile.get("plan") or "free"),
+        )
+        group_sent = await send_support_ticket_to_group(ticket, payload.message)
+        messages = await features.list_support_messages(ticket["id"])
+        return {"ok": True, "ticket": ticket, "messages": messages, "group_sent": group_sent}
+
+    @app.get("/api/support/tickets/{ticket_id}")
+    async def support_ticket(ticket_id: str, user: TelegramUser = Depends(current_user)) -> dict[str, Any]:
+        ticket = await features.get_support_ticket_for_user(user.id, ticket_id)
+        if not ticket:
+            raise HTTPException(status_code=404, detail="Тикет поддержки не найден.")
+        return {"ok": True, "ticket": ticket, "messages": await features.list_support_messages(ticket_id)}
+
+    @app.post("/api/support/tickets/{ticket_id}/messages")
+    async def add_support_ticket_message(ticket_id: str, payload: SupportMessageRequest, user: TelegramUser = Depends(current_user)) -> dict[str, Any]:
+        ticket = await features.get_support_ticket_for_user(user.id, ticket_id)
+        if not ticket:
+            raise HTTPException(status_code=404, detail="Тикет поддержки не найден.")
+        if str(ticket.get("status") or "") == "closed":
+            ticket = await features.set_support_ticket_status(ticket_id, "open") or ticket
+        message = await features.add_support_message(
+            ticket_id,
+            author_type="user",
+            author_telegram_id=user.id,
+            author_name=user.username or user.first_name or str(user.id),
+            content=payload.message,
+            source="mini_app",
+            status="waiting_support",
+        )
+        sent = await send_support_followup_to_group(ticket, payload.message)
+        ticket = await features.get_support_ticket_for_user(user.id, ticket_id) or ticket
+        return {"ok": True, "ticket": ticket, "message": message, "group_sent": sent}
+
+    @app.post("/api/support/tickets/{ticket_id}/status")
+    async def update_support_ticket_status(ticket_id: str, payload: SupportTicketStatusRequest, user: TelegramUser = Depends(current_user)) -> dict[str, Any]:
+        ticket = await features.get_support_ticket_for_user(user.id, ticket_id)
+        if not ticket:
+            raise HTTPException(status_code=404, detail="Тикет поддержки не найден.")
+        clean_status = payload.status if payload.status in {"open", "waiting_support", "answered", "closed"} else "closed"
+        updated = await features.set_support_ticket_status(ticket_id, clean_status)
+        return {"ok": True, "ticket": updated}
+
     @app.get("/api/organizations")
     async def organizations(user: TelegramUser = Depends(current_user)) -> dict[str, Any]:
         return {"ok": True, **await features.list_organizations(user.id, user.username)}
@@ -2000,6 +2146,7 @@ async def _run_bot_polling(settings: Settings) -> None:
     """
     db = Database(settings.database_path)
     await db.init()
+    await init_features(settings.database_path)
     ai_client = OpenRouterClient(settings)
     rate_limiter = RateLimiter(settings, db)
     bot = Bot(token=settings.bot_token)

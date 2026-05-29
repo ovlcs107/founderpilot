@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import re
 from html import escape
 
 from aiogram import Dispatcher, F, Router
@@ -12,6 +13,7 @@ from app.config import Settings
 from app.db import Database
 from app.openrouter_client import AIClientError, OpenRouterClient
 from app.rate_limit import RateLimitError, RateLimiter
+from app.features import FeatureStore, init_features
 
 
 TG_MESSAGE_LIMIT = 4096
@@ -75,6 +77,7 @@ def build_dispatcher(
     rate_limiter: RateLimiter,
 ) -> Dispatcher:
     router = Router()
+    support_store = FeatureStore(settings.database_path)
 
     @router.pre_checkout_query()
     async def pre_checkout(query: PreCheckoutQuery) -> None:
@@ -434,8 +437,63 @@ def build_dispatcher(
             parse_mode=TELEGRAM_PARSE_MODE,
         )
 
+    @router.message(F.text & F.reply_to_message)
+    async def support_group_reply(message: Message) -> None:
+        """Bridge support group replies back into the Mini App support chat.
+
+        Flow: Mini App -> bot posts a ticket to support group -> support agent replies
+        to the bot message -> this handler stores the answer in SQLite. The user sees
+        it through /api/support/tickets/{id}; we also try to notify them in Telegram.
+        """
+        if not settings.support_group_chat_id or str(message.chat.id) != str(settings.support_group_chat_id):
+            return
+        if not message.text or not message.reply_to_message:
+            return
+        replied_id = int(message.reply_to_message.message_id)
+        ticket = await support_store.find_support_ticket_by_group_message(message.chat.id, replied_id)
+        if not ticket:
+            # Fallback for copied/forwarded bot messages: parse sup_xxx from the text.
+            source_text = message.reply_to_message.text or message.reply_to_message.caption or ""
+            match = re.search(r"sup_[0-9a-fA-F]{8,32}", source_text)
+            if match:
+                ticket = await support_store.get_support_ticket(match.group(0))
+        if not ticket:
+            await message.reply("Не нашёл тикет для этого reply. Ответьте на исходное сообщение бота с ID тикета sup_...")
+            return
+        author_name = " ".join(part for part in [getattr(message.from_user, "first_name", None), getattr(message.from_user, "last_name", None)] if part).strip()
+        if not author_name and message.from_user and message.from_user.username:
+            author_name = f"@{message.from_user.username}"
+        saved = await support_store.add_support_message(
+            ticket["id"],
+            author_type="support",
+            author_telegram_id=message.from_user.id if message.from_user else None,
+            author_name=author_name or settings.support_public_name,
+            content=message.text,
+            source="telegram_group",
+            status="answered",
+        )
+        await support_store.update_support_ticket_bridge(ticket["id"], message.chat.id, message.message_id)
+        # Best-effort notification to the user. The Mini App remains the source of truth.
+        try:
+            user_id = int(ticket.get("telegram_user_id") or 0)
+            if user_id:
+                await message.bot.send_message(
+                    user_id,
+                    "<b>Поддержка ответила</b>\n\n"
+                    f"Тикет: <code>{html(ticket['id'])}</code>\n"
+                    f"{html(message.text[:1200])}\n\n"
+                    "Откройте Mini App → Профиль → Поддержка, чтобы продолжить диалог.",
+                    parse_mode=TELEGRAM_PARSE_MODE,
+                    reply_markup=build_main_keyboard(settings),
+                )
+        except Exception:  # noqa: BLE001
+            pass
+        await message.reply(f"Ответ доставлен пользователю ✅\nТикет: {ticket['id']}")
+
     @router.message(F.text)
     async def text_ai(message: Message) -> None:
+        if getattr(message.chat, "type", "private") != "private":
+            return
         if not message.from_user or not message.text:
             return
 

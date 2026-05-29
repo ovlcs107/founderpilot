@@ -111,6 +111,10 @@ class Settings(BaseSettings):
     btcpay_api_key: str = Field(default="", alias="BTCPAY_API_KEY")
     btcpay_webhook_secret: str = Field(default="", alias="BTCPAY_WEBHOOK_SECRET")
 
+    support_group_chat_id: str = Field(default="", alias="SUPPORT_GROUP_CHAT_ID")
+    support_group_thread_id: int | None = Field(default=None, alias="SUPPORT_GROUP_THREAD_ID")
+    support_public_name: str = Field(default="FounderPilot Support", alias="SUPPORT_PUBLIC_NAME")
+
 
     @property
     def is_railway_runtime(self) -> bool:
@@ -130,6 +134,13 @@ class Settings(BaseSettings):
         if self.is_railway_runtime:
             return "0.0.0.0"
         return self.host or "0.0.0.0"
+
+    @field_validator("support_group_thread_id", mode="before")
+    @classmethod
+    def empty_support_thread_to_none(cls, value):
+        if value in ("", None):
+            return None
+        return value
 
     @field_validator("webapp_public_url")
     @classmethod

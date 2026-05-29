@@ -41,6 +41,9 @@ const state = {
   billingCapabilities: { autopay_available: false, yookassa_recurring_available: false },
   creditPacks: [],
   organizations: { active: null, owned: [], memberships: [] },
+  supportTickets: [],
+  supportMessages: [],
+  activeSupportTicketId: null,
   historyFilter: 'all'
 };
 
@@ -950,6 +953,141 @@ async function createOrganizationFromUI() {
   } catch (err) { showToast(friendlyError(err, "Не удалось создать организацию")); }
 }
 
+
+function supportStatusLabel(status) {
+  const map = {
+    open: "Открыт",
+    waiting_support: "Ждёт поддержки",
+    answered: "Есть ответ",
+    closed: "Закрыт"
+  };
+  return map[String(status || "open")] || "Открыт";
+}
+
+function supportCategoryLabel(category) {
+  const map = { bug: "Баг", payment: "Оплата", account: "Аккаунт", idea: "Идея", other: "Другое" };
+  return map[String(category || "bug")] || "Другое";
+}
+
+function renderSupportTickets() {
+  const list = $("supportTicketList");
+  if (!list) return;
+  const tickets = state.supportTickets || [];
+  if (!tickets.length) {
+    list.innerHTML = `<div class="settings-row"><span><b>История поддержки пустая</b><small>Создайте обращение, и ответы появятся здесь.</small></span></div>`;
+    return;
+  }
+  list.innerHTML = tickets.map(t => {
+    const active = String(t.id) === String(state.activeSupportTicketId);
+    const preview = t.last_message || t.subject || "Обращение";
+    return `
+      <button type="button" class="settings-row support-ticket-row ${active ? 'active' : ''}" data-ticket-id="${escapeHTML(t.id)}">
+        <span class="row-icon"><span data-icon="message"></span></span>
+        <span><b>${escapeHTML(t.subject || 'Обращение')}</b><small>${escapeHTML(supportStatusLabel(t.status))} • ${escapeHTML(supportCategoryLabel(t.category))} • ${escapeHTML(String(preview).slice(0, 90))}</small></span>
+        <span class="chevron">›</span>
+      </button>`;
+  }).join("");
+  injectIcons(list);
+}
+
+function renderSupportMessages() {
+  const box = $("supportChatMessages");
+  if (!box) return;
+  const messages = state.supportMessages || [];
+  if (!state.activeSupportTicketId) {
+    box.innerHTML = `<div class="support-empty"><b>Выберите тикет или создайте новый</b><small>Здесь будет отдельная история чата с поддержкой.</small></div>`;
+    return;
+  }
+  if (!messages.length) {
+    box.innerHTML = `<div class="support-empty"><b>Сообщений пока нет</b><small>Напишите уточнение ниже.</small></div>`;
+    return;
+  }
+  box.innerHTML = messages.map(m => {
+    const isUser = String(m.author_type || '') === 'user';
+    const author = isUser ? 'Вы' : (m.author_name || 'Поддержка');
+    return `
+      <div class="support-msg ${isUser ? 'user' : 'support'}">
+        <div class="support-msg-author">${escapeHTML(author)}</div>
+        <div class="md-content">${renderMarkdown(m.content || '')}</div>
+      </div>`;
+  }).join("");
+  box.scrollTop = box.scrollHeight;
+}
+
+async function loadSupport() {
+  try {
+    const data = await apiRequest("/api/support/tickets");
+    state.supportTickets = Array.isArray(data.items) ? data.items : [];
+    if (!state.activeSupportTicketId && state.supportTickets.length) state.activeSupportTicketId = state.supportTickets[0].id;
+    renderSupportTickets();
+    if (state.activeSupportTicketId) await openSupportTicket(state.activeSupportTicketId, { silent: true });
+    else renderSupportMessages();
+  } catch (err) {
+    renderSupportTickets();
+    renderSupportMessages();
+  }
+}
+
+async function openSupportTicket(ticketId, options = {}) {
+  if (!ticketId) return;
+  state.activeSupportTicketId = ticketId;
+  renderSupportTickets();
+  try {
+    const data = await apiRequest(`/api/support/tickets/${encodeURIComponent(ticketId)}`);
+    state.supportMessages = Array.isArray(data.messages) ? data.messages : [];
+    renderSupportMessages();
+    if (!options.silent) showToast("Тикет открыт");
+  } catch (err) {
+    if (!options.silent) showToast(friendlyError(err, "Не удалось открыть тикет"));
+  }
+}
+
+async function submitSupportTicket() {
+  const subject = ($("supportSubjectInput")?.value || "").trim();
+  const message = ($("supportMessageInput")?.value || "").trim();
+  const category = ($("supportCategorySelect")?.value || "bug").trim();
+  if (message.length < 3) return showToast("Опишите проблему чуть подробнее");
+  try {
+    const data = await apiRequest("/api/support/tickets", {
+      method: "POST",
+      body: JSON.stringify({ subject, message, category })
+    });
+    $("supportSubjectInput").value = "";
+    $("supportMessageInput").value = "";
+    state.activeSupportTicketId = data.ticket?.id || null;
+    showToast(data.group_sent ? "Обращение отправлено поддержке" : "Обращение сохранено. Настройте SUPPORT_GROUP_CHAT_ID для группы поддержки");
+    await loadSupport();
+  } catch (err) { showToast(friendlyError(err, "Не удалось отправить обращение")); }
+}
+
+async function submitSupportMessage() {
+  const input = $("supportReplyInput");
+  const message = (input?.value || "").trim();
+  if (!state.activeSupportTicketId) return showToast("Сначала выберите тикет");
+  if (!message) return showToast("Введите сообщение");
+  try {
+    await apiRequest(`/api/support/tickets/${encodeURIComponent(state.activeSupportTicketId)}/messages`, {
+      method: "POST",
+      body: JSON.stringify({ message })
+    });
+    input.value = "";
+    await openSupportTicket(state.activeSupportTicketId, { silent: true });
+    showToast("Сообщение отправлено");
+  } catch (err) { showToast(friendlyError(err, "Не удалось отправить сообщение")); }
+}
+
+async function closeSupportTicket() {
+  if (!state.activeSupportTicketId) return showToast("Сначала выберите тикет");
+  try {
+    await apiRequest(`/api/support/tickets/${encodeURIComponent(state.activeSupportTicketId)}/status`, {
+      method: "POST",
+      body: JSON.stringify({ status: "closed" })
+    });
+    showToast("Тикет закрыт");
+    await loadSupport();
+  } catch (err) { showToast(friendlyError(err, "Не удалось закрыть тикет")); }
+}
+
 // Data Loaders
 async function loadData() {
   try {
@@ -1010,6 +1148,7 @@ async function loadData() {
 
   await loadOrganizations();
   await loadNotificationPrefs();
+  await loadSupport();
 }
 
 // Event Bindings
@@ -1020,7 +1159,7 @@ function bindEvents() {
   });
 
   // Profile Tabs
-  document.querySelectorAll(".mobile-tab-link, .rail-link").forEach(link => {
+  document.querySelectorAll(".mobile-tab-link, .rail-link, .profile-hero-card[data-pane]").forEach(link => {
     link.addEventListener("click", () => switchProfilePane(link.dataset.pane));
   });
   $("headerProfileBtn")?.addEventListener("click", () => switchView("profile"));
@@ -1037,6 +1176,18 @@ function bindEvents() {
     });
   }
   $("homeChatSendBtn")?.addEventListener("click", handleChatSend);
+  document.querySelectorAll(".composer-left-actions .icon-soft-btn, .voice-btn, .top-bell-btn").forEach(btn => {
+    btn.addEventListener("click", () => showToast("Функция скоро появится"));
+  });
+  document.querySelectorAll(".selector-dropdown-filter-btn").forEach(btn => {
+    btn.addEventListener("click", () => showToast("Фильтры скоро появятся"));
+  });
+  document.querySelectorAll(".change-payment-method-btn").forEach(btn => {
+    btn.addEventListener("click", () => {
+      const plan = String(state.user?.plan || "go").toLowerCase() === "free" ? "go" : String(state.user?.plan || "go").toLowerCase();
+      selectPlan(plan);
+    });
+  });
 
   // Quick actions to chat
   $("quickStrip")?.addEventListener("click", e => {
@@ -1132,6 +1283,18 @@ function bindEvents() {
       $("appFeedbackText").value = "";
       showToast("Спасибо за отзыв!");
     } catch (err) { showToast(friendlyError(err, "Не удалось отправить отзыв")); }
+  });
+
+
+  $("supportTicketList")?.addEventListener("click", e => {
+    const row = e.target.closest(".support-ticket-row");
+    if (row) openSupportTicket(row.dataset.ticketId);
+  });
+  $("sendSupportTicketBtn")?.addEventListener("click", submitSupportTicket);
+  $("sendSupportReplyBtn")?.addEventListener("click", submitSupportMessage);
+  $("closeSupportTicketBtn")?.addEventListener("click", closeSupportTicket);
+  $("supportReplyInput")?.addEventListener("keydown", e => {
+    if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); submitSupportMessage(); }
   });
 
   $("saveNotificationsBtn")?.addEventListener("click", saveNotificationPrefs);

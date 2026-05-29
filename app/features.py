@@ -177,16 +177,68 @@ ON organization_invites(invited_username, status, created_at);
 
 CREATE INDEX IF NOT EXISTS idx_org_invites_user
 ON organization_invites(invited_telegram_user_id, status, created_at);
+
+
+CREATE TABLE IF NOT EXISTS support_tickets (
+    id TEXT PRIMARY KEY,
+    telegram_user_id TEXT NOT NULL,
+    user_name TEXT,
+    username TEXT,
+    plan TEXT DEFAULT 'free',
+    subject TEXT NOT NULL,
+    category TEXT DEFAULT 'bug',
+    status TEXT NOT NULL DEFAULT 'open',
+    last_message_at TEXT NOT NULL,
+    group_chat_id TEXT,
+    group_message_id INTEGER,
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_support_tickets_user_updated
+ON support_tickets(telegram_user_id, updated_at);
+
+CREATE INDEX IF NOT EXISTS idx_support_tickets_group_message
+ON support_tickets(group_chat_id, group_message_id);
+
+CREATE TABLE IF NOT EXISTS support_messages (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    ticket_id TEXT NOT NULL,
+    author_type TEXT NOT NULL,
+    author_telegram_user_id TEXT,
+    author_name TEXT,
+    content TEXT NOT NULL,
+    source TEXT DEFAULT 'mini_app',
+    created_at TEXT NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_support_messages_ticket_created
+ON support_messages(ticket_id, created_at);
+
+CREATE TABLE IF NOT EXISTS support_group_bridge_messages (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    ticket_id TEXT NOT NULL,
+    group_chat_id TEXT NOT NULL,
+    group_message_id INTEGER NOT NULL,
+    created_at TEXT NOT NULL,
+    UNIQUE(group_chat_id, group_message_id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_support_bridge_group_message
+ON support_group_bridge_messages(group_chat_id, group_message_id);
 """
 
 
 async def init_features(db_path: str) -> None:
     async with aiosqlite.connect(db_path) as db:
         await db.executescript(FEATURE_SCHEMA)
-        # Small, safe migrations for older deployments.
-        cols = await _columns(db, "users")
-        if "purchased_credits" not in cols:
-            await db.execute("ALTER TABLE users ADD COLUMN purchased_credits INTEGER DEFAULT 0")
+        # Small, safe migrations for older deployments. Some tests initialize the
+        # feature store without the core Database schema, so guard the optional users
+        # migration instead of failing on a missing table.
+        if await _table_exists(db, "users"):
+            cols = await _columns(db, "users")
+            if "purchased_credits" not in cols:
+                await db.execute("ALTER TABLE users ADD COLUMN purchased_credits INTEGER DEFAULT 0")
         credit_cols = await _columns(db, "credit_pack_orders")
         if "external_payment_id" not in credit_cols:
             await db.execute("ALTER TABLE credit_pack_orders ADD COLUMN external_payment_id TEXT")
@@ -194,6 +246,12 @@ async def init_features(db_path: str) -> None:
             await db.execute("ALTER TABLE credit_pack_orders ADD COLUMN payment_url TEXT")
         await db.commit()
 
+
+
+
+async def _table_exists(db: aiosqlite.Connection, table: str) -> bool:
+    cur = await db.execute("SELECT name FROM sqlite_master WHERE type = 'table' AND name = ?", (table,))
+    return await cur.fetchone() is not None
 
 async def _columns(db: aiosqlite.Connection, table: str) -> set[str]:
     cur = await db.execute(f"PRAGMA table_info({table})")
@@ -914,3 +972,181 @@ class FeatureStore:
                 await db.execute(f"UPDATE notification_preferences SET {', '.join(updates)} WHERE telegram_user_id = ?", tuple(values))
                 await db.commit()
         return await self.notification_preferences(telegram_id)
+    async def create_support_ticket(
+        self,
+        telegram_id: int,
+        *,
+        subject: str,
+        message: str,
+        category: str = "bug",
+        user_name: str | None = None,
+        username: str | None = None,
+        plan: str | None = None,
+    ) -> dict[str, Any]:
+        ticket_id = f"sup_{uuid4().hex[:16]}"
+        now = utc_now()
+        clean_subject = (subject or "Обращение в поддержку").strip()[:160] or "Обращение в поддержку"
+        clean_message = (message or "").strip()[:5000]
+        clean_category = (category or "bug").strip().lower()[:40] or "bug"
+        async with aiosqlite.connect(self.db_path) as db:
+            await db.execute(
+                """
+                INSERT INTO support_tickets(
+                    id, telegram_user_id, user_name, username, plan, subject, category, status,
+                    last_message_at, created_at, updated_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, 'open', ?, ?, ?)
+                """,
+                (ticket_id, str(telegram_id), user_name, username, plan or "free", clean_subject, clean_category, now, now, now),
+            )
+            await db.execute(
+                """
+                INSERT INTO support_messages(ticket_id, author_type, author_telegram_user_id, author_name, content, source, created_at)
+                VALUES (?, 'user', ?, ?, ?, 'mini_app', ?)
+                """,
+                (ticket_id, str(telegram_id), user_name or username or str(telegram_id), clean_message, now),
+            )
+            await db.commit()
+        ticket = await self.get_support_ticket_for_user(telegram_id, ticket_id)
+        return ticket or {"id": ticket_id, "subject": clean_subject, "status": "open"}
+
+    async def list_support_tickets(self, telegram_id: int, limit: int = 30) -> list[dict[str, Any]]:
+        async with aiosqlite.connect(self.db_path) as db:
+            db.row_factory = aiosqlite.Row
+            cur = await db.execute(
+                """
+                SELECT st.*,
+                    (SELECT content FROM support_messages sm WHERE sm.ticket_id = st.id ORDER BY sm.created_at DESC, sm.id DESC LIMIT 1) AS last_message,
+                    (SELECT COUNT(*) FROM support_messages sm WHERE sm.ticket_id = st.id) AS messages_count
+                FROM support_tickets st
+                WHERE st.telegram_user_id = ?
+                ORDER BY st.updated_at DESC
+                LIMIT ?
+                """,
+                (str(telegram_id), int(limit)),
+            )
+            return [dict(row) for row in await cur.fetchall()]
+
+    async def get_support_ticket_for_user(self, telegram_id: int, ticket_id: str) -> dict[str, Any] | None:
+        async with aiosqlite.connect(self.db_path) as db:
+            db.row_factory = aiosqlite.Row
+            cur = await db.execute(
+                "SELECT * FROM support_tickets WHERE telegram_user_id = ? AND id = ?",
+                (str(telegram_id), str(ticket_id)),
+            )
+            row = await cur.fetchone()
+            return dict(row) if row else None
+
+    async def get_support_ticket(self, ticket_id: str) -> dict[str, Any] | None:
+        async with aiosqlite.connect(self.db_path) as db:
+            db.row_factory = aiosqlite.Row
+            cur = await db.execute("SELECT * FROM support_tickets WHERE id = ?", (str(ticket_id),))
+            row = await cur.fetchone()
+            return dict(row) if row else None
+
+    async def list_support_messages_for_user(self, telegram_id: int, ticket_id: str, limit: int = 100) -> list[dict[str, Any]]:
+        ticket = await self.get_support_ticket_for_user(telegram_id, ticket_id)
+        if not ticket:
+            return []
+        return await self.list_support_messages(ticket_id, limit=limit)
+
+    async def list_support_messages(self, ticket_id: str, limit: int = 100) -> list[dict[str, Any]]:
+        async with aiosqlite.connect(self.db_path) as db:
+            db.row_factory = aiosqlite.Row
+            cur = await db.execute(
+                """
+                SELECT * FROM support_messages
+                WHERE ticket_id = ?
+                ORDER BY created_at ASC, id ASC
+                LIMIT ?
+                """,
+                (str(ticket_id), int(limit)),
+            )
+            return [dict(row) for row in await cur.fetchall()]
+
+    async def add_support_message(
+        self,
+        ticket_id: str,
+        *,
+        author_type: str,
+        content: str,
+        author_telegram_id: int | str | None = None,
+        author_name: str | None = None,
+        source: str = "mini_app",
+        status: str | None = None,
+    ) -> dict[str, Any]:
+        now = utc_now()
+        clean_type = author_type if author_type in {"user", "support", "system"} else "system"
+        clean_content = (content or "").strip()[:5000]
+        if not clean_content:
+            raise ValueError("Сообщение пустое.")
+        next_status = status or ("waiting_support" if clean_type == "user" else "answered" if clean_type == "support" else None)
+        async with aiosqlite.connect(self.db_path) as db:
+            cur = await db.execute(
+                """
+                INSERT INTO support_messages(ticket_id, author_type, author_telegram_user_id, author_name, content, source, created_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?)
+                """,
+                (str(ticket_id), clean_type, str(author_telegram_id) if author_telegram_id else None, author_name, clean_content, source, now),
+            )
+            if next_status:
+                await db.execute(
+                    """
+                    UPDATE support_tickets
+                    SET status = ?, last_message_at = ?, updated_at = ?
+                    WHERE id = ?
+                    """,
+                    (next_status, now, now, str(ticket_id)),
+                )
+            else:
+                await db.execute("UPDATE support_tickets SET last_message_at = ?, updated_at = ? WHERE id = ?", (now, now, str(ticket_id)))
+            await db.commit()
+            message_id = int(cur.lastrowid)
+        messages = await self.list_support_messages(ticket_id, limit=1_000)
+        return next((m for m in messages if int(m.get("id") or 0) == message_id), {"id": message_id, "ticket_id": ticket_id, "content": clean_content})
+
+    async def update_support_ticket_bridge(self, ticket_id: str, group_chat_id: str | int, group_message_id: int) -> None:
+        now = utc_now()
+        async with aiosqlite.connect(self.db_path) as db:
+            await db.execute(
+                """
+                UPDATE support_tickets
+                SET group_chat_id = ?, group_message_id = ?, updated_at = ?
+                WHERE id = ?
+                """,
+                (str(group_chat_id), int(group_message_id), now, str(ticket_id)),
+            )
+            await db.execute(
+                """
+                INSERT OR IGNORE INTO support_group_bridge_messages(ticket_id, group_chat_id, group_message_id, created_at)
+                VALUES (?, ?, ?, ?)
+                """,
+                (str(ticket_id), str(group_chat_id), int(group_message_id), now),
+            )
+            await db.commit()
+
+    async def find_support_ticket_by_group_message(self, group_chat_id: str | int, group_message_id: int) -> dict[str, Any] | None:
+        async with aiosqlite.connect(self.db_path) as db:
+            db.row_factory = aiosqlite.Row
+            cur = await db.execute(
+                """
+                SELECT st.*
+                FROM support_tickets st
+                LEFT JOIN support_group_bridge_messages bg ON bg.ticket_id = st.id
+                WHERE (st.group_chat_id = ? AND st.group_message_id = ?)
+                   OR (bg.group_chat_id = ? AND bg.group_message_id = ?)
+                ORDER BY st.updated_at DESC
+                LIMIT 1
+                """,
+                (str(group_chat_id), int(group_message_id), str(group_chat_id), int(group_message_id)),
+            )
+            row = await cur.fetchone()
+            return dict(row) if row else None
+
+    async def set_support_ticket_status(self, ticket_id: str, status: str) -> dict[str, Any] | None:
+        now = utc_now()
+        clean = status if status in {"open", "waiting_support", "answered", "closed"} else "open"
+        async with aiosqlite.connect(self.db_path) as db:
+            await db.execute("UPDATE support_tickets SET status = ?, updated_at = ? WHERE id = ?", (clean, now, str(ticket_id)))
+            await db.commit()
+        return await self.get_support_ticket(ticket_id)
+
