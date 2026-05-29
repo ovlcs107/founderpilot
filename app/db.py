@@ -12,7 +12,7 @@ SCHEMA = """
 CREATE TABLE IF NOT EXISTS users (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     telegram_user_id TEXT UNIQUE NOT NULL,
-    telegram_id INTEGER UNIQUE,
+    telegram_id BIGINT UNIQUE,
     username TEXT,
     first_name TEXT,
     last_name TEXT,
@@ -41,7 +41,7 @@ CREATE TABLE IF NOT EXISTS users (
 
 CREATE TABLE IF NOT EXISTS ai_requests (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
-    telegram_id INTEGER NOT NULL,
+    telegram_id BIGINT NOT NULL,
     mode TEXT NOT NULL,
     user_text TEXT NOT NULL,
     ai_answer TEXT NOT NULL,
@@ -51,8 +51,8 @@ CREATE TABLE IF NOT EXISTS ai_requests (
 
 CREATE TABLE IF NOT EXISTS access_events (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
-    telegram_id INTEGER NOT NULL,
-    admin_id INTEGER,
+    telegram_id BIGINT NOT NULL,
+    admin_id BIGINT,
     action TEXT NOT NULL,
     details TEXT,
     created_at TEXT NOT NULL,
@@ -367,7 +367,7 @@ ON autopay_settings(enabled, next_charge_at);
 
 
 USER_ADD_COLUMNS = {
-    "telegram_id": "ALTER TABLE users ADD COLUMN telegram_id INTEGER",
+    "telegram_id": "ALTER TABLE users ADD COLUMN telegram_id BIGINT",
     "username": "ALTER TABLE users ADD COLUMN username TEXT",
     "first_name": "ALTER TABLE users ADD COLUMN first_name TEXT",
     "last_name": "ALTER TABLE users ADD COLUMN last_name TEXT",
@@ -468,6 +468,7 @@ class Database:
         async with aiosqlite.connect(self.path) as db:
             await db.execute("PRAGMA foreign_keys=OFF")
             await db.executescript(SCHEMA)
+            await self._migrate_postgres_bigint_columns(db)
             await self._migrate_users_table(db)
             await self._migrate_conversations_table(db)
             await self._migrate_chat_messages_table(db)
@@ -480,6 +481,36 @@ class Database:
             await db.executescript(INDEXES)
             await db.commit()
             await db.execute("PRAGMA foreign_keys=ON")
+
+    async def _migrate_postgres_bigint_columns(self, db: aiosqlite.Connection) -> None:
+        """Keep Telegram ids safe after moving from SQLite to PostgreSQL.
+
+        Telegram user identifiers are already larger than signed int32 for many
+        accounts. PostgreSQL INTEGER is int32, so /api/me can crash before the
+        user is even created. SQLite tolerated this silently; production
+        PostgreSQL must use BIGINT for every numeric Telegram id column.
+        """
+        if not aiosqlite.is_postgres_dsn(self.path):
+            return
+        statements = [
+            # Existing deployments may already have FK constraints created with
+            # int4 columns. Drop them before widening the columns. The app still
+            # keeps logical integrity through telegram_user_id and service code.
+            "ALTER TABLE IF EXISTS ai_requests DROP CONSTRAINT IF EXISTS ai_requests_telegram_id_fkey",
+            "ALTER TABLE IF EXISTS access_events DROP CONSTRAINT IF EXISTS access_events_telegram_id_fkey",
+            "ALTER TABLE IF EXISTS users ALTER COLUMN telegram_id TYPE BIGINT USING telegram_id::BIGINT",
+            "ALTER TABLE IF EXISTS ai_requests ALTER COLUMN telegram_id TYPE BIGINT USING telegram_id::BIGINT",
+            "ALTER TABLE IF EXISTS access_events ALTER COLUMN telegram_id TYPE BIGINT USING telegram_id::BIGINT",
+            "ALTER TABLE IF EXISTS access_events ALTER COLUMN admin_id TYPE BIGINT USING admin_id::BIGINT",
+        ]
+        for statement in statements:
+            try:
+                await db.execute(statement)
+            except Exception:
+                # Do not block startup for legacy tables that are absent in tests
+                # or for already-correct schemas. The next explicit query will
+                # surface a real DB problem if one remains.
+                pass
 
     async def _table_columns(self, db: aiosqlite.Connection, table: str) -> dict[str, Any]:
         cursor = await db.execute(f"PRAGMA table_info({table})")
@@ -513,7 +544,7 @@ class Database:
                 CREATE TABLE users_new (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
                     telegram_user_id TEXT UNIQUE NOT NULL,
-                    telegram_id INTEGER UNIQUE,
+                    telegram_id BIGINT UNIQUE,
                     username TEXT,
                     first_name TEXT,
                     last_name TEXT,

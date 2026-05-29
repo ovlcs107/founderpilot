@@ -17,6 +17,7 @@ const iconPaths = {
   chart: '<line x1="18" y1="20" x2="18" y2="10"></line><line x1="12" y1="20" x2="12" y2="4"></line><line x1="6" y1="20" x2="6" y2="14"></line>',
   wallet: '<path d="M22 12V6a2 2 0 0 0-2-2H4a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-2"></path><rect x="18" y="10" width="4" height="4"></rect>',
   stars: '<polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"></polygon>',
+  spark: '<path d="M12 2l1.6 6.4L20 10l-6.4 1.6L12 18l-1.6-6.4L4 10l6.4-1.6L12 2z"></path><path d="M19 15l.8 3.2L23 19l-3.2.8L19 23l-.8-3.2L15 19l3.2-.8L19 15z"></path>',
   target: '<circle cx="12" cy="12" r="10"></circle><circle cx="12" cy="12" r="6"></circle><circle cx="12" cy="12" r="2"></circle>',
   message: '<path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"></path>',
   mic: '<path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3z"></path><path d="M19 10v2a7 7 0 0 1-14 0v-2"></path><line x1="12" y1="19" x2="12" y2="22"></line>',
@@ -1044,6 +1045,22 @@ function renderOrganizations() {
   const list = $("organizationList");
   const invites = $("organizationInviteList");
   if (!list) return;
+
+  if (!canUseBusinessFeatures()) {
+    setText("organizationNameLabel", "Командная работа");
+    setText("organizationMetaLabel", "Доступно на тарифе Business");
+    list.innerHTML = `
+      <div class="business-lock-card business-page-lock">
+        <div class="business-lock-icon" data-icon="support"></div>
+        <h3>Команда доступна на Business</h3>
+        <p>Создание компании, роли участников и совместная работа открываются после перехода на Business.</p>
+        <button type="button" class="primary-btn stretch" data-target="subscription">Посмотреть тарифы</button>
+      </div>`;
+    if (invites) { invites.style.display = "none"; invites.innerHTML = ""; }
+    injectIcons(list);
+    return;
+  }
+
   const org = state.organizations?.active || state.organizations?.current || state.organizations?.owned?.[0] || state.organizations?.memberships?.[0] || null;
   const members = Array.isArray(state.organizationMembers) ? state.organizationMembers : [];
 
@@ -1376,6 +1393,10 @@ function bindEvents() {
   document.querySelectorAll(".nav-item").forEach(b => {
     b.addEventListener("click", () => switchView(b.dataset.target));
   });
+  document.addEventListener("click", e => {
+    const nav = e.target.closest("button[data-target]:not(.nav-item)");
+    if (nav?.dataset?.target) switchView(nav.dataset.target);
+  });
 
   // Profile Tabs
   document.querySelectorAll(".mobile-tab-link, .rail-link, .profile-hero-card[data-pane]").forEach(link => {
@@ -1607,6 +1628,38 @@ function formatDateRu(value) {
   return d.toLocaleDateString('ru-RU', { day: '2-digit', month: 'long', year: 'numeric' });
 }
 
+
+function getRemainingCredits(user = state.user || {}) {
+  const values = [
+    user.remaining_credits_today,
+    user.daily_remaining,
+    user.remaining,
+    user.credits,
+    user.purchased_credits,
+    user.free_limit
+  ];
+  for (const v of values) {
+    const n = Number(v);
+    if (Number.isFinite(n) && n >= 0) return n;
+  }
+  return 0;
+}
+
+function updateMobileCreditsUI(user = state.user || {}) {
+  const value = getRemainingCredits(user);
+  const plan = String(user.plan || 'free').toLowerCase();
+  const valueEl = $('mobileCreditsValue');
+  const metaEl = $('mobileCreditsMeta');
+  if (valueEl) valueEl.textContent = value.toLocaleString('ru-RU');
+  if (metaEl) metaEl.textContent = `${plan.charAt(0).toUpperCase() + plan.slice(1)} · доступно сегодня`;
+  if ($('desktopTopCreditsValue')) $('desktopTopCreditsValue').textContent = value.toLocaleString('ru-RU');
+}
+
+function canUseBusinessFeatures() {
+  const u = state.user || {};
+  return String(u.plan || 'free').toLowerCase() === 'business' || Boolean(u.unlimited_access);
+}
+
 function updateProfileUI() {
   const fallback = { first_name: 'Пользователь', username: '', telegram_id: '—', plan: 'Free', photo_url: '' };
   const rawUser = state.user || {};
@@ -1644,10 +1697,9 @@ function updateProfileUI() {
   assignValue('profileCompanyName', u.company_name || '');
   assignValue('profileBusinessDescription', u.business_profile || '');
 
-  const remaining = Number(u.remaining_credits_today ?? u.remaining ?? u.credits ?? 0);
-  if ($('desktopTopCreditsValue')) $('desktopTopCreditsValue').textContent = remaining ? remaining.toLocaleString('ru-RU') : '20';
+  updateMobileCreditsUI(u);
 
-  const isBusiness = planName === 'business';
+  const isBusiness = canUseBusinessFeatures();
   const teamNotice = $('teamBusinessNotice');
   if (teamNotice) teamNotice.style.display = isBusiness ? 'none' : 'block';
   if ($('teamActiveContent')) $('teamActiveContent').style.display = isBusiness ? 'block' : 'none';
@@ -1892,32 +1944,138 @@ async function loadData() {
   await restoreLastConversation();
 }
 
+function createThinkingBubble() {
+  const id = `thinking_${Date.now()}`;
+  appendMessage('system', '', id);
+  const el = $(id);
+  const started = Date.now();
+  const stages = ['Понимаю запрос', 'Подбираю контекст', 'Формирую ответ', 'Проверяю структуру'];
+  let index = 0;
+  if (el) {
+    el.classList.add('thinking-msg');
+    el.innerHTML = `<div class="thinking-card"><span class="thinking-dot"></span><b>${stages[0]}</b><small>0 сек</small></div>`;
+  }
+  const timer = setInterval(() => {
+    const node = $(id);
+    if (!node) return clearInterval(timer);
+    const sec = Math.max(1, Math.round((Date.now() - started) / 1000));
+    index = Math.min(stages.length - 1, Math.floor(sec / 3));
+    const b = node.querySelector('b');
+    const small = node.querySelector('small');
+    if (b) b.textContent = stages[index];
+    if (small) small.textContent = `${sec} сек`;
+  }, 500);
+  return { id, stop: () => clearInterval(timer) };
+}
+
 async function handleChatSend() {
   const input = $('homeChatInput'); const text = input?.value.trim();
   if (!text || state.isSending) return;
   state.isSending = true; $('homeChatSendBtn').disabled = true; input.value = ''; autoResizeTextarea();
-  appendMessage('user', text); const sysId = `sys_${Date.now()}`; appendMessage('system', 'FounderPilot готовит ответ...', sysId);
+  appendMessage('user', text);
+  const thinking = createThinkingBubble();
   try {
     // Create the conversation before the AI request. If the user closes the Mini App
     // while the model is answering, the dialogue id is already known and can be restored.
     await ensureActiveConversation();
     const payload = withTelegramUser({ message: text, text, mode: 'chat', conversation_id: state.activeConversationId || null });
     const res = await apiTry('/api/chat', '/api/ask', { method: 'POST', body: JSON.stringify(payload) });
-    $(sysId)?.remove(); const answer = res.answer || res.response || res.result || res.text || 'Аналитический модуль вернул пустой результат.';
+    thinking.stop(); $(thinking.id)?.remove();
+    const answer = res.answer || res.response || res.result || res.text || 'AI вернул пустой ответ. Попробуйте переформулировать запрос.';
     if (res.conversation_id) saveActiveConversationId(res.conversation_id);
     appendMessage('bot', answer);
     try { const hData = await apiRequest('/api/history'); state.history = normalizeHistoryData(hData); renderHistory(); } catch {}
-  } catch (err) { const sys = $(sysId); if (sys) sys.textContent = 'Ошибка: ' + err.message; }
+  } catch (err) {
+    thinking.stop();
+    const sys = $(thinking.id);
+    const msg = String(err?.message || 'Не удалось получить ответ');
+    if (sys) sys.textContent = msg.includes('Internal Server Error') ? 'Ошибка сервера. Мы уже исправляем проблему, попробуйте ещё раз.' : 'Ошибка: ' + msg;
+  }
   finally { state.isSending = false; autoResizeTextarea(); }
+}
+
+
+function initSupportCategorySelect() {
+  const shell = $('supportCategoryCustomSelect');
+  const native = $('supportCategorySelect');
+  const trigger = $('supportCategoryTrigger');
+  const valueLabel = $('supportCategoryValue');
+  const menu = $('supportCategoryMenu');
+  if (!shell || !native || !trigger || !valueLabel || !menu) return;
+
+  const options = Array.from(menu.querySelectorAll('.fp-select-option'));
+  const close = () => {
+    shell.classList.remove('open');
+    trigger.setAttribute('aria-expanded', 'false');
+  };
+  const open = () => {
+    shell.classList.add('open');
+    trigger.setAttribute('aria-expanded', 'true');
+  };
+  const setValue = (nextValue, optionsBag = {}) => {
+    const option = options.find(btn => btn.dataset.value === nextValue) || options[0];
+    if (!option) return;
+    native.value = option.dataset.value;
+    valueLabel.textContent = option.querySelector('b')?.textContent || option.textContent.trim();
+    options.forEach(btn => {
+      const active = btn === option;
+      btn.classList.toggle('active', active);
+      btn.setAttribute('aria-selected', active ? 'true' : 'false');
+    });
+    const iconName = option.dataset.icon || 'support';
+    const iconBox = trigger.querySelector('.fp-select-icon');
+    if (iconBox) {
+      iconBox.innerHTML = `<span data-icon="${escapeAttr(iconName)}"></span>`;
+      injectIcons(iconBox);
+    }
+    native.dispatchEvent(new Event('change', { bubbles: true }));
+    if (!optionsBag.keepOpen) close();
+  };
+
+  if (!shell.dataset.bound) {
+    shell.dataset.bound = '1';
+    trigger.addEventListener('click', e => {
+      e.preventDefault();
+      shell.classList.contains('open') ? close() : open();
+    });
+    trigger.addEventListener('keydown', e => {
+      if (e.key === 'ArrowDown' || e.key === 'Enter' || e.key === ' ') {
+        e.preventDefault();
+        open();
+        (options.find(btn => btn.classList.contains('active')) || options[0])?.focus();
+      }
+    });
+    options.forEach((btn, index) => {
+      btn.addEventListener('click', e => {
+        e.preventDefault();
+        setValue(btn.dataset.value || 'bug');
+        trigger.focus();
+      });
+      btn.addEventListener('keydown', e => {
+        if (e.key === 'Escape') { e.preventDefault(); close(); trigger.focus(); }
+        if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setValue(btn.dataset.value || 'bug'); trigger.focus(); }
+        if (e.key === 'ArrowDown') { e.preventDefault(); (options[index + 1] || options[0])?.focus(); }
+        if (e.key === 'ArrowUp') { e.preventDefault(); (options[index - 1] || options[options.length - 1])?.focus(); }
+      });
+    });
+    document.addEventListener('click', e => {
+      if (!shell.contains(e.target)) close();
+    });
+  }
+
+  setValue(native.value || 'bug', { keepOpen: true });
+  close();
 }
 
 function bindPolishEvents() {
   if (window.__fpPolishBound) {
+    initSupportCategorySelect();
     setSubscriptionTab(state.subscriptionTab || 'plans');
     setSupportTab(state.supportTab || 'new');
     return;
   }
   window.__fpPolishBound = true;
+  initSupportCategorySelect();
   $('subscriptionTabs')?.addEventListener('click', e => { const btn = e.target.closest('[data-subscription-tab]'); if (btn) setSubscriptionTab(btn.dataset.subscriptionTab); });
   $('supportTabs')?.addEventListener('click', e => { const btn = e.target.closest('[data-support-tab]'); if (btn) setSupportTab(btn.dataset.supportTab); });
   $('historyList')?.addEventListener('click', e => { const row = e.target.closest('[data-history-type]'); if (row) openHistoryItem(row.dataset.historyType, row.dataset.historyId); });

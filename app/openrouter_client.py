@@ -33,6 +33,13 @@ class OpenRouterClient:
     def __init__(self, settings: Settings) -> None:
         self.settings = settings
         self.base_url = "https://openrouter.ai/api/v1/chat/completions"
+        # Reuse TCP/TLS connections inside the process. Creating a fresh
+        # AsyncClient for every message adds noticeable latency on Railway.
+        self._http = httpx.AsyncClient(
+            timeout=max(15.0, float(settings.ai_request_timeout_seconds)),
+            limits=httpx.Limits(max_keepalive_connections=12, max_connections=30),
+            headers=self._headers("FounderPilot AI"),
+        )
 
     def model_for_plan(self, plan_key: str | None = None) -> str:
         plan = (plan_key or "free").strip().lower()
@@ -96,20 +103,19 @@ class OpenRouterClient:
             model_payload["model"] = model
             for attempt in range(max_retries + 1):
                 try:
-                    async with httpx.AsyncClient(timeout=timeout) as client:
-                        response = await client.post(self.base_url, headers=self._headers(title), json=model_payload)
+                    response = await self._http.post(self.base_url, headers=self._headers(title), json=model_payload, timeout=timeout)
                 except httpx.TimeoutException:
                     last_error = "timeout"
                     last_status = None
                     if attempt < max_retries:
-                        await asyncio.sleep(0.55 * (2**attempt))
+                        await asyncio.sleep(0.35 * (2**attempt))
                         continue
                     break
                 except httpx.HTTPError as exc:
                     last_error = str(exc)
                     last_status = None
                     if attempt < max_retries:
-                        await asyncio.sleep(0.55 * (2**attempt))
+                        await asyncio.sleep(0.35 * (2**attempt))
                         continue
                     break
 
@@ -127,7 +133,7 @@ class OpenRouterClient:
 
                 last_error = response.text[:1000]
                 if response.status_code in retry_statuses and attempt < max_retries:
-                    await asyncio.sleep(0.65 * (2**attempt))
+                    await asyncio.sleep(0.45 * (2**attempt))
                     continue
                 break
 

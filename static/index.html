@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
   <title>FounderPilot AI</title>
-  <link rel="stylesheet" href="/static/styles.css?v=telegram-auth-fix-1">
+  <link rel="stylesheet" href="/static/styles.css?v=pg-bigint-tools-scroll-1">
   <script src="https://telegram.org/js/telegram-web-app.js"></script>
 </head>
 <body>
@@ -67,6 +67,15 @@
             <h2 id="homeGreeting">Доброе утро, Пользователь! 👋</h2>
             <p>Чем могу помочь сегодня?</p>
           </header>
+
+          <div class="mobile-credits-card" id="mobileCreditsCard">
+            <div class="mobile-credits-icon" data-icon="coin"></div>
+            <div>
+              <span>Доступные кредиты</span>
+              <b id="mobileCreditsValue">20</b>
+            </div>
+            <small id="mobileCreditsMeta">Free · сегодня</small>
+          </div>
 
           <div class="chat-container">
             <div class="chat-scroll" id="homeChatScroll">
@@ -429,13 +438,42 @@
                     <h3>Новое обращение</h3>
                     <p class="field-description">Опишите баг, проблему с оплатой или идею. Мы получим обращение и ответим в этом чате.</p>
                     <label>Категория</label>
-                    <select id="supportCategorySelect" class="field-select">
-                      <option value="bug">Баг</option>
-                      <option value="payment">Оплата</option>
-                      <option value="account">Аккаунт</option>
-                      <option value="idea">Идея</option>
-                      <option value="other">Другое</option>
-                    </select>
+                    <div class="fp-select" id="supportCategoryCustomSelect">
+                      <select id="supportCategorySelect" class="field-select native-select-hidden" aria-hidden="true" tabindex="-1">
+                        <option value="bug">Баг</option>
+                        <option value="payment">Оплата</option>
+                        <option value="account">Аккаунт</option>
+                        <option value="idea">Идея</option>
+                        <option value="other">Другое</option>
+                      </select>
+                      <button class="fp-select-trigger" id="supportCategoryTrigger" type="button" aria-haspopup="listbox" aria-expanded="false">
+                        <span class="fp-select-icon" data-support-category-icon="bug"><span data-icon="bug"></span></span>
+                        <span class="fp-select-value" id="supportCategoryValue">Баг</span>
+                        <span class="fp-select-arrow" aria-hidden="true"></span>
+                      </button>
+                      <div class="fp-select-menu" id="supportCategoryMenu" role="listbox" aria-label="Категория обращения">
+                        <button class="fp-select-option active" type="button" role="option" aria-selected="true" data-value="bug" data-icon="bug">
+                          <span class="fp-select-option-icon"><span data-icon="bug"></span></span>
+                          <span><b>Баг</b><small>Ошибка, визуальный баг или поломка функции</small></span>
+                        </button>
+                        <button class="fp-select-option" type="button" role="option" aria-selected="false" data-value="payment" data-icon="credit-card">
+                          <span class="fp-select-option-icon"><span data-icon="credit-card"></span></span>
+                          <span><b>Оплата</b><small>Платёж, подписка, кредиты или чек</small></span>
+                        </button>
+                        <button class="fp-select-option" type="button" role="option" aria-selected="false" data-value="account" data-icon="user">
+                          <span class="fp-select-option-icon"><span data-icon="user"></span></span>
+                          <span><b>Аккаунт</b><small>Профиль, Telegram ID или доступ</small></span>
+                        </button>
+                        <button class="fp-select-option" type="button" role="option" aria-selected="false" data-value="idea" data-icon="spark">
+                          <span class="fp-select-option-icon"><span data-icon="spark"></span></span>
+                          <span><b>Идея</b><small>Предложение по улучшению сервиса</small></span>
+                        </button>
+                        <button class="fp-select-option" type="button" role="option" aria-selected="false" data-value="other" data-icon="support">
+                          <span class="fp-select-option-icon"><span data-icon="support"></span></span>
+                          <span><b>Другое</b><small>Вопрос, который не подходит под категории</small></span>
+                        </button>
+                      </div>
+                    </div>
                     <label>Тема</label>
                     <input id="supportSubjectInput" type="text" placeholder="Например: не обновилась подписка">
                     <label>Сообщение</label>
@@ -549,6 +587,6 @@
   <div id="profileCreditsMonthPct" style="display:none;"></div>
   <div id="profileCreditsTodayPct" style="display:none;"></div>
   <div id="toast" class="toast-component">Оповещение</div>
-  <script src="/static/app.js?v=telegram-auth-fix-1"></script>
+  <script src="/static/app.js?v=pg-bigint-tools-scroll-1"></script>
 </body>
 </html>
