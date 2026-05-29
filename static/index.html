@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
   <title>FounderPilot AI</title>
-  <link rel="stylesheet" href="/static/styles.css?v=preloader-fix-1">
+  <link rel="stylesheet" href="/static/styles.css?v=frontend-checked-2">
   <script src="https://telegram.org/js/telegram-web-app.js"></script>
 </head>
 <body>
@@ -167,8 +167,8 @@
               <div class="current-plan-card app-card-shadow">
                 <div class="plan-meta-left">
                   <span>Текущий план</span>
-                  <h3 id="subscriptionCurrentPlan">Pro</h3>
-                  <p><b id="subscriptionCurrentPrice">1 490 ₽ / мес</b></p>
+                  <h3 id="subscriptionCurrentPlan">Free</h3>
+                  <p><b id="subscriptionCurrentPrice">0 ₽</b></p>
                   <div class="plan-status"><span>Активен</span></div>
                 </div>
                 <div class="plan-decor-right">
@@ -259,8 +259,8 @@
                   <h3 id="profileUserTitleMirror">Пользователь</h3>
                   <p id="profileUserSubtitleMirror">ID: —</p>
                   <div class="profile-plan-inline-badge">
-                    <span class="mini-plan-badge" id="profilePlanLabel">Pro</span>
-                    <span class="mini-price" id="profilePlanPrice">1 490 ₽ / мес</span>
+                    <span class="mini-plan-badge" id="profilePlanLabel">Free</span>
+                    <span class="mini-price" id="profilePlanPrice">0 ₽</span>
                   </div>
                 </div>
                 <span class="chevron">›</span>
@@ -289,12 +289,12 @@
                     <h3 id="profileUserTitleMirror2">Пользователь</h3>
                     <p id="profileUserSubtitleMirror2">Telegram ID: —</p>
                   </div>
-                  <div class="account-plan-side"><span>Текущий план</span><b id="profilePlanLabelMirror">Pro</b><small id="profilePlanPriceMirror">1 490 ₽ / мес</small></div>
+                  <div class="account-plan-side"><span>Текущий план</span><b id="profilePlanLabelMirror">Free</b><small id="profilePlanPriceMirror">0 ₽</small></div>
                 </div>
                 <div class="settings-list app-style-list">
                   <div class="settings-row"><span><b>Имя</b></span><em id="profileNameValue">Пользователь</em><span class="chevron">›</span></div>
                   <div class="settings-row"><span><b>Username</b></span><em id="profileUsernameValue">ID: —</em><span class="chevron">›</span></div>
-                  <div class="settings-row"><span class="copy-icon-action-trigger" data-copy-trigger="telegram_id" title="Копировать ID"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg></span><span><b>Telegram ID</b></span><em id="profileTelegramIdValue">—</em></div>
+                  <div class="settings-row"><span id="copyTgIdBtn" class="copy-icon-action-trigger" data-copy-trigger="telegram_id" title="Копировать ID"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg></span><span><b>Telegram ID</b></span><em id="profileTelegramIdValue">—</em></div>
                   <div class="settings-row"><span><b>Дата регистрации</b></span><em>—</em><span class="chevron">›</span></div>
                 </div>
                 <button class="danger-row app-card-shadow" type="button">Выйти из аккаунта</button>
@@ -308,8 +308,8 @@
                 <div class="pane-card compact-plan-pane app-card-shadow">
                   <div>
                     <span>Текущий план</span>
-                    <h3 id="profileSubscriptionPlanTitle">Pro</h3>
-                    <p><b id="profileSubscriptionPrice">1 490 ₽ / мес</b></p>
+                    <h3 id="profileSubscriptionPlanTitle">Free</h3>
+                    <p><b id="profileSubscriptionPrice">0 ₽</b></p>
                   </div>
                   <div class="billing-side-meta-info-list">
                     <div>Следующее списание: <span style="font-weight:600;">—</span></div>
@@ -359,10 +359,10 @@
                     <h3 class="section-ios-title">Ваша организация</h3>
                     <div class="organization-container-card-header app-card-shadow">
                       <div class="org-meta-info-row-block">
-                        <div class="org-avatar-placeholder-circle">DV</div>
+                        <div class="org-avatar-placeholder-circle">FP</div>
                         <div class="org-titles-group-headers">
-                          <h4>Digital Ventures</h4>
-                          <p>Business • 3 участника</p>
+                          <h4 id="organizationNameLabel">Организация</h4>
+                          <p id="organizationMetaLabel">Business • участники</p>
                         </div>
                         <button type="button" class="plain-btn compact-header-action-settings-btn">Настройки</button>
                       </div>
@@ -508,6 +508,6 @@
   <div id="profileCreditsMonthPct" style="display:none;"></div>
   <div id="profileCreditsTodayPct" style="display:none;"></div>
   <div id="toast" class="toast-component">Оповещение</div>
-  <script src="/static/app.js?v=preloader-fix-1"></script>
+  <script src="/static/app.js?v=frontend-checked-2"></script>
 </body>
 </html>
