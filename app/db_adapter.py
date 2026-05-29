@@ -52,6 +52,7 @@ _SERIAL_ID_TABLES = {
     "organization_members",
     "support_messages",
     "support_group_bridge_messages",
+    "ai_response_feedback",
 }
 
 

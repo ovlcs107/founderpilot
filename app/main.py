@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 from html import escape as html_escape
+from io import BytesIO
 import hashlib
 import hmac
 import logging
@@ -18,7 +19,7 @@ from aiogram import Bot
 from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup, WebAppInfo
 from fastapi import Depends, FastAPI, Header, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse, JSONResponse, RedirectResponse, PlainTextResponse
+from fastapi.responses import FileResponse, JSONResponse, RedirectResponse, PlainTextResponse, Response
 from fastapi.staticfiles import StaticFiles
 from fastapi.exceptions import RequestValidationError
 from pydantic import BaseModel, Field
@@ -228,6 +229,51 @@ class SupportMessageRequest(BaseModel):
 
 class SupportTicketStatusRequest(BaseModel):
     status: str = Field(default="closed", max_length=40)
+
+
+class DocumentRequest(BaseModel):
+    project_id: str | None = Field(default=None, max_length=80)
+    title: str = Field(min_length=1, max_length=160)
+    document_type: str = Field(default="note", max_length=60)
+    content: str = Field(min_length=1, max_length=30000)
+    source: str | None = Field(default="manual", max_length=60)
+    metadata: dict[str, Any] = Field(default_factory=dict)
+
+
+class DocumentGenerateRequest(BaseModel):
+    project_id: str | None = Field(default=None, max_length=80)
+    document_type: str = Field(default="business_plan", max_length=60)
+    title: str | None = Field(default=None, max_length=160)
+    prompt: str | None = Field(default=None, max_length=8000)
+    mode: str | None = Field(default=None, max_length=64)
+
+
+class RoadmapRequest(BaseModel):
+    project_id: str | None = Field(default=None, max_length=80)
+    title: str | None = Field(default=None, max_length=160)
+    horizon: str | None = Field(default="30 дней", max_length=80)
+    summary: str | None = Field(default=None, max_length=2000)
+    tasks: list[dict[str, Any]] = Field(default_factory=list)
+
+
+class TaskRequest(BaseModel):
+    id: str | None = Field(default=None, max_length=80)
+    roadmap_id: str | None = Field(default=None, max_length=80)
+    project_id: str | None = Field(default=None, max_length=80)
+    title: str = Field(min_length=1, max_length=200)
+    description: str | None = Field(default=None, max_length=1000)
+    status: str | None = Field(default="todo", max_length=30)
+    priority: int | None = Field(default=2, ge=1, le=5)
+    due_at: str | None = Field(default=None, max_length=80)
+
+
+class AiFeedbackRequest(BaseModel):
+    conversation_id: str | None = Field(default=None, max_length=80)
+    message_id: str | None = Field(default=None, max_length=80)
+    source_type: str | None = Field(default="chat", max_length=40)
+    rating: int = Field(default=0, ge=-1, le=1)
+    reason: str | None = Field(default=None, max_length=120)
+    comment: str | None = Field(default=None, max_length=1000)
 
 
 class OrganizationRequest(BaseModel):
@@ -1565,6 +1611,13 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         )
         return {"ok": True, "autopay": autopay}
 
+    @app.delete("/api/billing/autopay/payment-method")
+    @app.post("/api/billing/autopay/unlink")
+    async def unlink_autopay_payment_method(user: TelegramUser = Depends(current_user)) -> dict[str, Any]:
+        autopay = await db.unlink_autopay_payment_method(user.id)
+        await notify_user(user.id, title="Автопродление отключено", body="Сохранённая карта отвязана от FounderPilot. Разовые покупки подписки остаются доступными.", type="billing", action_url="subscription")
+        return {"ok": True, "autopay": autopay}
+
     @app.post("/api/billing/autopay/run-due")
     async def run_due_autopay(limit: int = 25, x_admin_secret: str | None = Header(default=None)) -> dict[str, Any]:
         require_admin(x_admin_secret)
@@ -1971,6 +2024,217 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     @app.delete("/api/templates/{template_id}")
     async def delete_template(template_id: int, user: TelegramUser = Depends(current_user)) -> dict[str, Any]:
         return {"ok": await features.delete_template(user.id, template_id)}
+
+
+    @app.get("/api/startup-suite")
+    async def startup_suite(user: TelegramUser = Depends(current_user)) -> dict[str, Any]:
+        active = await features.get_active_project(user.id)
+        project_id = active.get("id") if active else None
+        return {
+            "ok": True,
+            "active_project": active,
+            "projects": await features.list_projects(user.id),
+            "memory": await features.list_memory(user.id, project_id),
+            "documents": await features.list_documents(user.id, project_id),
+            "roadmaps": await features.list_roadmaps(user.id, project_id),
+            "tasks": await features.list_tasks(user.id, project_id),
+            "score": await features.latest_project_score(user.id, project_id),
+            "analytics": await features.analytics_summary(user.id),
+        }
+
+    @app.get("/api/documents")
+    async def documents(project_id: str | None = None, user: TelegramUser = Depends(current_user)) -> dict[str, Any]:
+        return {"ok": True, "items": await features.list_documents(user.id, project_id)}
+
+    @app.post("/api/documents")
+    async def create_document(payload: DocumentRequest, user: TelegramUser = Depends(current_user)) -> dict[str, Any]:
+        return {"ok": True, "document": await features.create_document(user.id, payload.model_dump(exclude_none=True))}
+
+    @app.get("/api/documents/{document_id}")
+    async def get_document(document_id: str, user: TelegramUser = Depends(current_user)) -> dict[str, Any]:
+        doc = await features.get_document(user.id, document_id)
+        if not doc:
+            raise HTTPException(status_code=404, detail="Документ не найден.")
+        return {"ok": True, "document": doc}
+
+    @app.delete("/api/documents/{document_id}")
+    async def delete_document(document_id: str, user: TelegramUser = Depends(current_user)) -> dict[str, Any]:
+        return {"ok": await features.delete_document(user.id, document_id)}
+
+    @app.post("/api/documents/generate")
+    async def generate_document(payload: DocumentGenerateRequest, user: TelegramUser = Depends(current_user)) -> dict[str, Any]:
+        await db.upsert_user(user.id, user.username, user.first_name, user.last_name, photo_url=user.photo_url)
+        await db.expire_subscription_if_needed(user.id)
+        project = await features.get_project(user.id, payload.project_id) if payload.project_id else await features.get_active_project(user.id)
+        project_context = await features.project_context_text(user.id)
+        doc_type = (payload.document_type or "business_plan").strip().lower()
+        mode_map = {
+            "business_plan": "strategy",
+            "marketing_plan": "sales_plan",
+            "financial_model": "unit",
+            "pitch_deck": "pitch",
+            "competitor_analysis": "competitor_analysis",
+            "content_plan": "content_plan",
+            "launch_plan": "next_step",
+            "legal_checklist": "strategy",
+        }
+        mode = payload.mode or mode_map.get(doc_type, "strategy")
+        title_map = {
+            "business_plan": "Бизнес-план",
+            "marketing_plan": "Маркетинг-план",
+            "financial_model": "Финансовая модель",
+            "pitch_deck": "Pitch deck",
+            "competitor_analysis": "Анализ конкурентов",
+            "content_plan": "Контент-план",
+            "launch_plan": "План запуска",
+            "legal_checklist": "Юридический чек-лист",
+        }
+        title = payload.title or title_map.get(doc_type, "Документ")
+        user_prompt = (payload.prompt or "").strip()
+        if not user_prompt:
+            if project_context:
+                user_prompt = f"Подготовь документ типа: {title}. Используй контекст проекта и сделай результат максимально прикладным."
+            else:
+                user_prompt = f"Подготовь документ типа: {title}. Если данных не хватает, сделай качественный черновик и отметь допущения."
+        profile = await db.get_user_profile(user.id)
+        plan_key = str((profile or {}).get("plan") or "free").lower()
+        ai_model = ai_client.model_for_plan(plan_key)
+        access_state = await db.get_access_state(user.id, free_limit_default=settings.free_trial_requests, monthly_limit_default=settings.free_monthly_credits)
+        optional_fields = {
+            "document_type": doc_type,
+            "project_memory": project_context,
+            "project": json.dumps(project or {}, ensure_ascii=False),
+            "output_policy": "Верни структурированный документ в Markdown с оглавлением, таблицами где полезно, конкретными шагами и допущениями.",
+        }
+        estimate = estimate_credits(mode, user_prompt, model=ai_model, optional_fields=optional_fields)
+        estimate = await apply_profit_guard_to_estimate(user.id, estimate)
+        try:
+            await rate_limiter.check(user.id, estimate.credits)
+            await db.reserve_credits(
+                user.id,
+                estimate.request_id,
+                f"document_{doc_type}",
+                estimate.credits,
+                free_limit_default=settings.free_trial_requests,
+                monthly_limit_default=settings.free_monthly_credits,
+                metadata={"endpoint": "/api/documents/generate", "model": ai_model, "document_type": doc_type},
+            )
+            content = await ai_client.ask_business_ai(mode, user_prompt, optional_fields, plan_key=plan_key, access_context=access_state)
+            await db.finalize_credit_charge(
+                user.id,
+                estimate.request_id,
+                f"document_{doc_type}",
+                estimate.credits,
+                estimate.credits,
+                model=ai_model,
+                input_tokens=estimate.input_tokens_estimated,
+                output_tokens=estimate_output_tokens(content),
+            )
+        except (RateLimitError, CreditLimitError) as exc:
+            raise HTTPException(status_code=429, detail=str(exc)) from exc
+        except AIClientError as exc:
+            await db.refund_reserved_credits(user.id, estimate.request_id, str(exc), tool_id=f"document_{doc_type}", estimated_credits=estimate.credits, model=ai_model)
+            raise HTTPException(status_code=502, detail=str(exc)) from exc
+        except Exception as exc:  # noqa: BLE001
+            await db.refund_reserved_credits(user.id, estimate.request_id, str(exc), tool_id=f"document_{doc_type}", estimated_credits=estimate.credits, model=ai_model)
+            raise
+        document = await features.create_document(user.id, {
+            "project_id": (project or {}).get("id") or payload.project_id,
+            "title": title,
+            "document_type": doc_type,
+            "content": content,
+            "source": "ai",
+            "metadata": {"mode": mode, "model": ai_model},
+        })
+        return {"ok": True, "document": document, "usage": {"credits_charged": estimate.credits, "model": ai_model}}
+
+    def _filename_safe(value: str) -> str:
+        clean = re.sub(r"[^A-Za-z0-9._ -]+", "_", value, flags=re.IGNORECASE).strip(" ._")
+        return (clean or "founderpilot-document")[:80]
+
+    @app.get("/api/documents/{document_id}/export")
+    async def export_document(document_id: str, format: str = "md", user: TelegramUser = Depends(current_user)) -> Response:
+        doc = await features.get_document(user.id, document_id)
+        if not doc:
+            raise HTTPException(status_code=404, detail="Документ не найден.")
+        title = str(doc.get("title") or "Документ")
+        content = str(doc.get("content") or "")
+        fmt = (format or "md").lower().strip()
+        basename = _filename_safe(title)
+        if fmt in {"md", "markdown", "txt"}:
+            body = f"# {title}\n\n{content}\n"
+            return Response(body, media_type="text/markdown; charset=utf-8", headers={"Content-Disposition": f'attachment; filename="{basename}.md"'})
+        if fmt == "html":
+            escaped = html_escape(content).replace("\n", "<br>")
+            html = f"<!doctype html><html><head><meta charset='utf-8'><title>{html_escape(title)}</title><style>body{{font-family:-apple-system,BlinkMacSystemFont,Segoe UI,Arial,sans-serif;max-width:860px;margin:40px auto;line-height:1.55;padding:0 20px}}h1{{font-size:30px}}</style></head><body><h1>{html_escape(title)}</h1><div>{escaped}</div></body></html>"
+            return Response(html, media_type="text/html; charset=utf-8", headers={"Content-Disposition": f'attachment; filename="{basename}.html"'})
+        if fmt == "docx":
+            try:
+                from docx import Document  # type: ignore
+                document = Document()
+                document.add_heading(title, level=1)
+                for block in content.split("\n"):
+                    text = block.strip()
+                    if not text:
+                        continue
+                    if text.startswith("# "):
+                        document.add_heading(text[2:].strip(), level=1)
+                    elif text.startswith("## "):
+                        document.add_heading(text[3:].strip(), level=2)
+                    elif text.startswith("- "):
+                        document.add_paragraph(text[2:].strip(), style="List Bullet")
+                    else:
+                        document.add_paragraph(text)
+                buf = BytesIO()
+                document.save(buf)
+                return Response(buf.getvalue(), media_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document", headers={"Content-Disposition": f'attachment; filename="{basename}.docx"'})
+            except Exception as exc:  # noqa: BLE001
+                await db.log_error("document_docx_export", str(exc), user.id)
+                raise HTTPException(status_code=500, detail="DOCX-экспорт временно недоступен.") from exc
+        raise HTTPException(status_code=400, detail="Поддерживаются форматы md, html и docx.")
+
+    @app.post("/api/projects/{project_id}/score")
+    async def score_project(project_id: str, user: TelegramUser = Depends(current_user)) -> dict[str, Any]:
+        project = await features.get_project(user.id, project_id)
+        if not project:
+            raise HTTPException(status_code=404, detail="Проект не найден.")
+        return {"ok": True, "score": await features.score_project(user.id, project_id)}
+
+    @app.get("/api/projects/{project_id}/score")
+    async def latest_project_score(project_id: str, user: TelegramUser = Depends(current_user)) -> dict[str, Any]:
+        return {"ok": True, "score": await features.latest_project_score(user.id, project_id)}
+
+    @app.get("/api/roadmaps")
+    async def roadmaps(project_id: str | None = None, user: TelegramUser = Depends(current_user)) -> dict[str, Any]:
+        return {"ok": True, "items": await features.list_roadmaps(user.id, project_id)}
+
+    @app.post("/api/roadmaps")
+    async def create_roadmap(payload: RoadmapRequest, user: TelegramUser = Depends(current_user)) -> dict[str, Any]:
+        return {"ok": True, "roadmap": await features.create_roadmap(user.id, payload.model_dump(exclude_none=True))}
+
+    @app.get("/api/roadmaps/{roadmap_id}")
+    async def get_roadmap(roadmap_id: str, user: TelegramUser = Depends(current_user)) -> dict[str, Any]:
+        roadmap = await features.get_roadmap(user.id, roadmap_id)
+        if not roadmap:
+            raise HTTPException(status_code=404, detail="Roadmap не найден.")
+        return {"ok": True, "roadmap": roadmap}
+
+    @app.get("/api/tasks")
+    async def tasks(project_id: str | None = None, status: str | None = None, user: TelegramUser = Depends(current_user)) -> dict[str, Any]:
+        return {"ok": True, "items": await features.list_tasks(user.id, project_id, status)}
+
+    @app.post("/api/tasks")
+    async def upsert_task(payload: TaskRequest, user: TelegramUser = Depends(current_user)) -> dict[str, Any]:
+        return {"ok": True, "task": await features.upsert_task(user.id, payload.model_dump(exclude_none=True))}
+
+    @app.delete("/api/tasks/{task_id}")
+    async def delete_task(task_id: str, user: TelegramUser = Depends(current_user)) -> dict[str, Any]:
+        return {"ok": await features.delete_task(user.id, task_id)}
+
+    @app.post("/api/ai/feedback")
+    async def ai_feedback(payload: AiFeedbackRequest, user: TelegramUser = Depends(current_user)) -> dict[str, Any]:
+        item = await features.save_ai_feedback(user.id, payload.model_dump(exclude_none=True))
+        return {"ok": True, "feedback": item}
 
     @app.get("/api/credits/packs")
     async def credit_packs() -> dict[str, Any]:

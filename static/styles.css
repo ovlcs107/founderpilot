@@ -3705,3 +3705,119 @@ button:focus-visible {
   .history-delete-btn { opacity: 0; }
   .history-row-clean:hover .history-delete-btn { opacity: 1; }
 }
+
+/* === FounderPilot Mega Features UI === */
+.workspace-dashboard-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1.2fr) minmax(260px, .8fr);
+  gap: 14px;
+  margin-bottom: 16px;
+}
+.workspace-card {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 20px;
+  padding: 16px;
+}
+.workspace-project-card,
+.workspace-empty,
+.score-box-empty {
+  border: 1px solid var(--line);
+  background: var(--surface-soft);
+  border-radius: 16px;
+  padding: 14px;
+  color: var(--muted);
+  margin-bottom: 12px;
+}
+.workspace-active-project {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 12px;
+  align-items: center;
+}
+.workspace-mini-form,
+.compact-workspace-form {
+  display: grid;
+  gap: 10px;
+}
+.workspace-mini-form input,
+.workspace-mini-form textarea,
+.compact-workspace-form input,
+.compact-workspace-form textarea {
+  border: 1px solid var(--line);
+  background: var(--surface-soft);
+  border-radius: 14px;
+  padding: 12px 14px;
+  outline: none;
+  resize: vertical;
+}
+.workspace-tabs {
+  margin: 12px 0 14px;
+  overflow-x: auto;
+}
+.workspace-tab-panel { display: none; }
+.workspace-tab-panel.active { display: block; animation: softPageIn .22s ease both; }
+.workspace-actions-row {
+  display: flex;
+  gap: 8px;
+  overflow-x: auto;
+  padding: 2px 0 12px;
+}
+.workspace-actions-row .plain-btn { white-space: nowrap; }
+.score-box { display: grid; gap: 10px; }
+.score-main {
+  display: flex;
+  align-items: baseline;
+  gap: 4px;
+  color: var(--blue);
+}
+.score-main b { font-size: 42px; line-height: 1; letter-spacing: -0.04em !important; }
+.score-main span { font-weight: 700; color: var(--muted); }
+.score-box p { color: var(--text); font-size: 13px; margin: 0; }
+.score-bars { display: grid; gap: 8px; }
+.score-bars div { display: grid; grid-template-columns: 76px minmax(0, 1fr) 30px; align-items: center; gap: 8px; font-size: 12px; color: var(--muted); }
+.score-bars i { height: 6px; border-radius: 999px; background: var(--surface-soft); overflow: hidden; }
+.score-bars i b { display: block; height: 100%; border-radius: inherit; background: var(--blue); }
+.mini-action-btn {
+  min-width: 34px;
+  height: 32px;
+  border: 1px solid var(--line);
+  background: var(--surface-soft);
+  color: var(--blue);
+  border-radius: 10px;
+  display: inline-grid;
+  place-items: center;
+  padding: 0 8px;
+  font-size: 11px;
+  font-weight: 750;
+  flex: 0 0 auto;
+}
+.mini-action-btn.danger { color: var(--muted); background: transparent; }
+.task-row.done .info,
+.task-row.done span:not(.row-icon) { opacity: .65; }
+.task-check {
+  width: 30px;
+  height: 30px;
+  border: 1px solid var(--line-strong);
+  background: #fff;
+  color: var(--blue);
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  font-weight: 800;
+  flex: 0 0 auto;
+}
+.task-row.done .task-check { background: var(--blue); color: white; border-color: var(--blue); }
+.message-actions.compact { gap: 6px; }
+.message-action-btn.icon-only { width: 30px; padding: 0; }
+@keyframes softPageIn { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: translateY(0); } }
+@media (max-width: 1099px) {
+  .workspace-dashboard-grid { grid-template-columns: 1fr; gap: 12px; }
+  .workspace-card { padding: 14px; border-radius: 18px; }
+  .workspace-tabs { margin-left: -2px; margin-right: -2px; }
+  .workspace-tabs .segmented-btn { min-width: max-content; }
+  .workspace-actions-row { padding-bottom: 10px; }
+  .score-main b { font-size: 36px; }
+  .score-bars div { grid-template-columns: 68px minmax(0, 1fr) 28px; }
+  .workspace-doc-row { align-items: center; }
+}

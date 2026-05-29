@@ -2324,3 +2324,274 @@ document.addEventListener('DOMContentLoaded', () => {
   window.setTimeout(bindChatHistoryControls, 600);
   window.setTimeout(bindChatHistoryControls, 1600);
 });
+
+/* === FounderPilot Mega Features: workspace, docs, roadmap, feedback, autopay unlink === */
+state.workspace = state.workspace || { projects: [], active_project: null, memory: [], documents: [], roadmaps: [], tasks: [], score: null, analytics: {} };
+state.workspaceTab = state.workspaceTab || 'documents';
+
+async function loadWorkspaceSuite() {
+  try {
+    const data = await apiRequest('/api/startup-suite');
+    state.workspace = {
+      projects: data.projects || [],
+      active_project: data.active_project || null,
+      memory: data.memory || [],
+      documents: data.documents || [],
+      roadmaps: data.roadmaps || [],
+      tasks: data.tasks || [],
+      score: data.score || null,
+      analytics: data.analytics || {}
+    };
+  } catch (err) {
+    console.warn('Workspace suite load failed', err);
+  }
+  renderWorkspaceSuite();
+}
+
+function setWorkspaceTab(tab) {
+  state.workspaceTab = tab || 'documents';
+  document.querySelectorAll('[data-workspace-tab]').forEach(btn => btn.classList.toggle('active', btn.dataset.workspaceTab === state.workspaceTab));
+  document.querySelectorAll('[data-workspace-panel]').forEach(panel => panel.classList.toggle('active', panel.dataset.workspacePanel === state.workspaceTab));
+}
+
+function renderWorkspaceSuite() {
+  const ws = state.workspace || {};
+  const project = ws.active_project || null;
+  const projectCard = $('workspaceProjectCard');
+  if (projectCard) {
+    if (!project) {
+      projectCard.innerHTML = `<div class="workspace-empty"><b>Проект не создан</b><small>Создайте проект, чтобы AI помнил контекст, документы и задачи.</small></div>`;
+    } else {
+      projectCard.innerHTML = `<div class="workspace-active-project">
+        <span class="icon-box"><span data-icon="target"></span></span>
+        <span class="info"><h4>${escapeHTML(project.name || 'Проект')}</h4><p>${escapeHTML(project.description || project.niche || 'Контекст проекта сохранён.')}</p></span>
+      </div>`;
+    }
+  }
+
+  const scoreBox = $('workspaceScoreBox');
+  if (scoreBox) {
+    const score = ws.score;
+    if (!score) {
+      scoreBox.className = 'score-box-empty';
+      scoreBox.innerHTML = 'Оценка появится после анализа проекта.';
+    } else {
+      const total = Number(score.total_score || 0);
+      const scores = score.scores || {};
+      scoreBox.className = 'score-box';
+      scoreBox.innerHTML = `<div class="score-main"><b>${total}</b><span>/100</span></div>
+        <p>${escapeHTML(score.verdict || '')}</p>
+        <div class="score-bars">${Object.entries(scores).map(([k,v]) => `<div><span>${escapeHTML(scoreLabel(k))}</span><i><b style="width:${Math.max(0, Math.min(100, Number(v)||0))}%"></b></i><em>${Number(v)||0}</em></div>`).join('')}</div>`;
+    }
+  }
+
+  const docs = $('workspaceDocumentsList');
+  if (docs) {
+    const items = ws.documents || [];
+    docs.innerHTML = items.length ? items.map(d => `<div class="settings-row workspace-doc-row">
+      <span class="row-icon"><span data-icon="save"></span></span>
+      <span><b>${escapeHTML(d.title || 'Документ')}</b><small>${escapeHTML(documentTypeLabel(d.document_type))} • ${escapeHTML(formatHistoryDate(d.updated_at || d.created_at))}</small></span>
+      <button type="button" class="mini-action-btn" data-export-doc="${escapeAttr(d.id)}">MD</button>
+      <button type="button" class="mini-action-btn" data-export-docx="${escapeAttr(d.id)}">DOCX</button>
+      <button type="button" class="mini-action-btn danger" data-delete-doc="${escapeAttr(d.id)}"><span data-icon="close"></span></button>
+    </div>`).join('') : `<div class="settings-row"><span><b>Документов пока нет</b><small>Сгенерируйте бизнес-план, pitch или финмодель.</small></span></div>`;
+  }
+
+  const memory = $('workspaceMemoryList');
+  if (memory) {
+    const items = ws.memory || [];
+    memory.innerHTML = items.length ? items.map(m => `<div class="settings-row">
+      <span class="row-icon"><span data-icon="spark"></span></span>
+      <span><b>${escapeHTML(m.key || memoryCategoryLabel(m.category))}</b><small>${escapeHTML(m.value || '')}</small></span>
+      <button type="button" class="mini-action-btn danger" data-delete-memory="${escapeAttr(m.id)}"><span data-icon="close"></span></button>
+    </div>`).join('') : `<div class="settings-row"><span><b>Память пустая</b><small>Добавьте факты, чтобы AI отвечал точнее.</small></span></div>`;
+  }
+
+  const roadmaps = $('workspaceRoadmapList');
+  if (roadmaps) {
+    const items = ws.roadmaps || [];
+    roadmaps.innerHTML = items.length ? items.map(r => `<button type="button" class="settings-row" data-roadmap-id="${escapeAttr(r.id)}">
+      <span class="row-icon"><span data-icon="history"></span></span>
+      <span><b>${escapeHTML(r.title || 'Roadmap')}</b><small>${escapeHTML(r.horizon || '30 дней')} • ${escapeHTML(r.summary || '')}</small></span>
+      <span class="chevron">›</span>
+    </button>`).join('') : `<div class="settings-row"><span><b>Roadmap пока нет</b><small>Создайте план запуска в один клик.</small></span></div>`;
+  }
+
+  const tasks = $('workspaceTaskList');
+  if (tasks) {
+    const items = ws.tasks || [];
+    tasks.innerHTML = items.length ? items.map(t => `<div class="settings-row task-row ${t.status === 'done' ? 'done' : ''}">
+      <button type="button" class="task-check" data-toggle-task="${escapeAttr(t.id)}" data-status="${escapeAttr(t.status || 'todo')}">${t.status === 'done' ? '✓' : ''}</button>
+      <span><b>${escapeHTML(t.title || 'Задача')}</b><small>${escapeHTML(t.description || taskStatusLabel(t.status))}</small></span>
+      <button type="button" class="mini-action-btn danger" data-delete-task="${escapeAttr(t.id)}"><span data-icon="close"></span></button>
+    </div>`).join('') : `<div class="settings-row"><span><b>Задач пока нет</b><small>Создайте roadmap или добавьте задачу вручную.</small></span></div>`;
+  }
+  injectIcons($('pane-workspace') || document.body);
+  setWorkspaceTab(state.workspaceTab || 'documents');
+}
+
+function scoreLabel(key) {
+  return ({ idea: 'Идея', market: 'Рынок', audience: 'ЦА', monetization: 'Деньги', execution: 'План', risk: 'Риск' })[key] || key;
+}
+function documentTypeLabel(type) {
+  return ({ business_plan: 'Бизнес-план', marketing_plan: 'Маркетинг', financial_model: 'Финмодель', pitch_deck: 'Pitch', competitor_analysis: 'Конкуренты', content_plan: 'Контент', launch_plan: 'Запуск', legal_checklist: 'Чек-лист' })[type] || 'Документ';
+}
+function memoryCategoryLabel(cat) { return ({ general: 'Факт', audience: 'ЦА', offer: 'Оффер', finance: 'Экономика', competitor: 'Конкуренты' })[cat] || 'Память'; }
+function taskStatusLabel(status) { return ({ todo: 'К выполнению', doing: 'В работе', done: 'Готово' })[status] || 'Задача'; }
+
+async function createWorkspaceProject() {
+  const name = ($('workspaceProjectName')?.value || '').trim();
+  const description = ($('workspaceProjectDescription')?.value || '').trim();
+  if (!name) return showToast('Введите название проекта');
+  try {
+    await apiRequest('/api/projects', { method: 'POST', body: JSON.stringify({ name, description, is_active: true }) });
+    if ($('workspaceProjectName')) $('workspaceProjectName').value = '';
+    if ($('workspaceProjectDescription')) $('workspaceProjectDescription').value = '';
+    await loadWorkspaceSuite();
+    showToast('Проект создан');
+  } catch (err) { showToast(friendlyError(err, 'Не удалось создать проект')); }
+}
+
+async function addWorkspaceMemory() {
+  const value = ($('workspaceMemoryInput')?.value || '').trim();
+  if (!value) return showToast('Введите факт о проекте');
+  try {
+    await apiRequest('/api/memory', { method: 'POST', body: JSON.stringify({ value, category: 'general' }) });
+    $('workspaceMemoryInput').value = '';
+    await loadWorkspaceSuite();
+    showToast('Память обновлена');
+  } catch (err) { showToast(friendlyError(err, 'Не удалось добавить память')); }
+}
+
+async function generateWorkspaceDocument(type) {
+  try {
+    showToast('Готовлю документ…');
+    const data = await apiRequest('/api/documents/generate', { method: 'POST', body: JSON.stringify({ document_type: type }) });
+    await loadWorkspaceSuite();
+    showToast(data?.document?.title ? 'Документ готов' : 'Готово');
+  } catch (err) { showToast(friendlyError(err, 'Не удалось создать документ')); }
+}
+
+async function scoreWorkspaceProject() {
+  const project = state.workspace?.active_project;
+  if (!project?.id) return showToast('Сначала создайте проект');
+  try {
+    const data = await apiRequest(`/api/projects/${encodeURIComponent(project.id)}/score`, { method: 'POST' });
+    state.workspace.score = data.score;
+    renderWorkspaceSuite();
+    showToast('Оценка обновлена');
+  } catch (err) { showToast(friendlyError(err, 'Не удалось оценить проект')); }
+}
+
+async function createWorkspaceRoadmap() {
+  try {
+    await apiRequest('/api/roadmaps', { method: 'POST', body: JSON.stringify({ title: 'План запуска', horizon: '30 дней' }) });
+    await loadWorkspaceSuite();
+    setWorkspaceTab('tasks');
+    showToast('Roadmap создан');
+  } catch (err) { showToast(friendlyError(err, 'Не удалось создать roadmap')); }
+}
+
+async function addWorkspaceTask() {
+  const title = ($('workspaceTaskTitle')?.value || '').trim();
+  if (!title) return showToast('Введите задачу');
+  try {
+    await apiRequest('/api/tasks', { method: 'POST', body: JSON.stringify({ title }) });
+    $('workspaceTaskTitle').value = '';
+    await loadWorkspaceSuite();
+    showToast('Задача добавлена');
+  } catch (err) { showToast(friendlyError(err, 'Не удалось добавить задачу')); }
+}
+
+async function updateWorkspaceTaskStatus(id, oldStatus) {
+  const current = (state.workspace?.tasks || []).find(t => String(t.id) === String(id));
+  const next = oldStatus === 'done' ? 'todo' : 'done';
+  try {
+    await apiRequest('/api/tasks', { method: 'POST', body: JSON.stringify({ ...(current || {}), id, title: current?.title || 'Задача', status: next }) });
+    await loadWorkspaceSuite();
+  } catch (err) { showToast(friendlyError(err, 'Не удалось обновить задачу')); }
+}
+
+async function unlinkAutopayCard() {
+  try {
+    await apiRequest('/api/billing/autopay/payment-method', { method: 'DELETE' });
+    showToast('Карта отвязана');
+    await loadData();
+  } catch (err) { showToast(friendlyError(err, 'Не удалось отвязать карту')); }
+}
+
+async function submitAiFeedback(rating, reason = '') {
+  try {
+    await apiRequest('/api/ai/feedback', { method: 'POST', body: JSON.stringify({ rating, reason, conversation_id: state.activeConversationId || null }) });
+    showToast(rating > 0 ? 'Спасибо за оценку' : 'Спасибо, учтём');
+  } catch (err) { showToast('Не удалось отправить оценку'); }
+}
+
+function bindMegaFeatureEvents() {
+  if (window.__fpMegaFeaturesBound) return;
+  window.__fpMegaFeaturesBound = true;
+  $('workspaceTabs')?.addEventListener('click', e => { const btn = e.target.closest('[data-workspace-tab]'); if (btn) setWorkspaceTab(btn.dataset.workspaceTab); });
+  $('refreshWorkspaceBtn')?.addEventListener('click', loadWorkspaceSuite);
+  $('createWorkspaceProjectBtn')?.addEventListener('click', createWorkspaceProject);
+  $('addWorkspaceMemoryBtn')?.addEventListener('click', addWorkspaceMemory);
+  $('scoreProjectBtn')?.addEventListener('click', scoreWorkspaceProject);
+  $('createRoadmapBtn')?.addEventListener('click', createWorkspaceRoadmap);
+  $('addWorkspaceTaskBtn')?.addEventListener('click', addWorkspaceTask);
+  $('unlinkAutopayCardBtn')?.addEventListener('click', unlinkAutopayCard);
+  document.addEventListener('click', e => {
+    const gen = e.target.closest('[data-generate-document]');
+    if (gen) { e.preventDefault(); generateWorkspaceDocument(gen.dataset.generateDocument); return; }
+    const exportDoc = e.target.closest('[data-export-doc]');
+    if (exportDoc) { e.preventDefault(); window.location.href = `/api/documents/${encodeURIComponent(exportDoc.dataset.exportDoc)}/export?format=md`; return; }
+    const exportDocx = e.target.closest('[data-export-docx]');
+    if (exportDocx) { e.preventDefault(); window.location.href = `/api/documents/${encodeURIComponent(exportDocx.dataset.exportDocx)}/export?format=docx`; return; }
+    const delDoc = e.target.closest('[data-delete-doc]');
+    if (delDoc) { e.preventDefault(); apiRequest(`/api/documents/${encodeURIComponent(delDoc.dataset.deleteDoc)}`, { method: 'DELETE' }).then(loadWorkspaceSuite).then(() => showToast('Документ удалён')).catch(err => showToast(friendlyError(err, 'Не удалось удалить документ'))); return; }
+    const delMem = e.target.closest('[data-delete-memory]');
+    if (delMem) { e.preventDefault(); apiRequest(`/api/memory/${encodeURIComponent(delMem.dataset.deleteMemory)}`, { method: 'DELETE' }).then(loadWorkspaceSuite).then(() => showToast('Память удалена')).catch(err => showToast(friendlyError(err, 'Не удалось удалить память'))); return; }
+    const toggleTask = e.target.closest('[data-toggle-task]');
+    if (toggleTask) { e.preventDefault(); updateWorkspaceTaskStatus(toggleTask.dataset.toggleTask, toggleTask.dataset.status); return; }
+    const delTask = e.target.closest('[data-delete-task]');
+    if (delTask) { e.preventDefault(); apiRequest(`/api/tasks/${encodeURIComponent(delTask.dataset.deleteTask)}`, { method: 'DELETE' }).then(loadWorkspaceSuite).then(() => showToast('Задача удалена')).catch(err => showToast(friendlyError(err, 'Не удалось удалить задачу'))); return; }
+    const fb = e.target.closest('[data-ai-feedback]');
+    if (fb) { e.preventDefault(); submitAiFeedback(Number(fb.dataset.aiFeedback || 0), fb.dataset.reason || ''); return; }
+  });
+}
+
+const __fpLoadDataBase = loadData;
+loadData = async function founderPilotMegaLoadData() {
+  await __fpLoadDataBase();
+  await loadWorkspaceSuite();
+};
+
+const __fpAppendMessageBase = appendMessage;
+appendMessage = function founderPilotAppendMessageWithFeedback(role, text, id = null) {
+  __fpAppendMessageBase(role, text, id);
+  if (role !== 'bot') return;
+  const scroll = $('homeChatScroll');
+  const msg = scroll?.querySelector('.msg.bot:last-child');
+  const actions = msg?.querySelector('.message-actions');
+  if (!actions || actions.dataset.feedbackAdded) return;
+  actions.dataset.feedbackAdded = '1';
+  const good = document.createElement('button');
+  good.className = 'message-action-btn icon-only';
+  good.type = 'button';
+  good.title = 'Хороший ответ';
+  good.setAttribute('data-ai-feedback', '1');
+  good.setAttribute('data-reason', 'useful');
+  good.innerHTML = '<span>👍</span>';
+  const bad = document.createElement('button');
+  bad.className = 'message-action-btn icon-only';
+  bad.type = 'button';
+  bad.title = 'Плохой ответ';
+  bad.setAttribute('data-ai-feedback', '-1');
+  bad.setAttribute('data-reason', 'low_quality');
+  bad.innerHTML = '<span>👎</span>';
+  actions.appendChild(good);
+  actions.appendChild(bad);
+};
+
+document.addEventListener('DOMContentLoaded', () => {
+  bindMegaFeatureEvents();
+  window.setTimeout(bindMegaFeatureEvents, 700);
+});

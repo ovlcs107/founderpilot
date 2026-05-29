@@ -2358,6 +2358,37 @@ class Database:
         public = await self.get_autopay_settings(telegram_id)
         return public or {}
 
+    async def unlink_autopay_payment_method(self, telegram_id: int) -> dict[str, Any]:
+        """Disable auto-renewal and forget the saved YooKassa payment-method token.
+
+        YooKassa does not require us to store card data; we only store a reusable
+        payment_method_id token. Unlinking removes that token from FounderPilot
+        and disables future automatic charges. The customer can connect autopay
+        again by paying a plan with auto-renewal enabled.
+        """
+        now = utc_now_iso()
+        async with aiosqlite.connect(self.path) as db:
+            await db.execute(
+                """
+                INSERT INTO autopay_settings(
+                    telegram_user_id, enabled, provider, plan, payment_method_id_encrypted,
+                    payment_method_mask, status, consent_at, next_charge_at, created_at, updated_at
+                )
+                VALUES (?, 0, 'yookassa', NULL, NULL, NULL, 'unlinked', NULL, NULL, ?, ?)
+                ON CONFLICT(telegram_user_id) DO UPDATE SET
+                    enabled=0,
+                    payment_method_id_encrypted=NULL,
+                    payment_method_mask=NULL,
+                    status='unlinked',
+                    next_charge_at=NULL,
+                    updated_at=excluded.updated_at
+                """,
+                (str(telegram_id), now, now),
+            )
+            await db.commit()
+        public = await self.get_autopay_settings(telegram_id)
+        return public or {"enabled": False, "status": "unlinked", "has_payment_method": False}
+
     async def mark_autopay_charge(self, telegram_id: int, *, status: str, next_charge_at: str | None = None) -> None:
         now = utc_now_iso()
         async with aiosqlite.connect(self.path) as db:

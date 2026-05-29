@@ -241,6 +241,87 @@ CREATE TABLE IF NOT EXISTS support_group_bridge_messages (
 
 CREATE INDEX IF NOT EXISTS idx_support_bridge_group_message
 ON support_group_bridge_messages(group_chat_id, group_message_id);
+
+
+CREATE TABLE IF NOT EXISTS project_documents (
+    id TEXT PRIMARY KEY,
+    telegram_user_id TEXT NOT NULL,
+    project_id TEXT,
+    title TEXT NOT NULL,
+    document_type TEXT NOT NULL DEFAULT 'note',
+    content TEXT NOT NULL,
+    source TEXT DEFAULT 'manual',
+    metadata_json TEXT,
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_project_documents_user_updated
+ON project_documents(telegram_user_id, updated_at);
+
+CREATE INDEX IF NOT EXISTS idx_project_documents_project
+ON project_documents(project_id, updated_at);
+
+CREATE TABLE IF NOT EXISTS project_scores (
+    id TEXT PRIMARY KEY,
+    telegram_user_id TEXT NOT NULL,
+    project_id TEXT,
+    total_score INTEGER NOT NULL DEFAULT 0,
+    verdict TEXT,
+    scores_json TEXT,
+    recommendations TEXT,
+    created_at TEXT NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_project_scores_project_created
+ON project_scores(telegram_user_id, project_id, created_at);
+
+CREATE TABLE IF NOT EXISTS project_roadmaps (
+    id TEXT PRIMARY KEY,
+    telegram_user_id TEXT NOT NULL,
+    project_id TEXT,
+    title TEXT NOT NULL,
+    horizon TEXT DEFAULT '30 дней',
+    summary TEXT,
+    status TEXT NOT NULL DEFAULT 'active',
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_project_roadmaps_user_updated
+ON project_roadmaps(telegram_user_id, updated_at);
+
+CREATE TABLE IF NOT EXISTS project_tasks (
+    id TEXT PRIMARY KEY,
+    roadmap_id TEXT,
+    telegram_user_id TEXT NOT NULL,
+    project_id TEXT,
+    title TEXT NOT NULL,
+    description TEXT,
+    status TEXT NOT NULL DEFAULT 'todo',
+    priority INTEGER NOT NULL DEFAULT 2,
+    due_at TEXT,
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_project_tasks_user_status
+ON project_tasks(telegram_user_id, status, updated_at);
+
+CREATE TABLE IF NOT EXISTS ai_response_feedback (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    telegram_user_id TEXT NOT NULL,
+    conversation_id TEXT,
+    message_id TEXT,
+    source_type TEXT DEFAULT 'chat',
+    rating INTEGER NOT NULL DEFAULT 0,
+    reason TEXT,
+    comment TEXT,
+    created_at TEXT NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_ai_response_feedback_user_created
+ON ai_response_feedback(telegram_user_id, created_at);
 """
 
 
@@ -630,6 +711,310 @@ class FeatureStore:
             await db.commit()
             return {"ok": True, "status": "paid", "credits": credits}
 
+
+    async def list_documents(self, telegram_id: int, project_id: str | None = None, limit: int = 60) -> list[dict[str, Any]]:
+        async with aiosqlite.connect(self.db_path) as db:
+            db.row_factory = aiosqlite.Row
+            if project_id:
+                cur = await db.execute(
+                    "SELECT * FROM project_documents WHERE telegram_user_id = ? AND project_id = ? ORDER BY updated_at DESC LIMIT ?",
+                    (str(telegram_id), str(project_id), max(1, min(int(limit), 200))),
+                )
+            else:
+                cur = await db.execute(
+                    "SELECT * FROM project_documents WHERE telegram_user_id = ? ORDER BY updated_at DESC LIMIT ?",
+                    (str(telegram_id), max(1, min(int(limit), 200))),
+                )
+            return [dict(row) for row in await cur.fetchall()]
+
+    async def get_document(self, telegram_id: int, document_id: str) -> dict[str, Any] | None:
+        async with aiosqlite.connect(self.db_path) as db:
+            db.row_factory = aiosqlite.Row
+            cur = await db.execute(
+                "SELECT * FROM project_documents WHERE telegram_user_id = ? AND id = ?",
+                (str(telegram_id), str(document_id)),
+            )
+            row = await cur.fetchone()
+            return dict(row) if row else None
+
+    async def create_document(self, telegram_id: int, payload: dict[str, Any]) -> dict[str, Any]:
+        now = utc_now()
+        document_id = payload.get("id") or f"doc_{uuid4().hex[:16]}"
+        project_id = payload.get("project_id")
+        if not project_id:
+            active = await self.get_active_project(telegram_id)
+            project_id = active.get("id") if active else None
+        title = str(payload.get("title") or "Документ").strip()[:160] or "Документ"
+        document_type = str(payload.get("document_type") or payload.get("type") or "note").strip()[:60] or "note"
+        content = str(payload.get("content") or "").strip()
+        metadata_json = json_dumps(payload.get("metadata") or {})
+        async with aiosqlite.connect(self.db_path) as db:
+            await db.execute(
+                """
+                INSERT INTO project_documents(id, telegram_user_id, project_id, title, document_type, content, source, metadata_json, created_at, updated_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                (document_id, str(telegram_id), project_id, title, document_type, content, payload.get("source") or "manual", metadata_json, now, now),
+            )
+            await db.commit()
+        return await self.get_document(telegram_id, str(document_id)) or {"id": document_id, "title": title, "content": content}
+
+    async def update_document(self, telegram_id: int, document_id: str, payload: dict[str, Any]) -> dict[str, Any] | None:
+        allowed = ["title", "document_type", "content", "project_id", "source"]
+        updates: list[str] = []
+        values: list[Any] = []
+        for key in allowed:
+            if key in payload:
+                updates.append(f"{key} = ?")
+                values.append(payload.get(key))
+        if "metadata" in payload:
+            updates.append("metadata_json = ?")
+            values.append(json_dumps(payload.get("metadata") or {}))
+        if updates:
+            updates.append("updated_at = ?")
+            values.append(utc_now())
+            values.extend([str(telegram_id), str(document_id)])
+            async with aiosqlite.connect(self.db_path) as db:
+                await db.execute(f"UPDATE project_documents SET {', '.join(updates)} WHERE telegram_user_id = ? AND id = ?", tuple(values))
+                await db.commit()
+        return await self.get_document(telegram_id, document_id)
+
+    async def delete_document(self, telegram_id: int, document_id: str) -> bool:
+        async with aiosqlite.connect(self.db_path) as db:
+            cur = await db.execute("DELETE FROM project_documents WHERE telegram_user_id = ? AND id = ?", (str(telegram_id), str(document_id)))
+            await db.commit()
+            return cur.rowcount > 0
+
+    async def score_project(self, telegram_id: int, project_id: str | None = None) -> dict[str, Any]:
+        project = await self.get_project(telegram_id, project_id) if project_id else await self.get_active_project(telegram_id)
+        memory = await self.list_memory(telegram_id, project.get("id") if project else None)
+        text = " ".join(str((project or {}).get(k) or "") for k in ["name", "niche", "target_audience", "description", "marketplace"])
+        text += " " + " ".join(str(m.get("value") or "") for m in memory[:12])
+        scores = {
+            "idea": 45,
+            "market": 40,
+            "audience": 35,
+            "monetization": 35,
+            "execution": 40,
+            "risk": 50,
+        }
+        # Deterministic lightweight scoring. AI can explain it later; this keeps the product fast and safe.
+        if project:
+            if project.get("description") and len(str(project.get("description"))) > 80:
+                scores["idea"] += 20
+                scores["execution"] += 10
+            if project.get("target_audience") and len(str(project.get("target_audience"))) > 20:
+                scores["audience"] += 25
+                scores["market"] += 10
+            if any(word in text.lower() for word in ["цена", "подпис", "руб", "марж", "выруч", "продаж", "монет"]):
+                scores["monetization"] += 25
+            if memory:
+                scores["execution"] += min(20, len(memory) * 3)
+                scores["risk"] -= min(15, len(memory) * 2)
+        scores = {k: max(0, min(100, int(v))) for k, v in scores.items()}
+        positive = [scores["idea"], scores["market"], scores["audience"], scores["monetization"], scores["execution"]]
+        total = int(round((sum(positive) / len(positive)) * 0.82 + (100 - scores["risk"]) * 0.18))
+        if total >= 75:
+            verdict = "Сильная база. Можно готовить запуск и проверять спрос."
+        elif total >= 55:
+            verdict = "Перспективно, но нужно уточнить ЦА, оффер и экономику."
+        else:
+            verdict = "Идею рано масштабировать: сначала нужна конкретика по рынку, цене и спросу."
+        recommendations = []
+        if scores["audience"] < 65:
+            recommendations.append("Сузить целевую аудиторию: кто именно покупает, где находится и какая боль у него срочная.")
+        if scores["monetization"] < 65:
+            recommendations.append("Добавить модель монетизации: цена, маржа, частота покупки, ожидаемый LTV.")
+        if scores["market"] < 65:
+            recommendations.append("Собрать 5–10 конкурентов и сравнить офферы, цены, каналы продаж.")
+        if scores["execution"] < 65:
+            recommendations.append("Составить 30-дневный roadmap и первые задачи проверки спроса.")
+        now = utc_now()
+        score_id = f"score_{uuid4().hex[:16]}"
+        async with aiosqlite.connect(self.db_path) as db:
+            await db.execute(
+                """
+                INSERT INTO project_scores(id, telegram_user_id, project_id, total_score, verdict, scores_json, recommendations, created_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                (score_id, str(telegram_id), (project or {}).get("id"), total, verdict, json_dumps(scores), "\n".join(recommendations), now),
+            )
+            await db.commit()
+        return {"id": score_id, "project": project, "total_score": total, "scores": scores, "verdict": verdict, "recommendations": recommendations, "created_at": now}
+
+    async def latest_project_score(self, telegram_id: int, project_id: str | None = None) -> dict[str, Any] | None:
+        async with aiosqlite.connect(self.db_path) as db:
+            db.row_factory = aiosqlite.Row
+            if project_id:
+                cur = await db.execute("SELECT * FROM project_scores WHERE telegram_user_id = ? AND project_id = ? ORDER BY created_at DESC LIMIT 1", (str(telegram_id), str(project_id)))
+            else:
+                cur = await db.execute("SELECT * FROM project_scores WHERE telegram_user_id = ? ORDER BY created_at DESC LIMIT 1", (str(telegram_id),))
+            row = await cur.fetchone()
+            if not row:
+                return None
+            data = dict(row)
+            try:
+                data["scores"] = json.loads(data.get("scores_json") or "{}")
+            except Exception:
+                data["scores"] = {}
+            data["recommendations"] = [x for x in str(data.get("recommendations") or "").split("\n") if x.strip()]
+            return data
+
+    async def create_roadmap(self, telegram_id: int, payload: dict[str, Any]) -> dict[str, Any]:
+        now = utc_now()
+        project_id = payload.get("project_id")
+        if not project_id:
+            active = await self.get_active_project(telegram_id)
+            project_id = active.get("id") if active else None
+        roadmap_id = f"road_{uuid4().hex[:16]}"
+        title = str(payload.get("title") or "План запуска").strip()[:160] or "План запуска"
+        horizon = str(payload.get("horizon") or "30 дней")[:80]
+        summary = str(payload.get("summary") or "Пошаговый план проверки идеи, подготовки продукта и первых продаж.")[:2000]
+        tasks = payload.get("tasks") or []
+        if not tasks:
+            tasks = [
+                {"title": "Уточнить целевую аудиторию", "description": "Описать конкретный сегмент, боль, текущие альтернативы и критерий покупки.", "priority": 1},
+                {"title": "Сформулировать оффер", "description": "Сделать 2–3 варианта обещания ценности и выбрать самый понятный.", "priority": 1},
+                {"title": "Проверить конкурентов", "description": "Собрать конкурентов, цены, каналы привлечения и отличия.", "priority": 2},
+                {"title": "Посчитать юнит-экономику", "description": "Цена, себестоимость, маржа, CAC, точка безубыточности.", "priority": 1},
+                {"title": "Сделать первый MVP/лендинг", "description": "Собрать минимальную демонстрацию пользы и форму заявки.", "priority": 2},
+                {"title": "Получить первые заявки", "description": "Запустить тестовый канал и собрать обратную связь.", "priority": 2},
+            ]
+        async with aiosqlite.connect(self.db_path) as db:
+            await db.execute(
+                """
+                INSERT INTO project_roadmaps(id, telegram_user_id, project_id, title, horizon, summary, status, created_at, updated_at)
+                VALUES (?, ?, ?, ?, ?, ?, 'active', ?, ?)
+                """,
+                (roadmap_id, str(telegram_id), project_id, title, horizon, summary, now, now),
+            )
+            for index, task in enumerate(tasks[:40], start=1):
+                task_id = f"task_{uuid4().hex[:16]}"
+                await db.execute(
+                    """
+                    INSERT INTO project_tasks(id, roadmap_id, telegram_user_id, project_id, title, description, status, priority, due_at, created_at, updated_at)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    """,
+                    (
+                        task_id,
+                        roadmap_id,
+                        str(telegram_id),
+                        project_id,
+                        str(task.get("title") or f"Задача {index}").strip()[:200],
+                        str(task.get("description") or "").strip()[:1000],
+                        str(task.get("status") or "todo"),
+                        int(task.get("priority") or 2),
+                        task.get("due_at"),
+                        now,
+                        now,
+                    ),
+                )
+            await db.commit()
+        return await self.get_roadmap(telegram_id, roadmap_id) or {"id": roadmap_id, "title": title}
+
+    async def list_roadmaps(self, telegram_id: int, project_id: str | None = None) -> list[dict[str, Any]]:
+        async with aiosqlite.connect(self.db_path) as db:
+            db.row_factory = aiosqlite.Row
+            if project_id:
+                cur = await db.execute("SELECT * FROM project_roadmaps WHERE telegram_user_id = ? AND project_id = ? ORDER BY updated_at DESC", (str(telegram_id), str(project_id)))
+            else:
+                cur = await db.execute("SELECT * FROM project_roadmaps WHERE telegram_user_id = ? ORDER BY updated_at DESC", (str(telegram_id),))
+            return [dict(row) for row in await cur.fetchall()]
+
+    async def get_roadmap(self, telegram_id: int, roadmap_id: str) -> dict[str, Any] | None:
+        async with aiosqlite.connect(self.db_path) as db:
+            db.row_factory = aiosqlite.Row
+            cur = await db.execute("SELECT * FROM project_roadmaps WHERE telegram_user_id = ? AND id = ?", (str(telegram_id), str(roadmap_id)))
+            row = await cur.fetchone()
+            if not row:
+                return None
+            data = dict(row)
+            task_cur = await db.execute("SELECT * FROM project_tasks WHERE telegram_user_id = ? AND roadmap_id = ? ORDER BY priority ASC, created_at ASC", (str(telegram_id), str(roadmap_id)))
+            data["tasks"] = [dict(task) for task in await task_cur.fetchall()]
+            return data
+
+    async def list_tasks(self, telegram_id: int, project_id: str | None = None, status: str | None = None) -> list[dict[str, Any]]:
+        clauses = ["telegram_user_id = ?"]
+        params: list[Any] = [str(telegram_id)]
+        if project_id:
+            clauses.append("project_id = ?")
+            params.append(str(project_id))
+        if status:
+            clauses.append("status = ?")
+            params.append(str(status))
+        async with aiosqlite.connect(self.db_path) as db:
+            db.row_factory = aiosqlite.Row
+            cur = await db.execute(f"SELECT * FROM project_tasks WHERE {' AND '.join(clauses)} ORDER BY status ASC, priority ASC, updated_at DESC LIMIT 200", tuple(params))
+            return [dict(row) for row in await cur.fetchall()]
+
+    async def upsert_task(self, telegram_id: int, payload: dict[str, Any]) -> dict[str, Any]:
+        now = utc_now()
+        task_id = str(payload.get("id") or f"task_{uuid4().hex[:16]}")
+        project_id = payload.get("project_id")
+        if not project_id:
+            active = await self.get_active_project(telegram_id)
+            project_id = active.get("id") if active else None
+        async with aiosqlite.connect(self.db_path) as db:
+            await db.execute(
+                """
+                INSERT INTO project_tasks(id, roadmap_id, telegram_user_id, project_id, title, description, status, priority, due_at, created_at, updated_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                ON CONFLICT(id) DO UPDATE SET
+                    title=excluded.title,
+                    description=excluded.description,
+                    status=excluded.status,
+                    priority=excluded.priority,
+                    due_at=excluded.due_at,
+                    updated_at=excluded.updated_at
+                """,
+                (
+                    task_id,
+                    payload.get("roadmap_id"),
+                    str(telegram_id),
+                    project_id,
+                    str(payload.get("title") or "Задача").strip()[:200],
+                    str(payload.get("description") or "").strip()[:1000],
+                    str(payload.get("status") or "todo"),
+                    int(payload.get("priority") or 2),
+                    payload.get("due_at"),
+                    now,
+                    now,
+                ),
+            )
+            await db.commit()
+            db.row_factory = aiosqlite.Row
+            cur = await db.execute("SELECT * FROM project_tasks WHERE telegram_user_id = ? AND id = ?", (str(telegram_id), task_id))
+            row = await cur.fetchone()
+            return dict(row)
+
+    async def delete_task(self, telegram_id: int, task_id: str) -> bool:
+        async with aiosqlite.connect(self.db_path) as db:
+            cur = await db.execute("DELETE FROM project_tasks WHERE telegram_user_id = ? AND id = ?", (str(telegram_id), str(task_id)))
+            await db.commit()
+            return cur.rowcount > 0
+
+    async def save_ai_feedback(self, telegram_id: int, payload: dict[str, Any]) -> dict[str, Any]:
+        now = utc_now()
+        async with aiosqlite.connect(self.db_path) as db:
+            cur = await db.execute(
+                """
+                INSERT INTO ai_response_feedback(telegram_user_id, conversation_id, message_id, source_type, rating, reason, comment, created_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    str(telegram_id),
+                    payload.get("conversation_id"),
+                    payload.get("message_id"),
+                    payload.get("source_type") or "chat",
+                    int(payload.get("rating") or 0),
+                    payload.get("reason"),
+                    payload.get("comment"),
+                    now,
+                ),
+            )
+            await db.commit()
+            return {"id": cur.lastrowid, "created_at": now}
+
     async def analytics_summary(self, telegram_id: int) -> dict[str, Any]:
         async with aiosqlite.connect(self.db_path) as db:
             async def scalar(sql: str, params: tuple[Any, ...] = ()) -> int:
@@ -640,6 +1025,9 @@ class FeatureStore:
                 "projects": await scalar("SELECT COUNT(*) FROM projects WHERE telegram_user_id = ?", (str(telegram_id),)),
                 "memory_items": await scalar("SELECT COUNT(*) FROM project_memory WHERE telegram_user_id = ?", (str(telegram_id),)),
                 "templates": await scalar("SELECT COUNT(*) FROM user_templates WHERE telegram_user_id = ?", (str(telegram_id),)),
+                "documents": await scalar("SELECT COUNT(*) FROM project_documents WHERE telegram_user_id = ?", (str(telegram_id),)),
+                "tasks_total": await scalar("SELECT COUNT(*) FROM project_tasks WHERE telegram_user_id = ?", (str(telegram_id),)),
+                "tasks_done": await scalar("SELECT COUNT(*) FROM project_tasks WHERE telegram_user_id = ? AND status = 'done'", (str(telegram_id),)),
                 "saved_results": await scalar("SELECT COUNT(*) FROM saved_results WHERE telegram_user_id = ?", (str(telegram_id),)),
                 "tool_runs": await scalar("SELECT COUNT(*) FROM tool_runs WHERE telegram_user_id = ?", (str(telegram_id),)),
                 "chat_messages": await scalar("SELECT COUNT(*) FROM chat_messages cm JOIN conversations c ON c.id = cm.conversation_id WHERE c.telegram_user_id = ?", (str(telegram_id),)),
@@ -655,6 +1043,9 @@ class FeatureStore:
             return {
                 "users": await scalar("SELECT COUNT(*) FROM users"),
                 "projects": await scalar("SELECT COUNT(*) FROM projects"),
+                "documents": await scalar("SELECT COUNT(*) FROM project_documents"),
+                "tasks": await scalar("SELECT COUNT(*) FROM project_tasks"),
+                "feedback_negative": await scalar("SELECT COUNT(*) FROM ai_response_feedback WHERE rating < 0"),
                 "payments": await scalar("SELECT COUNT(*) FROM payments"),
                 "paid_orders": await scalar("SELECT COUNT(*) FROM billing_orders WHERE status IN ('paid','succeeded')"),
                 "tool_runs": await scalar("SELECT COUNT(*) FROM tool_runs"),
