@@ -850,7 +850,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
 
     @app.get("/api/me")
     async def me(start_param: str | None = None, user: TelegramUser = Depends(current_user)) -> dict[str, Any]:
-        await db.upsert_user(user.id, user.username, user.first_name, user.last_name, photo_url=user.photo_url)
+        await db.upsert_user(user.id, user.username, user.first_name, user.last_name, photo_url=user.photo_url, track_visit=True)
         await db.expire_subscription_if_needed(user.id)
         if start_param:
             await db.set_referrer(user.id, start_param.strip())
@@ -878,6 +878,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                 "created_at": (user_profile or {}).get("created_at"),
                 "updated_at": (user_profile or {}).get("updated_at"),
                 "last_seen_at": (user_profile or {}).get("last_seen_at"),
+                "login_count": int((user_profile or {}).get("login_count") or 0),
                 "subscription_until": (user_profile or {}).get("subscription_until") or (user_profile or {}).get("subscription_expires_at"),
                 "username": user.username or stored_username,
                 "first_name": user.first_name or stored_first or "Пользователь",
@@ -912,6 +913,8 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             "ok": True,
             "plan": plan_key,
             "model": ai_client.model_for_plan(plan_key),
+            "fallback_models": settings.openrouter_fallback_models,
+            "quality_mode": settings.ai_answer_quality_mode,
             "limits": usage_payload(access),
             "configured": bool(settings.openrouter_api_key.strip()),
         }
@@ -2272,11 +2275,11 @@ def create_app(settings: Settings | None = None) -> FastAPI:
 
 
 async def _run_bot_polling(settings: Settings) -> None:
-    """Run Telegram long polling only when it is explicitly enabled.
+    """Run Telegram long polling in the current process.
 
-    Railway deploys this project as an HTTP web service and checks /health.
-    Long polling can fail when another deployment/local process already calls
-    getUpdates for the same bot token. That should not kill the web app.
+    In combined Railway mode this runs next to Uvicorn as a background task,
+    so Mini App/API and the Telegram bot are alive at the same time and share
+    the same PostgreSQL database.
     """
     db = Database(settings.database_dsn)
     await db.init()
@@ -2286,14 +2289,27 @@ async def _run_bot_polling(settings: Settings) -> None:
     bot = Bot(token=settings.bot_token)
     dp = build_dispatcher(settings, db, ai_client, rate_limiter)
     try:
-        logger.info("Telegram bot polling started")
+        logger.info("Telegram bot polling started in %s mode", settings.normalized_bot_service_mode)
         await dp.start_polling(bot)
-    except Exception as exc:  # noqa: BLE001
-        logger.exception("Telegram bot polling stopped with error: %s", exc)
-        if settings.bot_polling_strict:
-            raise
     finally:
         await bot.session.close()
+
+
+async def _run_bot_supervisor(settings: Settings) -> None:
+    """Keep the bot alive without killing the web service on Telegram hiccups."""
+    delay = max(1.0, float(settings.bot_restart_delay_seconds))
+    while True:
+        try:
+            await _run_bot_polling(settings)
+            logger.warning("Telegram bot polling finished unexpectedly; restarting in %.1fs", delay)
+        except asyncio.CancelledError:
+            raise
+        except Exception as exc:  # noqa: BLE001
+            logger.exception("Telegram bot polling error: %s", exc)
+            if settings.bot_polling_strict and settings.normalized_bot_service_mode == "bot":
+                raise
+            logger.warning("Mini App/API keep running. Bot polling will retry in %.1fs", delay)
+        await asyncio.sleep(delay)
 
 
 async def async_main() -> None:
@@ -2306,6 +2322,15 @@ async def async_main() -> None:
         for issue in issues:
             logger.warning("Runtime settings warning: %s", issue)
 
+    logger.info("FounderPilot runtime mode: %s", settings.normalized_bot_service_mode)
+
+    if settings.normalized_bot_service_mode == "bot":
+        if not settings.should_run_bot:
+            raise RuntimeError("BOT_SERVICE_MODE=bot requires BOT_TOKEN")
+        logger.info("FounderPilot bot-only service is running")
+        await _run_bot_supervisor(settings)
+        return
+
     app = create_app(settings)
     config = uvicorn.Config(app=app, host=settings.bind_host, port=settings.port, log_level="info")
     server = uvicorn.Server(config=config)
@@ -2314,25 +2339,23 @@ async def async_main() -> None:
     logger.info("Mini App local URL: http://%s:%s/app", settings.bind_host, settings.port)
     logger.info("Telegram WebApp URL from .env: %s", settings.webapp_url)
 
-    if not settings.run_bot_polling:
-        logger.info("Telegram bot polling is disabled. Set RUN_BOT_POLLING=true only for a separate worker/local run.")
+    bot_task: asyncio.Task | None = None
+    if settings.should_run_bot:
+        logger.info("Telegram bot polling is enabled in the same process as Mini App/API")
+        bot_task = asyncio.create_task(_run_bot_supervisor(settings), name="telegram-bot-supervisor")
+    else:
+        if not settings.bot_token.strip():
+            logger.warning("Telegram bot polling is disabled because BOT_TOKEN is empty")
+        else:
+            logger.info("Telegram bot polling is disabled by BOT_SERVICE_MODE=%s", settings.normalized_bot_service_mode)
+
+    try:
         await server.serve()
-        return
-
-    server_task = asyncio.create_task(server.serve(), name="uvicorn-server")
-    bot_task = asyncio.create_task(_run_bot_polling(settings), name="telegram-bot")
-
-    done, pending = await asyncio.wait({server_task, bot_task}, return_when=asyncio.FIRST_EXCEPTION)
-    for task in done:
-        exc = task.exception()
-        if exc:
-            logger.exception("Task failed: %s", exc)
-            raise exc
-
-    for task in pending:
-        task.cancel()
-        with suppress(asyncio.CancelledError):
-            await task
+    finally:
+        if bot_task is not None:
+            bot_task.cancel()
+            with suppress(asyncio.CancelledError):
+                await bot_task
 
 
 def main() -> None:

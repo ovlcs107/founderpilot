@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import logging
 from typing import Any
 from datetime import datetime
 from zoneinfo import ZoneInfo
@@ -19,6 +20,9 @@ from app.ai_quality import (
 )
 from app.config import Settings
 from app.prompts import CHAT_SYSTEM_PROMPT, SYSTEM_PROMPT, build_user_prompt
+
+
+logger = logging.getLogger(__name__)
 
 
 class AIClientError(RuntimeError):
@@ -40,6 +44,16 @@ class OpenRouterClient:
             "business": self.settings.openrouter_model_business,
         }
         return (by_plan.get(plan) or self.settings.openrouter_model or "openrouter/free").strip()
+
+    def candidate_models(self, primary_model: str | None) -> list[str]:
+        result: list[str] = []
+        primary = (primary_model or self.settings.openrouter_model or "openrouter/free").strip()
+        if primary:
+            result.append(primary)
+        for model in self.settings.openrouter_fallback_models:
+            if model and model not in result:
+                result.append(model)
+        return result or ["openrouter/free"]
 
     def _runtime_context(self) -> str:
         now = datetime.now(ZoneInfo("Europe/Moscow"))
@@ -72,41 +86,60 @@ class OpenRouterClient:
         max_retries = max(0, int(self.settings.ai_max_retries))
         timeout = max(15.0, float(self.settings.ai_request_timeout_seconds))
         retry_statuses = {408, 409, 425, 429, 500, 502, 503, 504}
+        failover_statuses = {408, 409, 425, 429, 500, 502, 503, 504}
         last_error = ""
+        last_status: int | None = None
+        primary_model = str(payload.get("model") or "").strip()
 
-        for attempt in range(max_retries + 1):
-            try:
-                async with httpx.AsyncClient(timeout=timeout) as client:
-                    response = await client.post(self.base_url, headers=self._headers(title), json=payload)
-            except httpx.TimeoutException:
-                last_error = "timeout"
-                if attempt < max_retries:
-                    await asyncio.sleep(0.55 * (2**attempt))
-                    continue
-                raise AIClientError("AI-модель отвечает слишком долго. Повторите запрос позже.")
-            except httpx.HTTPError as exc:
-                last_error = str(exc)
-                if attempt < max_retries:
-                    await asyncio.sleep(0.55 * (2**attempt))
-                    continue
-                raise AIClientError("Не удалось подключиться к AI-провайдеру. Повторите запрос позже.") from exc
-
-            if response.status_code < 400:
+        for model_index, model in enumerate(self.candidate_models(primary_model)):
+            model_payload = dict(payload)
+            model_payload["model"] = model
+            for attempt in range(max_retries + 1):
                 try:
-                    data = response.json()
-                except ValueError as exc:
-                    raise AIClientError("AI-провайдер вернул повреждённый ответ. Повторите запрос позже.") from exc
-                if not isinstance(data, dict):
-                    raise AIClientError("AI-провайдер вернул неожиданный ответ. Повторите запрос позже.")
-                return data
+                    async with httpx.AsyncClient(timeout=timeout) as client:
+                        response = await client.post(self.base_url, headers=self._headers(title), json=model_payload)
+                except httpx.TimeoutException:
+                    last_error = "timeout"
+                    last_status = None
+                    if attempt < max_retries:
+                        await asyncio.sleep(0.55 * (2**attempt))
+                        continue
+                    break
+                except httpx.HTTPError as exc:
+                    last_error = str(exc)
+                    last_status = None
+                    if attempt < max_retries:
+                        await asyncio.sleep(0.55 * (2**attempt))
+                        continue
+                    break
 
-            last_error = response.text[:1000]
-            if response.status_code in retry_statuses and attempt < max_retries:
-                await asyncio.sleep(0.65 * (2**attempt))
+                last_status = response.status_code
+                if response.status_code < 400:
+                    try:
+                        data = response.json()
+                    except ValueError as exc:
+                        raise AIClientError("AI-провайдер вернул повреждённый ответ. Повторите запрос позже.") from exc
+                    if not isinstance(data, dict):
+                        raise AIClientError("AI-провайдер вернул неожиданный ответ. Повторите запрос позже.")
+                    if model_index > 0:
+                        logger.warning("OpenRouter failover succeeded with fallback model %s", model)
+                    return data
+
+                last_error = response.text[:1000]
+                if response.status_code in retry_statuses and attempt < max_retries:
+                    await asyncio.sleep(0.65 * (2**attempt))
+                    continue
+                break
+
+            # Try the next fallback model only for temporary/provider-capacity errors.
+            if last_status in failover_statuses or last_error == "timeout" or "timeout" in last_error.lower():
+                logger.warning("OpenRouter model %s failed temporarily; trying fallback if available", model)
                 continue
-            raise AIClientError(safe_ai_error(response.status_code, last_error))
+            break
 
-        raise AIClientError(safe_ai_error(details=last_error))
+        if last_error == "timeout":
+            raise AIClientError("AI-модель отвечает слишком долго. Повторите запрос позже.")
+        raise AIClientError(safe_ai_error(last_status, last_error))
 
     @staticmethod
     def _extract_answer(data: dict[str, Any]) -> str:
@@ -180,6 +213,7 @@ class OpenRouterClient:
             "Внутренний контекст качества ответа:",
             f"- Распознанный тип запроса: {detected_intent.label} ({detected_intent.key}).",
             f"- Глубина ответа: {detected_intent.depth}.",
+            f"- Режим качества: {self.settings.ai_answer_quality_mode}.",
             f"- {plan_depth_text(plan_key)}",
         ]
         access_text = build_access_context(access_context)

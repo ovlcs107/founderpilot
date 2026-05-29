@@ -30,6 +30,8 @@ class Settings(BaseSettings):
     ai_max_retries: int = Field(default=2, alias="AI_MAX_RETRIES")
     ai_chat_history_messages: int = Field(default=24, alias="AI_CHAT_HISTORY_MESSAGES")
     ai_chat_history_chars: int = Field(default=12000, alias="AI_CHAT_HISTORY_CHARS")
+    openrouter_fallback_models_raw: str = Field(default="", alias="OPENROUTER_FALLBACK_MODELS")
+    ai_answer_quality_mode: str = Field(default="balanced", alias="AI_ANSWER_QUALITY_MODE")
     webapp_public_url: str = Field(default="http://127.0.0.1:8000", alias="WEBAPP_PUBLIC_URL")
     app_secret: str = Field(default="change-this-super-secret-string", alias="APP_SECRET")
     admin_secret: str = Field(default="", alias="ADMIN_SECRET")
@@ -39,8 +41,13 @@ class Settings(BaseSettings):
     dev_skip_telegram_auth: bool = Field(default=False, alias="DEV_SKIP_TELEGRAM_AUTH")
     cors_allowed_origins_raw: str = Field(default="", alias="CORS_ALLOWED_ORIGINS")
     trust_proxy_headers: bool = Field(default=True, alias="TRUST_PROXY_HEADERS")
-    run_bot_polling: bool = Field(default=False, alias="RUN_BOT_POLLING")
+    # BOT_SERVICE_MODE fixes the old split-brain deployment problem.
+    # combined: web API + Telegram bot polling run in one Railway service.
+    # web: only Mini App/API. bot: only Telegram polling. disabled: no bot.
+    bot_service_mode: str = Field(default="combined", alias="BOT_SERVICE_MODE")
+    run_bot_polling: bool = Field(default=False, alias="RUN_BOT_POLLING")  # legacy override
     bot_polling_strict: bool = Field(default=False, alias="BOT_POLLING_STRICT")
+    bot_restart_delay_seconds: float = Field(default=5.0, alias="BOT_RESTART_DELAY_SECONDS")
     max_request_body_bytes: int = Field(default=262_144, alias="MAX_REQUEST_BODY_BYTES")
     daily_free_limit: int = Field(default=20, alias="DAILY_FREE_LIMIT")
     free_trial_requests: int = Field(default=20, alias="FREE_TRIAL_REQUESTS")
@@ -185,6 +192,50 @@ class Settings(BaseSettings):
     def telegram_webapp_enabled(self) -> bool:
         parsed = urlparse(self.webapp_url)
         return parsed.scheme.lower() == "https" and bool(parsed.netloc)
+
+    @property
+    def normalized_bot_service_mode(self) -> str:
+        raw = (self.bot_service_mode or "combined").strip().lower()
+        aliases = {
+            "auto": "combined",
+            "combined": "combined",
+            "same": "combined",
+            "single": "combined",
+            "web+bot": "combined",
+            "web": "web",
+            "web_only": "web",
+            "api": "web",
+            "bot": "bot",
+            "worker": "bot",
+            "polling": "bot",
+            "disabled": "disabled",
+            "off": "disabled",
+            "false": "disabled",
+        }
+        return aliases.get(raw, "combined")
+
+    @property
+    def should_run_web(self) -> bool:
+        return self.normalized_bot_service_mode in {"combined", "web"}
+
+    @property
+    def should_run_bot(self) -> bool:
+        # Legacy RUN_BOT_POLLING=true still works, but false no longer blocks
+        # the default combined mode. Use BOT_SERVICE_MODE=web/disabled to
+        # intentionally disable bot polling in this process.
+        if not self.bot_token.strip():
+            return False
+        return bool(self.run_bot_polling) or self.normalized_bot_service_mode in {"combined", "bot"}
+
+    @property
+    def openrouter_fallback_models(self) -> list[str]:
+        result: list[str] = []
+        raw_models = self.openrouter_fallback_models_raw.replace(";", ",").replace("\n", ",")
+        for raw in raw_models.split(","):
+            item = raw.strip()
+            if item and item not in result:
+                result.append(item)
+        return result
 
     @property
     def admin_telegram_ids(self) -> set[int]:

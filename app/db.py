@@ -35,7 +35,8 @@ CREATE TABLE IF NOT EXISTS users (
     access_updated_at TEXT,
     created_at TEXT NOT NULL,
     updated_at TEXT NOT NULL,
-    last_seen_at TEXT
+    last_seen_at TEXT,
+    login_count INTEGER NOT NULL DEFAULT 0
 );
 
 CREATE TABLE IF NOT EXISTS ai_requests (
@@ -390,6 +391,7 @@ USER_ADD_COLUMNS = {
     "access_updated_at": "ALTER TABLE users ADD COLUMN access_updated_at TEXT",
     "updated_at": "ALTER TABLE users ADD COLUMN updated_at TEXT",
     "last_seen_at": "ALTER TABLE users ADD COLUMN last_seen_at TEXT",
+    "login_count": "ALTER TABLE users ADD COLUMN login_count INTEGER NOT NULL DEFAULT 0",
 }
 
 BUSINESS_PROFILE_ADD_COLUMNS = {
@@ -535,7 +537,8 @@ class Database:
                     access_updated_at TEXT,
                     created_at TEXT NOT NULL,
                     updated_at TEXT NOT NULL,
-                    last_seen_at TEXT
+                    last_seen_at TEXT,
+                    login_count INTEGER NOT NULL DEFAULT 0
                 )
                 """
             )
@@ -566,7 +569,7 @@ class Database:
                     plan, daily_limit, bonus_requests, purchased_credits, referral_code, referred_by, onboarding_completed,
                     free_limit, monthly_limit, subscription_started_at,
                     subscription_until, subscription_expires_at, unlimited_access, blocked, admin_note, access_updated_at,
-                    created_at, updated_at, last_seen_at
+                    created_at, updated_at, last_seen_at, login_count
                 )
                 SELECT
                     {telegram_user_expr},
@@ -594,7 +597,8 @@ class Database:
                     {expr("access_updated_at")},
                     {expr("created_at", repr(now))},
                     {expr("updated_at", expr("created_at", repr(now)))},
-                    {expr("last_seen_at", expr("updated_at", expr("created_at", repr(now))))}
+                    {expr("last_seen_at", expr("updated_at", expr("created_at", repr(now))))},
+                    {expr("login_count", "0")}
                 FROM users
                 """
             )
@@ -755,8 +759,8 @@ class Database:
         async with aiosqlite.connect(self.path) as db:
             await db.execute(
                 """
-                INSERT INTO users (telegram_user_id, telegram_id, referral_code, created_at, updated_at, last_seen_at)
-                VALUES (?, ?, ?, ?, ?, ?)
+                INSERT INTO users (telegram_user_id, telegram_id, referral_code, created_at, updated_at, last_seen_at, login_count)
+                VALUES (?, ?, ?, ?, ?, ?, 0)
                 ON CONFLICT(telegram_user_id) DO UPDATE SET
                     telegram_id=COALESCE(users.telegram_id, excluded.telegram_id),
                     referral_code=COALESCE(users.referral_code, excluded.referral_code),
@@ -775,6 +779,7 @@ class Database:
         last_name: str | None = None,
         language_code: str | None = None,
         photo_url: str | None = None,
+        track_visit: bool = False,
     ) -> None:
         now = utc_now_iso()
         async with aiosqlite.connect(self.path) as db:
@@ -782,9 +787,9 @@ class Database:
                 """
                 INSERT INTO users (
                     telegram_user_id, telegram_id, username, first_name, last_name,
-                    language_code, photo_url, referral_code, created_at, updated_at, last_seen_at
+                    language_code, photo_url, referral_code, created_at, updated_at, last_seen_at, login_count
                 )
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 ON CONFLICT(telegram_user_id) DO UPDATE SET
                     telegram_id=excluded.telegram_id,
                     username=excluded.username,
@@ -794,7 +799,8 @@ class Database:
                     photo_url=COALESCE(excluded.photo_url, users.photo_url),
                     referral_code=COALESCE(users.referral_code, excluded.referral_code),
                     updated_at=excluded.updated_at,
-                    last_seen_at=excluded.last_seen_at
+                    last_seen_at=excluded.last_seen_at,
+                    login_count=COALESCE(users.login_count, 0) + COALESCE(excluded.login_count, 0)
                 """,
                 (
                     tg_text_id(telegram_id),
@@ -808,6 +814,7 @@ class Database:
                     now,
                     now,
                     now,
+                    1 if track_visit else 0,
                 ),
             )
             await db.commit()

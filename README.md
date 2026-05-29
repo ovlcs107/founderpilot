@@ -448,3 +448,42 @@ Telegram bot polling started
 ```
 
 Если Mini App работает, а бот молчит — почти всегда worker не запущен или у него `RUN_BOT_POLLING=false`.
+
+
+## Combined Mini App + Telegram bot mode
+
+FounderPilot now supports a single Railway service that runs both parts at once:
+
+```env
+BOT_SERVICE_MODE=combined
+RUN_BOT_POLLING=false
+BOT_TOKEN=...
+DATABASE_URL=${{Postgres.DATABASE_URL}}
+```
+
+In this mode Uvicorn serves `/app`, `/api/*`, `/health`, and the Telegram bot polling runs in a background supervisor inside the same process. If Telegram polling temporarily fails, the Mini App keeps working and the bot retries automatically.
+
+Use `BOT_SERVICE_MODE=web` only if you intentionally want a web-only service. Use `BOT_SERVICE_MODE=bot` only for a separate bot worker.
+
+## AI quality and failover
+
+Plan-specific models still work through:
+
+```env
+OPENROUTER_MODEL_FREE=
+OPENROUTER_MODEL_GO=
+OPENROUTER_MODEL_PLUS=
+OPENROUTER_MODEL_PRO=
+OPENROUTER_MODEL_BUSINESS=
+```
+
+You can add fallback models for temporary 429/5xx/timeouts:
+
+```env
+OPENROUTER_FALLBACK_MODELS=deepseek/deepseek-chat-v3.1,openai/gpt-4.1-mini
+AI_MAX_RETRIES=2
+AI_REQUEST_TIMEOUT_SECONDS=90
+AI_ANSWER_QUALITY_MODE=balanced
+```
+
+Fallbacks are invisible to users and are used only by backend. Keep real model costs in `.env` aligned with Profit Guard before enabling expensive models.
