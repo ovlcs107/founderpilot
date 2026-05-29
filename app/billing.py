@@ -113,13 +113,20 @@ def plan_catalog(settings: Settings) -> dict[str, Plan]:
 def enabled_providers(settings: Settings) -> list[dict[str, Any]]:
     providers: list[dict[str, Any]] = []
     if settings.billing_enable_stars:
-        providers.append({"id": "telegram_stars", "title": "Telegram Stars", "currency": "XTR"})
-    if settings.billing_enable_yookassa:
-        providers.append({"id": "yookassa", "title": "ЮKassa / ЮMoney", "currency": "RUB"})
-    if settings.billing_enable_ton:
-        providers.append({"id": "ton", "title": "TON / Tonkeeper", "currency": "TON"})
-    if settings.billing_enable_btcpay:
-        providers.append({"id": "btcpay_btc", "title": "BTC", "currency": "BTC"})
+        providers.append({"id": "telegram_stars", "title": "Telegram Stars", "description": "Оплата внутри Telegram", "currency": "XTR"})
+
+    # Safety for production: once real YooKassa credentials are present, the provider is
+    # considered enabled even if BILLING_ENABLE_YOOKASSA was accidentally left false.
+    # This avoids the classic launch bug: keys are configured, but users still see
+    # “payment method disabled”.
+    yookassa_ready = bool(settings.yookassa_shop_id and settings.yookassa_secret_key)
+    if settings.billing_enable_yookassa or yookassa_ready:
+        providers.append({"id": "yookassa", "title": "Карта / СБП", "description": "Безопасная оплата через ЮKassa", "currency": "RUB"})
+
+    if settings.billing_enable_ton and settings.ton_receiver_address:
+        providers.append({"id": "ton", "title": "TON", "description": "Tonkeeper / TON", "currency": "TON"})
+    if settings.billing_enable_btcpay and settings.btcpay_url and settings.btcpay_store_id and settings.btcpay_api_key:
+        providers.append({"id": "btcpay_btc", "title": "BTC", "description": "Bitcoin invoice", "currency": "BTC"})
     return providers
 
 
@@ -151,6 +158,21 @@ def make_order_id() -> str:
     return f"ord_{uuid4().hex}"
 
 
+def build_payment_return_url(settings: Settings, order_id: str) -> str:
+    """Return URL that always carries enough context for the Mini App to poll order status.
+
+    Operators often set YOOKASSA_RETURN_URL to just /app. That is valid, but then the
+    frontend cannot know which order should be refreshed after the user comes back from
+    YooKassa. We append payment_return/order_id safely even when the configured URL
+    already has query parameters.
+    """
+    base = settings.yookassa_return_url or settings.webapp_url
+    if not base:
+        base = settings.webapp_url
+    separator = "&" if "?" in base else "?"
+    return f"{base}{separator}payment_return=1&order_id={order_id}"
+
+
 async def create_telegram_stars_invoice(settings: Settings, bot: Bot, order: dict[str, Any], plan: Plan) -> str:
     # Telegram Stars invoices use XTR and do not need an external provider token.
     try:
@@ -178,7 +200,7 @@ async def create_yookassa_payment(settings: Settings, order: dict[str, Any], pla
         raise BillingError("ЮKassa не настроена: заполните YOOKASSA_SHOP_ID и YOOKASSA_SECRET_KEY.")
 
     auth = (settings.yookassa_shop_id, settings.yookassa_secret_key)
-    return_url = settings.yookassa_return_url or f"{settings.webapp_url}?payment_return=1&order_id={order['id']}"
+    return_url = build_payment_return_url(settings, order["id"])
     body = {
         "amount": {"value": rub_value(Decimal(str(order["amount"]))), "currency": "RUB"},
         "capture": True,
@@ -207,6 +229,47 @@ async def create_yookassa_payment(settings: Settings, order: dict[str, Any], pla
         raise BillingError("ЮKassa не вернула ссылку оплаты.")
     return external_id, payment_url
 
+
+
+async def create_yookassa_credit_pack_payment(settings: Settings, order: dict[str, Any], pack: dict[str, Any]) -> tuple[str, str]:
+    """Create a YooKassa payment for one-time credit packs.
+
+    Subscription payments use billing_orders, but credit packs are stored in
+    credit_pack_orders. Metadata marks the kind explicitly so the webhook can
+    route the payment safely without activating a subscription by accident.
+    """
+    if not settings.yookassa_shop_id or not settings.yookassa_secret_key:
+        raise BillingError("ЮKassa не настроена: заполните YOOKASSA_SHOP_ID и YOOKASSA_SECRET_KEY.")
+
+    base = settings.yookassa_return_url or settings.webapp_url
+    separator = "&" if "?" in base else "?"
+    return_url = f"{base}{separator}payment_return=1&credit_pack_return=1&credit_pack_order_id={order['id']}"
+    amount_value = rub_value(Decimal(str(order.get("amount") or pack.get("amount") or 0)))
+    body = {
+        "amount": {"value": amount_value, "currency": "RUB"},
+        "capture": True,
+        "confirmation": {"type": "redirect", "return_url": return_url},
+        "description": f"FounderPilot AI: {pack.get('title') or 'пакет кредитов'}",
+        "metadata": {
+            "kind": "credit_pack",
+            "order_id": order["id"],
+            "credit_pack_order_id": order["id"],
+            "telegram_user_id": order["telegram_user_id"],
+            "pack_key": order.get("pack_key") or pack.get("key"),
+        },
+    }
+    auth = (settings.yookassa_shop_id, settings.yookassa_secret_key)
+    headers = {"Idempotence-Key": order["id"]}
+    async with httpx.AsyncClient(timeout=30) as client:
+        response = await client.post("https://api.yookassa.ru/v3/payments", json=body, auth=auth, headers=headers)
+        if response.status_code >= 400:
+            raise BillingError(f"ЮKassa вернула ошибку: {response.status_code} {response.text[:300]}")
+        data = response.json()
+    payment_url = data.get("confirmation", {}).get("confirmation_url")
+    external_id = data.get("id")
+    if not payment_url or not external_id:
+        raise BillingError("ЮKassa не вернула ссылку оплаты.")
+    return external_id, payment_url
 
 
 async def fetch_yookassa_payment(settings: Settings, payment_id: str) -> dict[str, Any]:
