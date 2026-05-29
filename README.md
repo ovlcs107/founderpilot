@@ -204,3 +204,24 @@ pytest                                 ✅ 22 passed
 ## Railway / production
 
 Основной web-сервис: `RUN_BOT_POLLING=false`. Для команд бота запускайте отдельный worker с `RUN_BOT_POLLING=true`.
+
+### Fix Railway healthcheck
+
+В этой сборке `/health` специально сделан лёгким: он не зависит от Telegram polling, OpenRouter, YooKassa и долгой проверки внешних сервисов. На Railway код автоматически слушает `0.0.0.0`, даже если в старых Variables случайно остался `HOST=127.0.0.1` или `HOST=localhost`. Именно такие старые значения часто дают вечное `Network > Performing healthchecks...` при полностью успешной сборке.
+
+Для Railway web-сервиса держите так:
+
+```env
+RUN_BOT_POLLING=false
+BOT_POLLING_STRICT=false
+STRICT_RUNTIME_VALIDATION=false
+```
+
+`PORT` в Railway Variables лучше не задавать вручную: Railway передаёт его сам. Локально порт по умолчанию — `8000`.
+
+Дополнительная проверка:
+
+```text
+GET /health  -> лёгкий healthcheck для Railway
+GET /ready   -> строгая готовность базы
+```

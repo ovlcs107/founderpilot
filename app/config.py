@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import os
 from functools import lru_cache
 from urllib.parse import urlparse
 
@@ -45,6 +46,7 @@ class Settings(BaseSettings):
     admin_telegram_ids_raw: str = Field(default="", alias="ADMIN_TELEGRAM_IDS")
     host: str = Field(default="0.0.0.0", alias="HOST")
     port: int = Field(default=8000, alias="PORT")
+    strict_runtime_validation: bool = Field(default=False, alias="STRICT_RUNTIME_VALIDATION")
 
     billing_enable_stars: bool = Field(default=False, alias="BILLING_ENABLE_STARS")
     billing_enable_yookassa: bool = Field(default=False, alias="BILLING_ENABLE_YOOKASSA")
@@ -108,6 +110,26 @@ class Settings(BaseSettings):
     btcpay_store_id: str = Field(default="", alias="BTCPAY_STORE_ID")
     btcpay_api_key: str = Field(default="", alias="BTCPAY_API_KEY")
     btcpay_webhook_secret: str = Field(default="", alias="BTCPAY_WEBHOOK_SECRET")
+
+
+    @property
+    def is_railway_runtime(self) -> bool:
+        return bool(
+            os.getenv("RAILWAY_ENVIRONMENT")
+            or os.getenv("RAILWAY_PROJECT_ID")
+            or os.getenv("RAILWAY_SERVICE_ID")
+            or os.getenv("RAILWAY_PUBLIC_DOMAIN")
+        )
+
+    @property
+    def bind_host(self) -> str:
+        # Railway healthchecks reach the container through its internal network.
+        # If an old env has HOST=127.0.0.1/localhost, the app starts but Railway
+        # sees "service unavailable" forever. On Railway we always bind publicly
+        # inside the container; locally the HOST env is still respected.
+        if self.is_railway_runtime:
+            return "0.0.0.0"
+        return self.host or "0.0.0.0"
 
     @field_validator("webapp_public_url")
     @classmethod
@@ -217,40 +239,48 @@ def _is_default_or_weak_secret(value: str, defaults: set[str]) -> bool:
     return len(clean) < 24
 
 
-def require_runtime_settings(settings: Settings) -> None:
-    missing: list[str] = []
-    if not settings.bot_token or settings.bot_token == "PASTE_TELEGRAM_BOT_TOKEN_HERE":
-        missing.append("BOT_TOKEN")
-    if not settings.openrouter_api_key or settings.openrouter_api_key == "PASTE_OPENROUTER_API_KEY_HERE":
-        missing.append("OPENROUTER_API_KEY")
-    if missing:
-        joined = ", ".join(missing)
-        raise RuntimeError(f"Missing required .env value(s): {joined}. Edit .env first.")
+def runtime_setting_issues(settings: Settings) -> list[str]:
+    """Return deploy/runtime configuration problems without killing /health.
 
-    unsafe: list[str] = []
+    Railway marks a deployment as failed when the process cannot answer /health.
+    Therefore non-critical product settings (AI key, bot token, payment options)
+    are reported as warnings and the exact feature is blocked later at request time.
+    Set STRICT_RUNTIME_VALIDATION=true when you intentionally want such warnings
+    to fail startup in staging/CI.
+    """
+    issues: list[str] = []
+    if not settings.bot_token or settings.bot_token == "PASTE_TELEGRAM_BOT_TOKEN_HERE":
+        issues.append("BOT_TOKEN is empty: Telegram Mini App auth and bot messages will not work")
+    if not settings.openrouter_api_key or settings.openrouter_api_key == "PASTE_OPENROUTER_API_KEY_HERE":
+        issues.append("OPENROUTER_API_KEY is empty: AI generation requests will be disabled")
     if settings.is_public_deployment and settings.allow_dev_auth:
-        unsafe.append("DEV_MODE/DEV_SKIP_TELEGRAM_AUTH must be false for a public HTTPS deployment")
+        issues.append("DEV_MODE/DEV_SKIP_TELEGRAM_AUTH must be false for a public HTTPS deployment")
     if settings.is_public_deployment and _is_default_or_weak_secret(
         settings.app_secret,
         {"change-this-super-secret-string", "change-this-secret"},
     ):
-        unsafe.append("APP_SECRET must be a unique random value of at least 24 characters")
+        issues.append("APP_SECRET must be a unique random value of at least 24 characters")
     if settings.admin_secret and _is_default_or_weak_secret(
         settings.admin_secret,
         {"change-this-admin-secret", "admin", "password"},
     ):
-        unsafe.append("ADMIN_SECRET must be a unique random value of at least 24 characters")
+        issues.append("ADMIN_SECRET must be a unique random value of at least 24 characters")
     if settings.billing_enable_btcpay and not settings.btcpay_webhook_secret:
-        unsafe.append("BTCPAY_WEBHOOK_SECRET is required when BILLING_ENABLE_BTCPAY=true")
+        issues.append("BTCPAY_WEBHOOK_SECRET is required when BILLING_ENABLE_BTCPAY=true")
     if settings.billing_enable_stars and not settings.billing_allow_unpriced_stars:
         try:
             stars_value = float(settings.telegram_stars_rub_value or 0)
         except ValueError:
             stars_value = 0
         if stars_value <= 0:
-            unsafe.append("TELEGRAM_STARS_RUB_VALUE must be set or BILLING_ALLOW_UNPRICED_STARS=true when BILLING_ENABLE_STARS=true")
-    if unsafe:
-        raise RuntimeError("Unsafe runtime settings: " + "; ".join(unsafe))
+            issues.append("TELEGRAM_STARS_RUB_VALUE must be set or BILLING_ALLOW_UNPRICED_STARS=true when BILLING_ENABLE_STARS=true")
+    return issues
+
+
+def require_runtime_settings(settings: Settings) -> None:
+    issues = runtime_setting_issues(settings)
+    if issues:
+        raise RuntimeError("Runtime settings validation failed: " + "; ".join(issues))
 
 
 @lru_cache(maxsize=1)

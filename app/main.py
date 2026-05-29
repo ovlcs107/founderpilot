@@ -47,7 +47,7 @@ from app.billing import (
     verify_btcpay_signature,
     verify_yookassa_payment,
 )
-from app.config import Settings, get_settings, require_runtime_settings
+from app.config import Settings, get_settings, require_runtime_settings, runtime_setting_issues
 from app.credits import estimate_credits, estimate_output_tokens
 from app.economics import credit_pack_margin, guard_credits_for_margin, plan_economics, plan_features
 from app.db import CreditLimitError, Database
@@ -681,9 +681,16 @@ def create_app(settings: Settings | None = None) -> FastAPI:
 
     @app.on_event("startup")
     async def on_startup() -> None:
-        await db.init()
-        await init_features(settings.database_path)
-        logger.info("Database initialized at %s", settings.database_path)
+        app.state.db_ready = False
+        app.state.startup_error = None
+        try:
+            await db.init()
+            await init_features(settings.database_path)
+            app.state.db_ready = True
+            logger.info("Database initialized at %s", settings.database_path)
+        except Exception as exc:  # noqa: BLE001
+            app.state.startup_error = str(exc)
+            logger.exception("Database/features initialization failed. /health will stay alive; app APIs may fail until this is fixed: %s", exc)
 
     @app.get("/", include_in_schema=False)
     async def root() -> RedirectResponse:
@@ -691,7 +698,19 @@ def create_app(settings: Settings | None = None) -> FastAPI:
 
     @app.get("/health")
     async def health() -> dict[str, Any]:
-        return {"ok": True, "service": "FounderPilot AI"}
+        # Railway healthcheck must stay lightweight and must not depend on Telegram,
+        # OpenRouter, YooKassa or a long DB migration. Detailed warnings are in logs.
+        return {
+            "ok": True,
+            "service": "FounderPilot AI",
+            "db_ready": bool(getattr(app.state, "db_ready", False)),
+        }
+
+    @app.get("/ready")
+    async def ready() -> dict[str, Any]:
+        if not bool(getattr(app.state, "db_ready", False)):
+            raise HTTPException(status_code=503, detail=getattr(app.state, "startup_error", None) or "Database is not ready")
+        return {"ok": True, "service": "FounderPilot AI", "db_ready": True}
 
     @app.get("/tonconnect-manifest.json", include_in_schema=False)
     async def ton_manifest() -> dict[str, Any]:
@@ -1976,14 +1995,19 @@ async def _run_bot_polling(settings: Settings) -> None:
 async def async_main() -> None:
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
     settings = get_settings()
-    require_runtime_settings(settings)
+    issues = runtime_setting_issues(settings)
+    if settings.strict_runtime_validation:
+        require_runtime_settings(settings)
+    else:
+        for issue in issues:
+            logger.warning("Runtime settings warning: %s", issue)
 
     app = create_app(settings)
-    config = uvicorn.Config(app=app, host=settings.host, port=settings.port, log_level="info")
+    config = uvicorn.Config(app=app, host=settings.bind_host, port=settings.port, log_level="info")
     server = uvicorn.Server(config=config)
 
     logger.info("FounderPilot AI web service is running")
-    logger.info("Mini App local URL: http://%s:%s/app", settings.host, settings.port)
+    logger.info("Mini App local URL: http://%s:%s/app", settings.bind_host, settings.port)
     logger.info("Telegram WebApp URL from .env: %s", settings.webapp_url)
 
     if not settings.run_bot_polling:
