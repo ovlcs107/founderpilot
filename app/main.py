@@ -946,6 +946,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                 "photo_url": user.photo_url or stored_photo,
                 "avatar_url": user.photo_url or stored_photo,
                 "plan": (user_profile or {}).get("plan", "free"),
+                "is_admin": settings.is_admin(user.id),
                 "onboarding_completed": bool((user_profile or {}).get("onboarding_completed")),
                 **usage,
             },
@@ -2004,6 +2005,13 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             raise HTTPException(status_code=404, detail="Проект не найден.")
         return {"ok": True, "project": project}
 
+    @app.post("/api/projects/{project_id}/activate")
+    async def activate_project(project_id: str, user: TelegramUser = Depends(current_user)) -> dict[str, Any]:
+        project = await features.update_project(user.id, project_id, {"is_active": True})
+        if not project:
+            raise HTTPException(status_code=404, detail="Проект не найден.")
+        return {"ok": True, "project": project}
+
     @app.delete("/api/projects/{project_id}")
     async def delete_project(project_id: str, user: TelegramUser = Depends(current_user)) -> dict[str, Any]:
         return {"ok": await features.delete_project(user.id, project_id)}
@@ -2049,8 +2057,13 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             "roadmaps": await features.list_roadmaps(user.id, project_id),
             "tasks": await features.list_tasks(user.id, project_id),
             "score": await features.latest_project_score(user.id, project_id),
+            "finance": await features.project_finance_snapshot(user.id, project_id),
             "analytics": await features.analytics_summary(user.id),
         }
+
+    @app.get("/api/projects/{project_id}/finance")
+    async def project_finance(project_id: str, user: TelegramUser = Depends(current_user)) -> dict[str, Any]:
+        return {"ok": True, "finance": await features.project_finance_snapshot(user.id, project_id)}
 
     @app.get("/api/documents")
     async def documents(project_id: str | None = None, user: TelegramUser = Depends(current_user)) -> dict[str, Any]:
@@ -2540,6 +2553,12 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         return {"ok": True, **await features.admin_overview()}
 
     @app.get("/api/admin/users")
+    @app.get("/api/admin/owner-overview")
+    async def admin_owner_overview(user: TelegramUser = Depends(current_user)) -> dict[str, Any]:
+        if not settings.is_admin(user.id):
+            raise HTTPException(status_code=403, detail="Недостаточно прав.")
+        return {"ok": True, **await features.admin_overview()}
+
     async def admin_users(limit: int = 50, x_admin_secret: str | None = Header(default=None)) -> dict[str, Any]:
         require_admin(x_admin_secret)
         return {"ok": True, "items": await features.admin_users(limit)}

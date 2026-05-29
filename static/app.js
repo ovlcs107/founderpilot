@@ -2483,7 +2483,7 @@ function renderWorkspaceSuite() {
     const items = ws.documents || [];
     docs.innerHTML = items.length ? items.map(d => `<div class="settings-row workspace-doc-row">
       <span class="row-icon"><span data-icon="save"></span></span>
-      <span><b>${escapeHTML(d.title || 'Документ')}</b><small>${escapeHTML(documentTypeLabel(d.document_type))} • ${escapeHTML(formatHistoryDate(d.updated_at || d.created_at))}</small></span>
+      <button type="button" class="workspace-doc-open" data-open-doc="${escapeAttr(d.id)}"><b>${escapeHTML(d.title || 'Документ')}</b><small>${escapeHTML(documentTypeLabel(d.document_type))} • ${escapeHTML(formatHistoryDate(d.updated_at || d.created_at))}</small></button>
       <button type="button" class="mini-action-btn" data-export-doc="${escapeAttr(d.id)}">MD</button>
       <button type="button" class="mini-action-btn" data-export-docx="${escapeAttr(d.id)}">DOCX</button>
       <button type="button" class="mini-action-btn danger" data-delete-doc="${escapeAttr(d.id)}"><span data-icon="close"></span></button>
@@ -2700,3 +2700,263 @@ document.addEventListener('DOMContentLoaded', () => {
   bindMegaFeatureEvents();
   window.setTimeout(bindMegaFeatureEvents, 700);
 });
+
+/* === FounderPilot Ultimate Workspace v2: projects, finance, admin, polished UX === */
+(function founderPilotUltimateWorkspaceV2() {
+  const byId = id => document.getElementById(id);
+  const safe = value => (typeof escapeHTML === 'function' ? escapeHTML(value) : String(value ?? '').replace(/[&<>"']/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m])));
+  const attr = value => (typeof escapeAttr === 'function' ? escapeAttr(value) : safe(value));
+
+  function ensureUltimateWorkspaceDom() {
+    const pane = byId('pane-workspace');
+    if (!pane || pane.dataset.ultimateReady) return;
+    pane.dataset.ultimateReady = '1';
+
+    const dashboard = pane.querySelector('.workspace-dashboard-grid');
+    if (dashboard && !byId('workspaceProjectListCard')) {
+      const listCard = document.createElement('section');
+      listCard.id = 'workspaceProjectListCard';
+      listCard.className = 'workspace-card workspace-projects-list-card app-card-shadow';
+      listCard.innerHTML = `
+        <div class="support-card-head workspace-card-head">
+          <div><h3>Мои проекты</h3><p>Переключайтесь между идеями, архивируйте лишнее и держите контекст в порядке.</p></div>
+          <button class="text-link-action-btn" type="button" id="workspaceFocusCreateBtn">Создать</button>
+        </div>
+        <div id="workspaceProjectsList" class="workspace-project-list"></div>`;
+      dashboard.parentNode.insertBefore(listCard, dashboard);
+    }
+
+    const tabs = byId('workspaceTabs');
+    if (tabs && !tabs.querySelector('[data-workspace-tab="finance"]')) {
+      const projectsBtn = document.createElement('button');
+      projectsBtn.className = 'segmented-btn';
+      projectsBtn.type = 'button';
+      projectsBtn.dataset.workspaceTab = 'overview';
+      projectsBtn.textContent = 'Обзор';
+      tabs.insertBefore(projectsBtn, tabs.firstElementChild);
+      const financeBtn = document.createElement('button');
+      financeBtn.className = 'segmented-btn';
+      financeBtn.type = 'button';
+      financeBtn.dataset.workspaceTab = 'finance';
+      financeBtn.textContent = 'Финансы';
+      tabs.appendChild(financeBtn);
+    }
+
+    const docsPanel = pane.querySelector('[data-workspace-panel="documents"]');
+    if (docsPanel && !pane.querySelector('[data-workspace-panel="overview"]')) {
+      const overview = document.createElement('section');
+      overview.className = 'workspace-tab-panel';
+      overview.dataset.workspacePanel = 'overview';
+      overview.innerHTML = `<div id="workspaceOverviewGrid" class="workspace-overview-grid"></div>`;
+      docsPanel.parentNode.insertBefore(overview, docsPanel);
+    }
+    if (docsPanel && !pane.querySelector('[data-workspace-panel="finance"]')) {
+      const finance = document.createElement('section');
+      finance.className = 'workspace-tab-panel';
+      finance.dataset.workspacePanel = 'finance';
+      finance.innerHTML = `
+        <div class="finance-panel app-card-shadow">
+          <div class="support-card-head"><div><h3>Юнит-экономика</h3><p>Быстрый расчёт маржи и точки безубыточности. Без AI, мгновенно.</p></div></div>
+          <div class="finance-grid">
+            <label><span>Цена продажи</span><input id="financeSalePrice" inputmode="decimal" placeholder="990"></label>
+            <label><span>Себестоимость</span><input id="financeCost" inputmode="decimal" placeholder="250"></label>
+            <label><span>Комиссия, %</span><input id="financeFee" inputmode="decimal" placeholder="6"></label>
+            <label><span>Фикс. расходы / мес</span><input id="financeFixed" inputmode="decimal" placeholder="50000"></label>
+          </div>
+          <div id="financeResult" class="finance-result"></div>
+        </div>`;
+      docsPanel.parentNode.appendChild(finance);
+    }
+
+    if (!byId('documentPreviewModal')) {
+      const modal = document.createElement('div');
+      modal.id = 'documentPreviewModal';
+      modal.className = 'modal-overlay';
+      modal.innerHTML = `<div class="modal-sheet document-preview-sheet"><div class="modal-header"><h3 id="documentPreviewTitle">Документ</h3><button class="modal-close-btn" type="button" id="documentPreviewClose">×</button></div><div class="modal-scroll-content"><div id="documentPreviewContent" class="md-content document-preview-content"></div></div><div class="modal-footer-actions"><button class="btn-secondary" type="button" id="documentPreviewDownloadMd">Markdown</button><button class="primary-btn" type="button" id="documentPreviewDownloadDocx">DOCX</button></div></div>`;
+      document.body.appendChild(modal);
+    }
+  }
+
+  function renderProjectsListV2() {
+    const list = byId('workspaceProjectsList');
+    if (!list) return;
+    const projects = state.workspace?.projects || [];
+    if (!projects.length) {
+      list.innerHTML = `<div class="workspace-empty compact"><span class="icon-box"><span data-icon="target"></span></span><span><b>Проектов пока нет</b><small>Создайте первый проект, чтобы AI помнил контекст, документы и задачи.</small></span></div>`;
+      if (typeof injectIcons === 'function') injectIcons(list);
+      return;
+    }
+    list.innerHTML = projects.map(p => `
+      <div class="project-switch-row ${p.is_active ? 'active' : ''}" data-project-row="${attr(p.id)}">
+        <button type="button" class="project-switch-main" data-activate-project="${attr(p.id)}">
+          <span class="project-dot"></span>
+          <span><b>${safe(p.name || 'Проект')}</b><small>${safe(p.description || p.niche || 'Без описания')}</small></span>
+        </button>
+        <button type="button" class="project-row-action" data-edit-project="${attr(p.id)}" title="Редактировать">✎</button>
+        <button type="button" class="project-row-action danger" data-delete-project="${attr(p.id)}" title="Удалить">×</button>
+      </div>`).join('');
+  }
+
+  function renderOverviewGridV2() {
+    const box = byId('workspaceOverviewGrid');
+    if (!box) return;
+    const ws = state.workspace || {};
+    const analytics = ws.analytics || {};
+    const finance = ws.finance || {};
+    const active = ws.active_project;
+    box.innerHTML = `
+      <div class="workspace-mini-metric"><span>Активный проект</span><b>${safe(active?.name || 'Не выбран')}</b><small>${safe(active?.description || 'Создайте проект и заполните память.')}</small></div>
+      <div class="workspace-mini-metric"><span>Память</span><b>${Number(analytics.memory_items || 0).toLocaleString('ru-RU')}</b><small>фактов о проектах</small></div>
+      <div class="workspace-mini-metric"><span>Документы</span><b>${Number(analytics.documents || 0).toLocaleString('ru-RU')}</b><small>сохранённых материалов</small></div>
+      <div class="workspace-mini-metric"><span>Готовность</span><b>${Number(finance.readiness || 0)}%</b><small>следующий фокус: ${safe(finance.next_focus || 'проект')}</small></div>`;
+  }
+
+  function renderFinanceResult() {
+    const out = byId('financeResult');
+    if (!out) return;
+    const num = id => Number(String(byId(id)?.value || '').replace(',', '.')) || 0;
+    const price = num('financeSalePrice');
+    const cost = num('financeCost');
+    const feeRate = num('financeFee') / 100;
+    const fixed = num('financeFixed');
+    if (!price) {
+      out.innerHTML = `<div class="finance-placeholder">Введите цену продажи — расчёт появится здесь.</div>`;
+      return;
+    }
+    const fee = price * feeRate;
+    const profit = price - cost - fee;
+    const margin = price ? profit / price * 100 : 0;
+    const breakeven = profit > 0 ? Math.ceil(fixed / profit) : null;
+    out.innerHTML = `
+      <div><span>Прибыль с продажи</span><b>${Math.round(profit).toLocaleString('ru-RU')} ₽</b></div>
+      <div><span>Маржа</span><b>${margin.toFixed(1)}%</b></div>
+      <div><span>Точка безубыточности</span><b>${breakeven ? breakeven.toLocaleString('ru-RU') + ' продаж' : 'нет прибыли'}</b></div>
+      <div><span>Статус</span><b>${profit > 0 ? 'Можно тестировать' : 'Нужно менять цену/себестоимость'}</b></div>`;
+  }
+
+  async function activateProjectV2(id) {
+    if (!id) return;
+    try {
+      await apiRequest(`/api/projects/${encodeURIComponent(id)}/activate`, { method: 'POST' });
+      await loadWorkspaceSuite();
+      showToast('Проект выбран');
+    } catch (err) { showToast(friendlyError(err, 'Не удалось выбрать проект')); }
+  }
+
+  async function deleteProjectV2(id) {
+    if (!id) return;
+    if (!window.confirm('Удалить проект вместе с памятью, документами, roadmap и задачами?')) return;
+    try {
+      await apiRequest(`/api/projects/${encodeURIComponent(id)}`, { method: 'DELETE' });
+      await loadWorkspaceSuite();
+      showToast('Проект удалён');
+    } catch (err) { showToast(friendlyError(err, 'Не удалось удалить проект')); }
+  }
+
+  function editProjectV2(id) {
+    const p = (state.workspace?.projects || []).find(x => String(x.id) === String(id));
+    if (!p) return;
+    const name = window.prompt('Название проекта', p.name || '');
+    if (name === null) return;
+    const description = window.prompt('Короткое описание проекта', p.description || '') ?? p.description ?? '';
+    apiRequest(`/api/projects/${encodeURIComponent(id)}`, { method: 'PATCH', body: JSON.stringify({ name: name.trim() || p.name, description }) })
+      .then(loadWorkspaceSuite)
+      .then(() => showToast('Проект обновлён'))
+      .catch(err => showToast(friendlyError(err, 'Не удалось обновить проект')));
+  }
+
+  async function openDocumentPreview(id) {
+    if (!id) return;
+    try {
+      const data = await apiRequest(`/api/documents/${encodeURIComponent(id)}`);
+      const doc = data.document || data;
+      byId('documentPreviewTitle').textContent = doc.title || 'Документ';
+      byId('documentPreviewContent').innerHTML = typeof renderMarkdown === 'function' ? renderMarkdown(doc.content || '') : safe(doc.content || '');
+      byId('documentPreviewDownloadMd').onclick = () => { window.location.href = `/api/documents/${encodeURIComponent(id)}/export?format=md`; };
+      byId('documentPreviewDownloadDocx').onclick = () => { window.location.href = `/api/documents/${encodeURIComponent(id)}/export?format=docx`; };
+      byId('documentPreviewModal').classList.add('active');
+    } catch (err) { showToast(friendlyError(err, 'Не удалось открыть документ')); }
+  }
+
+  async function loadAdminPaneV2() {
+    if (!state.user?.is_admin) return;
+    let pane = byId('pane-admin');
+    if (!pane) {
+      const content = document.querySelector('.profile-content');
+      pane = document.createElement('div');
+      pane.className = 'profile-sub-pane';
+      pane.id = 'pane-admin';
+      pane.innerHTML = `<header class="mobile-sub-header"><button class="profile-back-btn" type="button" data-profile-back>‹</button><h3>Админка</h3></header><div class="admin-dashboard-grid" id="adminDashboardGrid"></div>`;
+      content?.appendChild(pane);
+      document.querySelectorAll('[data-profile-back]').forEach(btn => btn.addEventListener('click', closeProfilePane));
+    }
+    if (!document.querySelector('[data-pane="admin"]')) {
+      const rail = byId('profileDesktopRail');
+      const btn = document.createElement('button');
+      btn.className = 'rail-link'; btn.dataset.pane = 'admin'; btn.innerHTML = '<span data-icon="receipt"></span>Админка';
+      rail?.appendChild(btn);
+      btn.addEventListener('click', () => switchProfilePane('admin'));
+      const mobileList = document.querySelector('.profile-root-list');
+      const mb = document.createElement('button');
+      mb.className = 'settings-row mobile-tab-link'; mb.dataset.pane = 'admin'; mb.type = 'button';
+      mb.innerHTML = '<span class="row-icon"><span data-icon="receipt"></span></span><span><b>Админка</b><small>Пользователи, платежи, расходы</small></span><span class="chevron">›</span>';
+      mobileList?.appendChild(mb);
+      mb.addEventListener('click', () => switchProfilePane('admin'));
+      if (typeof injectIcons === 'function') injectIcons(document.body);
+    }
+    try {
+      const data = await apiRequest('/api/admin/owner-overview');
+      const grid = byId('adminDashboardGrid');
+      const keys = [
+        ['users','Пользователи'], ['projects','Проекты'], ['documents','Документы'], ['tasks','Задачи'],
+        ['payments','Платежи'], ['paid_orders','Оплаченные заказы'], ['tool_runs','Инструменты'], ['feedback_negative','Негативные оценки']
+      ];
+      if (grid) grid.innerHTML = keys.map(([k,t]) => `<div class="admin-metric-card"><span>${t}</span><b>${Number(data[k] || 0).toLocaleString('ru-RU')}</b></div>`).join('');
+    } catch (err) { /* админка просто не покажется без прав */ }
+  }
+
+  const oldSwitchProfilePane = window.switchProfilePane || switchProfilePane;
+  window.switchProfilePane = function ultimateSwitchProfilePane(paneId) {
+    oldSwitchProfilePane(paneId);
+    document.querySelectorAll('.rail-link').forEach(b => b.classList.toggle('active', b.dataset.pane === paneId));
+    if (paneId === 'admin') loadAdminPaneV2();
+  };
+
+  const oldRenderWorkspace = window.renderWorkspaceSuite || renderWorkspaceSuite;
+  window.renderWorkspaceSuite = function ultimateRenderWorkspaceSuite() {
+    ensureUltimateWorkspaceDom();
+    oldRenderWorkspace();
+    renderProjectsListV2();
+    renderOverviewGridV2();
+    renderFinanceResult();
+    if (typeof injectIcons === 'function') injectIcons(byId('pane-workspace') || document.body);
+  };
+
+  const oldLoadData = window.loadData || loadData;
+  window.loadData = async function ultimateLoadData() {
+    await oldLoadData();
+    await loadAdminPaneV2();
+  };
+
+  document.addEventListener('input', e => {
+    if (e.target && ['financeSalePrice','financeCost','financeFee','financeFixed'].includes(e.target.id)) renderFinanceResult();
+  });
+  document.addEventListener('click', e => {
+    const create = e.target.closest('#workspaceFocusCreateBtn');
+    if (create) { e.preventDefault(); byId('workspaceProjectName')?.focus(); return; }
+    const act = e.target.closest('[data-activate-project]');
+    if (act) { e.preventDefault(); activateProjectV2(act.dataset.activateProject); return; }
+    const del = e.target.closest('[data-delete-project]');
+    if (del) { e.preventDefault(); deleteProjectV2(del.dataset.deleteProject); return; }
+    const edit = e.target.closest('[data-edit-project]');
+    if (edit) { e.preventDefault(); editProjectV2(edit.dataset.editProject); return; }
+    const openDoc = e.target.closest('[data-open-doc]');
+    if (openDoc) { e.preventDefault(); openDocumentPreview(openDoc.dataset.openDoc); return; }
+    if (e.target.closest('#documentPreviewClose') || (e.target.id === 'documentPreviewModal')) byId('documentPreviewModal')?.classList.remove('active');
+  });
+
+  document.addEventListener('DOMContentLoaded', () => {
+    ensureUltimateWorkspaceDom();
+    setTimeout(() => { ensureUltimateWorkspaceDom(); renderProjectsListV2(); renderOverviewGridV2(); renderFinanceResult(); loadAdminPaneV2(); }, 600);
+  });
+})();

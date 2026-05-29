@@ -404,6 +404,24 @@ class FeatureStore:
                     now,
                 ),
             )
+            seed_memory = []
+            for category, key in [
+                ("idea", "description"),
+                ("audience", "target_audience"),
+                ("market", "niche"),
+                ("sales", "marketplace"),
+            ]:
+                value = str(payload.get(key) or "").strip()
+                if value:
+                    seed_memory.append((category, value[:4000]))
+            for category, value in seed_memory[:8]:
+                await db.execute(
+                    """
+                    INSERT INTO project_memory(telegram_user_id, project_id, category, key, value, confidence, source, created_at, updated_at)
+                    VALUES (?, ?, ?, ?, ?, 1.0, 'project_create', ?, ?)
+                    """,
+                    (str(telegram_id), project_id, category, category, value, now, now),
+                )
             await db.commit()
         return await self.get_project(telegram_id, project_id) or {"id": project_id, "name": name}
 
@@ -466,10 +484,20 @@ class FeatureStore:
                 "DELETE FROM projects WHERE telegram_user_id = ? AND id = ?",
                 (str(telegram_id), str(project_id)),
             )
-            await db.execute(
-                "DELETE FROM project_memory WHERE telegram_user_id = ? AND project_id = ?",
-                (str(telegram_id), str(project_id)),
-            )
+            # Keep user data consistent: deleting a project removes its local
+            # memory, documents, roadmap, tasks and score records. This is safer
+            # than leaving orphaned rows that later appear in another project.
+            for table in [
+                "project_memory",
+                "project_documents",
+                "project_scores",
+                "project_roadmaps",
+                "project_tasks",
+            ]:
+                await db.execute(
+                    f"DELETE FROM {table} WHERE telegram_user_id = ? AND project_id = ?",
+                    (str(telegram_id), str(project_id)),
+                )
             await db.commit()
             return cur.rowcount > 0
 
@@ -1033,6 +1061,29 @@ class FeatureStore:
                 "chat_messages": await scalar("SELECT COUNT(*) FROM chat_messages cm JOIN conversations c ON c.id = cm.conversation_id WHERE c.telegram_user_id = ?", (str(telegram_id),)),
                 "credits_charged": await scalar("SELECT COALESCE(SUM(credits_charged),0) FROM ai_usage_events WHERE telegram_user_id = ? AND status = 'success'", (str(telegram_id),)),
             }
+
+    async def project_finance_snapshot(self, telegram_id: int, project_id: str | None = None) -> dict[str, Any]:
+        """Return a lightweight finance summary extracted from project memory/tasks.
+
+        This is intentionally deterministic and free: it gives the UI an instant
+        project health panel even before the user asks AI to build a full model.
+        """
+        active = await self.get_active_project(telegram_id) if not project_id else await self.get_project(telegram_id, project_id)
+        memories = await self.list_memory(telegram_id, (active or {}).get("id") if active else project_id)
+        tasks = await self.list_tasks(telegram_id, (active or {}).get("id") if active else project_id)
+        done = sum(1 for t in tasks if str(t.get("status") or "") == "done")
+        total = len(tasks)
+        memory_count = len(memories)
+        readiness = min(100, 15 + memory_count * 7 + done * 5 + (20 if active and active.get("description") else 0))
+        return {
+            "project_id": (active or {}).get("id") or project_id,
+            "readiness": readiness,
+            "memory_count": memory_count,
+            "tasks_total": total,
+            "tasks_done": done,
+            "tasks_progress": round(done / total * 100) if total else 0,
+            "next_focus": "Юнит-экономика" if memory_count >= 3 else "Заполнить память проекта",
+        }
 
     async def admin_overview(self) -> dict[str, Any]:
         async with aiosqlite.connect(self.db_path) as db:

@@ -501,3 +501,28 @@ TELEGRAM_INIT_DATA_MAX_AGE_SECONDS=604800
 ```
 
 If Telegram profile data does not appear in the Mini App, check that `BOT_TOKEN` is the same bot that opens the Web App and that `WEBAPP_PUBLIC_URL` is the root domain without a duplicated `/app`.
+
+## Ultimate Workspace v2 update
+
+Этот архив включает финальный пакет улучшений рабочего пространства и интерфейса:
+
+- список проектов, переключение активного проекта, редактирование и удаление;
+- каскадное удаление данных проекта: память, документы, roadmap, задачи и score;
+- улучшенные seed-факты памяти при создании проекта;
+- обзор проекта с метриками памяти, документов, задач и готовности;
+- быстрый финансовый калькулятор без AI-запроса;
+- предпросмотр документов в модальном окне + экспорт Markdown/DOCX;
+- owner-admin dashboard для Telegram ID из `ADMIN_TELEGRAM_IDS`;
+- улучшенный desktop/mobile UI рабочего пространства;
+- endpoint `POST /api/projects/{project_id}/activate`;
+- endpoint `GET /api/projects/{project_id}/finance`;
+- endpoint `GET /api/admin/owner-overview` для владельца.
+
+Проверка перед упаковкой:
+
+```bash
+python -m compileall app run.py tests scripts
+node --check static/app.js
+pytest -q
+```
+
