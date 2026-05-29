@@ -49,6 +49,7 @@ from app.billing import (
     verify_yookassa_payment,
 )
 from app.config import Settings, get_settings, require_runtime_settings, runtime_setting_issues
+from app.ai_quality import detect_chat_intent
 from app.credits import estimate_credits, estimate_output_tokens
 from app.economics import credit_pack_margin, guard_credits_for_margin, plan_economics, plan_features
 from app.db import CreditLimitError, Database
@@ -896,6 +897,25 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             "usage": usage,
         }
 
+    @app.get("/api/ai/status")
+    async def ai_status(user: TelegramUser = Depends(current_user)) -> dict[str, Any]:
+        await db.upsert_user(user.id, user.username, user.first_name, user.last_name, photo_url=user.photo_url)
+        await db.expire_subscription_if_needed(user.id)
+        user_profile = await db.get_user_profile(user.id)
+        plan_key = str((user_profile or {}).get("plan") or "free").lower()
+        access = await db.get_access_state(
+            user.id,
+            free_limit_default=settings.free_trial_requests,
+            monthly_limit_default=settings.free_monthly_credits,
+        )
+        return {
+            "ok": True,
+            "plan": plan_key,
+            "model": ai_client.model_for_plan(plan_key),
+            "limits": usage_payload(access),
+            "configured": bool(settings.openrouter_api_key.strip()),
+        }
+
     @app.post("/api/onboarding")
     async def onboarding(payload: BusinessProfileRequest, user: TelegramUser = Depends(current_user)) -> dict[str, Any]:
         profile_data = await db.complete_onboarding(user.id, payload.model_dump())
@@ -928,7 +948,16 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     @app.post("/api/ask", response_model=AskResponse)
     async def ask(payload: AskRequest, user: TelegramUser = Depends(current_user)) -> AskResponse:
         await db.upsert_user(user.id, user.username, user.first_name, user.last_name, photo_url=user.photo_url)
-        estimate = estimate_credits(payload.mode, payload.text, model=settings.openrouter_model)
+        await db.expire_subscription_if_needed(user.id)
+        user_profile = await db.get_user_profile(user.id)
+        plan_key = str((user_profile or {}).get("plan") or "free").lower()
+        ai_model = ai_client.model_for_plan(plan_key)
+        access_state = await db.get_access_state(
+            user.id,
+            free_limit_default=settings.free_trial_requests,
+            monthly_limit_default=settings.free_monthly_credits,
+        )
+        estimate = estimate_credits(payload.mode, payload.text, model=ai_model)
         estimate = await apply_profit_guard_to_estimate(user.id, estimate)
 
         try:
@@ -940,11 +969,10 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                 estimate.credits,
                 free_limit_default=settings.free_trial_requests,
                 monthly_limit_default=settings.free_monthly_credits,
-                metadata={"endpoint": "/api/ask", "reason": estimate.reason},
+                metadata={"endpoint": "/api/ask", "reason": estimate.reason, "model": ai_model},
             )
             ask_optional: dict[str, Any] = {}
             profile_data = await db.get_business_profile(user.id)
-            user_profile = await db.get_user_profile(user.id)
             organizations = await features.list_organizations(user.id, user.username)
             user_context = ai_user_context(user, user_profile, organizations)
             context = business_context(profile_data)
@@ -955,7 +983,13 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                 ask_optional["business_profile"] = context
             if project_context:
                 ask_optional["project_memory"] = project_context
-            answer = await ai_client.ask_business_ai(payload.mode, payload.text, ask_optional)
+            answer = await ai_client.ask_business_ai(
+                payload.mode,
+                payload.text,
+                ask_optional,
+                plan_key=plan_key,
+                access_context=access_state,
+            )
             output_tokens = estimate_output_tokens(answer)
             await db.finalize_credit_charge(
                 user.id,
@@ -963,7 +997,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                 estimate.tool_id,
                 estimate.credits,
                 estimate.credits,
-                model=settings.openrouter_model,
+                model=ai_model,
                 input_tokens=estimate.input_tokens_estimated,
                 output_tokens=output_tokens,
             )
@@ -971,10 +1005,10 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         except (RateLimitError, CreditLimitError) as exc:
             raise HTTPException(status_code=429, detail=str(exc)) from exc
         except AIClientError as exc:
-            await db.refund_reserved_credits(user.id, estimate.request_id, str(exc), tool_id=estimate.tool_id, estimated_credits=estimate.credits, model=settings.openrouter_model)
+            await db.refund_reserved_credits(user.id, estimate.request_id, str(exc), tool_id=estimate.tool_id, estimated_credits=estimate.credits, model=ai_model)
             raise HTTPException(status_code=502, detail=str(exc)) from exc
         except Exception as exc:  # noqa: BLE001
-            await db.refund_reserved_credits(user.id, estimate.request_id, str(exc), tool_id=estimate.tool_id, estimated_credits=estimate.credits, model=settings.openrouter_model)
+            await db.refund_reserved_credits(user.id, estimate.request_id, str(exc), tool_id=estimate.tool_id, estimated_credits=estimate.credits, model=ai_model)
             raise
 
         return AskResponse(answer=answer, mode=payload.mode, saved_id=saved_id)
@@ -989,6 +1023,9 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             return GenerateResponse(ok=False, error="Неизвестный AI-инструмент. Обновите приложение и попробуйте снова.")
 
         estimate = None
+        user_profile = await db.get_user_profile(telegram_id)
+        plan_key = str((user_profile or {}).get("plan") or "free").lower()
+        ai_model = ai_client.model_for_plan(plan_key)
         try:
             profile_data = await db.get_business_profile(telegram_id)
             raw_fields = dict(payload.optional_fields)
@@ -996,6 +1033,14 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             input_text, optional_fields, result_prefix = prepare_tool_context(payload.tool_id, raw_fields)
             context = business_context(profile_data)
             project_context = await features.project_context_text(telegram_id)
+            access_state = await db.get_access_state(
+                telegram_id,
+                free_limit_default=settings.free_trial_requests,
+                monthly_limit_default=settings.free_monthly_credits,
+            )
+            user_context = ai_user_context(user, user_profile)
+            if user_context:
+                optional_fields["telegram_user_context"] = user_context
             if context:
                 optional_fields["business_profile"] = context
             if project_context:
@@ -1003,7 +1048,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             estimate = estimate_credits(
                 payload.tool_id,
                 input_text or payload.user_input,
-                model=settings.openrouter_model,
+                model=ai_model,
                 optional_fields=optional_fields,
             )
             estimate = await apply_profit_guard_to_estimate(telegram_id, estimate)
@@ -1015,9 +1060,15 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                 estimate.credits,
                 free_limit_default=settings.free_trial_requests,
                 monthly_limit_default=settings.free_monthly_credits,
-                metadata={"endpoint": "/api/generate", "reason": estimate.reason},
+                metadata={"endpoint": "/api/generate", "reason": estimate.reason, "model": ai_model},
             )
-            ai_answer = await ai_client.ask_business_ai(payload.tool_id, input_text or payload.user_input, optional_fields)
+            ai_answer = await ai_client.ask_business_ai(
+                payload.tool_id,
+                input_text or payload.user_input,
+                optional_fields,
+                plan_key=plan_key,
+                access_context=access_state,
+            )
             answer = f"{result_prefix}\n{ai_answer}".strip() if result_prefix else ai_answer
             await db.finalize_credit_charge(
                 telegram_id,
@@ -1025,7 +1076,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                 estimate.tool_id,
                 estimate.credits,
                 estimate.credits,
-                model=settings.openrouter_model,
+                model=ai_model,
                 input_tokens=estimate.input_tokens_estimated,
                 output_tokens=estimate_output_tokens(answer),
             )
@@ -1040,7 +1091,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                 payload.tool_id,
                 {"user_input": payload.user_input, "optional_fields": payload.optional_fields},
                 result_text=answer,
-                model=settings.openrouter_model,
+                model=ai_model,
                 tokens_used=estimate.input_tokens_estimated + estimate_output_tokens(answer),
             )
             access = await db.get_access_state(
@@ -1063,7 +1114,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                     str(exc),
                     tool_id=estimate.tool_id,
                     estimated_credits=estimate.credits,
-                    model=settings.openrouter_model,
+                    model=ai_model,
                 )
             await db.log_error("generate", str(exc), telegram_id)
             return GenerateResponse(ok=False, error=str(exc), tool_id=payload.tool_id)
@@ -1075,7 +1126,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                     str(exc),
                     tool_id=estimate.tool_id,
                     estimated_credits=estimate.credits,
-                    model=settings.openrouter_model,
+                    model=ai_model,
                 )
             logger.exception("Mini App generation failed")
             await db.log_error("generate", str(exc), telegram_id)
@@ -1101,10 +1152,21 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             return {"ok": False, "error": "Заполните хотя бы одно поле инструмента."}
 
         estimate = None
+        user_profile = await db.get_user_profile(telegram_id)
+        plan_key = str((user_profile or {}).get("plan") or "free").lower()
+        ai_model = ai_client.model_for_plan(plan_key)
         try:
             profile_data = await db.get_business_profile(telegram_id)
             context = business_context(profile_data)
             project_context = await features.project_context_text(telegram_id)
+            access_state = await db.get_access_state(
+                telegram_id,
+                free_limit_default=settings.free_trial_requests,
+                monthly_limit_default=settings.free_monthly_credits,
+            )
+            user_context = ai_user_context(user, user_profile)
+            if user_context:
+                optional_fields["telegram_user_context"] = user_context
             if context:
                 optional_fields["business_profile"] = context
             if project_context:
@@ -1112,7 +1174,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             estimate = estimate_credits(
                 payload.tool_id,
                 input_text,
-                model=settings.openrouter_model,
+                model=ai_model,
                 optional_fields=optional_fields,
             )
             estimate = await apply_profit_guard_to_estimate(telegram_id, estimate)
@@ -1124,9 +1186,15 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                 estimate.credits,
                 free_limit_default=settings.free_trial_requests,
                 monthly_limit_default=settings.free_monthly_credits,
-                metadata={"endpoint": "/api/tools/run", "reason": estimate.reason},
+                metadata={"endpoint": "/api/tools/run", "reason": estimate.reason, "model": ai_model},
             )
-            ai_answer = await ai_client.ask_business_ai(payload.tool_id, input_text, optional_fields)
+            ai_answer = await ai_client.ask_business_ai(
+                payload.tool_id,
+                input_text,
+                optional_fields,
+                plan_key=plan_key,
+                access_context=access_state,
+            )
             answer = f"{result_prefix}\n{ai_answer}".strip() if result_prefix else ai_answer
             await db.finalize_credit_charge(
                 telegram_id,
@@ -1134,7 +1202,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                 estimate.tool_id,
                 estimate.credits,
                 estimate.credits,
-                model=settings.openrouter_model,
+                model=ai_model,
                 input_tokens=estimate.input_tokens_estimated,
                 output_tokens=estimate_output_tokens(answer),
             )
@@ -1143,7 +1211,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                 payload.tool_id,
                 payload.input,
                 result_text=answer,
-                model=settings.openrouter_model,
+                model=ai_model,
                 tokens_used=estimate.input_tokens_estimated + estimate_output_tokens(answer),
             )
             await db.save_request(telegram_id, payload.tool_id, input_text, answer)
@@ -1162,13 +1230,13 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             return {"ok": False, "error": str(exc), "usage": usage_payload(access)}
         except AIClientError as exc:
             if estimate is not None:
-                await db.refund_reserved_credits(telegram_id, estimate.request_id, str(exc), tool_id=estimate.tool_id, estimated_credits=estimate.credits, model=settings.openrouter_model)
+                await db.refund_reserved_credits(telegram_id, estimate.request_id, str(exc), tool_id=estimate.tool_id, estimated_credits=estimate.credits, model=ai_model)
             await db.create_tool_run(telegram_id, payload.tool_id, payload.input, status="error", error_message=str(exc))
             await db.log_error("tools_run", str(exc), telegram_id)
             return {"ok": False, "error": str(exc)}
         except Exception as exc:  # noqa: BLE001
             if estimate is not None:
-                await db.refund_reserved_credits(telegram_id, estimate.request_id, str(exc), tool_id=estimate.tool_id, estimated_credits=estimate.credits, model=settings.openrouter_model)
+                await db.refund_reserved_credits(telegram_id, estimate.request_id, str(exc), tool_id=estimate.tool_id, estimated_credits=estimate.credits, model=ai_model)
             logger.exception("Tool run failed")
             await db.create_tool_run(telegram_id, payload.tool_id, payload.input, status="error", error_message=str(exc))
             await db.log_error("tools_run", str(exc), telegram_id)
@@ -1186,19 +1254,23 @@ def create_app(settings: Settings | None = None) -> FastAPI:
 
         estimate = None
         conversation_id = payload.conversation_id
+        user_profile = await db.get_user_profile(telegram_id)
+        plan_key = str((user_profile or {}).get("plan") or "free").lower()
+        ai_model = ai_client.model_for_plan(plan_key)
+        intent = detect_chat_intent(message)
         try:
             conversation_id = await db.get_or_create_conversation(
                 telegram_id,
                 parse_conversation_id(payload.conversation_id),
                 message,
             )
-            history = await db.list_chat_messages(conversation_id, limit=20)
-            history_text = "\n".join(str(item.get("content") or "") for item in history[-20:])
+            history = await db.list_chat_messages(conversation_id, limit=settings.ai_chat_history_messages)
+            history_text = "\n".join(str(item.get("content") or "") for item in history[-settings.ai_chat_history_messages:])
             estimate = estimate_credits(
                 "chat",
                 message,
                 history_text=history_text,
-                model=settings.openrouter_model,
+                model=ai_model,
             )
             estimate = await apply_profit_guard_to_estimate(telegram_id, estimate)
             await rate_limiter.check(telegram_id, estimate.credits)
@@ -1209,33 +1281,53 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                 estimate.credits,
                 free_limit_default=settings.free_trial_requests,
                 monthly_limit_default=settings.free_monthly_credits,
-                metadata={"endpoint": "/api/chat", "conversation_id": str(conversation_id), "reason": estimate.reason},
+                metadata={
+                    "endpoint": "/api/chat",
+                    "conversation_id": str(conversation_id),
+                    "reason": estimate.reason,
+                    "model": ai_model,
+                    "intent": intent.key,
+                },
             )
+            # Save the user's message before calling the AI provider.
+            # If the user closes the Mini App while the model is still answering,
+            # the dialogue still remains in history instead of disappearing.
+            await db.add_chat_message(conversation_id, "user", message)
             profile_data = await db.get_business_profile(telegram_id)
-            user_profile = await db.get_user_profile(telegram_id)
             organizations = await features.list_organizations(telegram_id, user.username)
+            access_state = await db.get_access_state(
+                telegram_id,
+                free_limit_default=settings.free_trial_requests,
+                monthly_limit_default=settings.free_monthly_credits,
+            )
             context_parts = [
                 ai_user_context(user, user_profile, organizations),
                 business_context(profile_data),
                 await features.project_context_text(telegram_id),
             ]
-            answer = await ai_client.ask_chat(history, message, "\n\n".join(part for part in context_parts if part))
+            answer = await ai_client.ask_chat(
+                history,
+                message,
+                "\n\n".join(part for part in context_parts if part),
+                plan_key=plan_key,
+                access_context=access_state,
+                intent=intent,
+            )
             await db.finalize_credit_charge(
                 telegram_id,
                 estimate.request_id,
                 estimate.tool_id,
                 estimate.credits,
                 estimate.credits,
-                model=settings.openrouter_model,
+                model=ai_model,
                 input_tokens=estimate.input_tokens_estimated,
                 output_tokens=estimate_output_tokens(answer),
             )
-            await db.add_chat_message(conversation_id, "user", message)
             await db.add_chat_message(
                 conversation_id,
                 "assistant",
                 answer,
-                model=settings.openrouter_model,
+                model=ai_model,
                 tokens_used=estimate.input_tokens_estimated + estimate_output_tokens(answer),
             )
             access = await db.get_access_state(
@@ -1252,12 +1344,12 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             return ChatResponse(ok=False, error=str(exc), conversation_id=str(conversation_id) if conversation_id else payload.conversation_id, usage=usage_payload(access))
         except AIClientError as exc:
             if estimate is not None:
-                await db.refund_reserved_credits(telegram_id, estimate.request_id, str(exc), tool_id=estimate.tool_id, estimated_credits=estimate.credits, model=settings.openrouter_model)
+                await db.refund_reserved_credits(telegram_id, estimate.request_id, str(exc), tool_id=estimate.tool_id, estimated_credits=estimate.credits, model=ai_model)
             await db.log_error("chat", str(exc), telegram_id)
             return ChatResponse(ok=False, error=str(exc), conversation_id=str(conversation_id) if conversation_id else payload.conversation_id)
         except Exception as exc:  # noqa: BLE001
             if estimate is not None:
-                await db.refund_reserved_credits(telegram_id, estimate.request_id, str(exc), tool_id=estimate.tool_id, estimated_credits=estimate.credits, model=settings.openrouter_model)
+                await db.refund_reserved_credits(telegram_id, estimate.request_id, str(exc), tool_id=estimate.tool_id, estimated_credits=estimate.credits, model=ai_model)
             logger.exception("AI Chat request failed")
             await db.log_error("chat", str(exc), telegram_id)
             return ChatResponse(ok=False, error=f"Непредвиденная ошибка: {exc}", conversation_id=str(conversation_id) if conversation_id else payload.conversation_id)

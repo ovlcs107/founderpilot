@@ -15,7 +15,19 @@ class Settings(BaseSettings):
 
     bot_token: str = Field(default="", alias="BOT_TOKEN")
     openrouter_api_key: str = Field(default="", alias="OPENROUTER_API_KEY")
+    # Default model and optional plan-specific routing. Keep every value configurable:
+    # model prices and quality change, so the business should be able to switch
+    # models without code changes. Empty plan values fall back to OPENROUTER_MODEL.
     openrouter_model: str = Field(default="openrouter/free", alias="OPENROUTER_MODEL")
+    openrouter_model_free: str = Field(default="", alias="OPENROUTER_MODEL_FREE")
+    openrouter_model_go: str = Field(default="", alias="OPENROUTER_MODEL_GO")
+    openrouter_model_plus: str = Field(default="", alias="OPENROUTER_MODEL_PLUS")
+    openrouter_model_pro: str = Field(default="", alias="OPENROUTER_MODEL_PRO")
+    openrouter_model_business: str = Field(default="", alias="OPENROUTER_MODEL_BUSINESS")
+    ai_request_timeout_seconds: float = Field(default=90.0, alias="AI_REQUEST_TIMEOUT_SECONDS")
+    ai_max_retries: int = Field(default=2, alias="AI_MAX_RETRIES")
+    ai_chat_history_messages: int = Field(default=24, alias="AI_CHAT_HISTORY_MESSAGES")
+    ai_chat_history_chars: int = Field(default=12000, alias="AI_CHAT_HISTORY_CHARS")
     webapp_public_url: str = Field(default="http://127.0.0.1:8000", alias="WEBAPP_PUBLIC_URL")
     app_secret: str = Field(default="change-this-super-secret-string", alias="APP_SECRET")
     admin_secret: str = Field(default="", alias="ADMIN_SECRET")

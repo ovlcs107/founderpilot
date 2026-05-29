@@ -94,6 +94,57 @@ function withTelegramUser(payload = {}) {
   return telegramId ? { ...payload, telegram_user_id: telegramId } : { ...payload };
 }
 
+const CHAT_STORAGE_KEY = 'founderpilot.activeConversationId';
+
+function saveActiveConversationId(id) {
+  if (!id) return;
+  state.activeConversationId = String(id);
+  try { localStorage.setItem(CHAT_STORAGE_KEY, String(id)); } catch {}
+}
+
+function clearActiveConversationId() {
+  state.activeConversationId = null;
+  try { localStorage.removeItem(CHAT_STORAGE_KEY); } catch {}
+}
+
+async function ensureActiveConversation() {
+  if (state.activeConversationId) return state.activeConversationId;
+  const created = await apiRequest('/api/conversations', { method: 'POST', body: JSON.stringify({}) });
+  const id = created.conversation_id || created.id;
+  if (id) saveActiveConversationId(id);
+  return state.activeConversationId;
+}
+
+async function loadConversationIntoHome(conversationId, { silent = false } = {}) {
+  if (!conversationId) return false;
+  try {
+    const data = await apiRequest(`/api/conversations/${encodeURIComponent(conversationId)}`);
+    const messages = Array.isArray(data.messages) ? data.messages : [];
+    saveActiveConversationId(conversationId);
+    const scroll = $('homeChatScroll');
+    if (scroll) scroll.innerHTML = '';
+    if (messages.length) {
+      $('view-home')?.classList.add('chat-active');
+      messages.forEach(m => appendMessage(m.role === 'assistant' ? 'bot' : m.role, m.content || ''));
+    }
+    return true;
+  } catch (err) {
+    if (!silent) showToast(friendlyError(err, 'Не удалось открыть диалог'));
+    return false;
+  }
+}
+
+async function restoreLastConversation() {
+  const saved = (() => { try { return localStorage.getItem(CHAT_STORAGE_KEY); } catch { return null; } })();
+  if (saved && await loadConversationIntoHome(saved, { silent: true })) return;
+  try {
+    const data = await apiRequest('/api/conversations');
+    const items = Array.isArray(data.items) ? data.items : [];
+    const latest = items.find(item => Number(item.messages_count || 0) > 0) || items[0];
+    if (latest?.id) await loadConversationIntoHome(latest.id, { silent: true });
+  } catch {}
+}
+
 function openExternal(url) {
   if (!url) return;
   if (tg?.openLink) tg.openLink(url);
@@ -534,7 +585,7 @@ async function handleChatSend() {
     $(sysId)?.remove();
     const answer = res.answer || res.response || res.result || res.text || "Аналитический модуль вернул пустой результат.";
     appendMessage("bot", answer);
-    if (res.conversation_id) state.activeConversationId = res.conversation_id;
+    if (res.conversation_id) saveActiveConversationId(res.conversation_id);
   } catch (err) {
     const sys = $(sysId);
     if (sys) sys.textContent = "Ошибка: " + err.message;
@@ -1591,16 +1642,8 @@ function renderHistory() {
 
 async function openHistoryItem(type, id) {
   if (type !== 'chat' || !id) return showToast('Документ сохранён в истории');
-  try {
-    const data = await apiRequest(`/api/conversations/${encodeURIComponent(id)}`);
-    const messages = Array.isArray(data.messages) ? data.messages : [];
-    state.activeConversationId = id;
-    const scroll = $('homeChatScroll');
-    if (scroll) scroll.innerHTML = '';
-    switchView('home');
-    $('view-home')?.classList.add('chat-active');
-    messages.forEach(m => appendMessage(m.role === 'assistant' ? 'bot' : m.role, m.content || ''));
-  } catch (err) { showToast(friendlyError(err, 'Не удалось открыть диалог')); }
+  switchView('home');
+  await loadConversationIntoHome(id, { silent: false });
 }
 
 function setSubscriptionTab(tab) {
@@ -1764,6 +1807,7 @@ async function loadData() {
   catch { state.creditPacks = getFallbackCreditPacks(); }
   renderCreditPacks();
   await loadOrganizations(); await loadNotificationPrefs(); await loadNotifications(); await loadSupport(); await loadAppMeta();
+  await restoreLastConversation();
 }
 
 async function handleChatSend() {
@@ -1772,10 +1816,13 @@ async function handleChatSend() {
   state.isSending = true; $('homeChatSendBtn').disabled = true; input.value = ''; autoResizeTextarea();
   appendMessage('user', text); const sysId = `sys_${Date.now()}`; appendMessage('system', 'FounderPilot готовит ответ...', sysId);
   try {
+    // Create the conversation before the AI request. If the user closes the Mini App
+    // while the model is answering, the dialogue id is already known and can be restored.
+    await ensureActiveConversation();
     const payload = withTelegramUser({ message: text, text, mode: 'chat', conversation_id: state.activeConversationId || null });
     const res = await apiTry('/api/chat', '/api/ask', { method: 'POST', body: JSON.stringify(payload) });
     $(sysId)?.remove(); const answer = res.answer || res.response || res.result || res.text || 'Аналитический модуль вернул пустой результат.';
-    if (res.conversation_id) state.activeConversationId = res.conversation_id;
+    if (res.conversation_id) saveActiveConversationId(res.conversation_id);
     appendMessage('bot', answer);
     try { const hData = await apiRequest('/api/history'); state.history = normalizeHistoryData(hData); renderHistory(); } catch {}
   } catch (err) { const sys = $(sysId); if (sys) sys.textContent = 'Ошибка: ' + err.message; }

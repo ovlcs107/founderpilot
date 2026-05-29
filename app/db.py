@@ -1454,6 +1454,7 @@ class Database:
                     u.plan,
                     u.daily_limit,
                     u.free_limit,
+                    u.purchased_credits,
                     u.monthly_limit,
                     u.subscription_until,
                     u.unlimited_access,
@@ -1474,6 +1475,172 @@ class Database:
             )
             rows = await cursor.fetchall()
             return [dict(row) for row in rows]
+
+
+    async def adjust_purchased_credits(
+        self,
+        telegram_id: int,
+        admin_id: int | None,
+        delta: int,
+        note: str | None = None,
+    ) -> dict[str, Any]:
+        await self.ensure_user(telegram_id)
+        now = utc_now_iso()
+        delta = int(delta)
+        async with aiosqlite.connect(self.path) as db:
+            db.row_factory = aiosqlite.Row
+            cursor = await db.execute(
+                """
+                SELECT purchased_credits
+                FROM users
+                WHERE telegram_id = ? OR telegram_user_id = ?
+                """,
+                (telegram_id, tg_text_id(telegram_id)),
+            )
+            row = await cursor.fetchone()
+            current = int((row["purchased_credits"] if row else 0) or 0)
+            new_value = max(0, current + delta)
+            actual_delta = new_value - current
+            await db.execute(
+                """
+                UPDATE users
+                SET purchased_credits = ?,
+                    access_updated_at = ?,
+                    updated_at = ?,
+                    last_seen_at = ?
+                WHERE telegram_id = ? OR telegram_user_id = ?
+                """,
+                (new_value, now, now, now, telegram_id, tg_text_id(telegram_id)),
+            )
+            await db.execute(
+                """
+                INSERT INTO credit_transactions (
+                    telegram_user_id, request_id, transaction_type, amount, balance_after, reason, metadata_json, created_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    tg_text_id(telegram_id),
+                    f"admin_{now}",
+                    "admin_grant" if actual_delta >= 0 else "admin_revoke",
+                    abs(actual_delta),
+                    new_value,
+                    note or "admin_manual_adjustment",
+                    json.dumps({"admin_id": admin_id, "delta": actual_delta}, ensure_ascii=False, separators=(",", ":")),
+                    now,
+                ),
+            )
+            await db.commit()
+        await self.record_access_event(
+            telegram_id,
+            admin_id,
+            "credits_adjusted",
+            {"delta": actual_delta, "balance_after": new_value, "note": note},
+        )
+        return {"telegram_id": telegram_id, "previous": current, "delta": actual_delta, "purchased_credits": new_value}
+
+    async def list_credit_transactions(self, telegram_id: int | None = None, limit: int = 20) -> list[dict[str, Any]]:
+        limit = max(1, min(int(limit), 100))
+        async with aiosqlite.connect(self.path) as db:
+            db.row_factory = aiosqlite.Row
+            if telegram_id is None:
+                cursor = await db.execute(
+                    """
+                    SELECT id, telegram_user_id, request_id, transaction_type, amount, balance_after, reason, created_at
+                    FROM credit_transactions
+                    ORDER BY id DESC
+                    LIMIT ?
+                    """,
+                    (limit,),
+                )
+            else:
+                cursor = await db.execute(
+                    """
+                    SELECT id, telegram_user_id, request_id, transaction_type, amount, balance_after, reason, created_at
+                    FROM credit_transactions
+                    WHERE telegram_user_id = ?
+                    ORDER BY id DESC
+                    LIMIT ?
+                    """,
+                    (tg_text_id(telegram_id), limit),
+                )
+            rows = await cursor.fetchall()
+            return [dict(row) for row in rows]
+
+    async def list_billing_orders(self, limit: int = 20, status: str | None = None) -> list[dict[str, Any]]:
+        limit = max(1, min(int(limit), 100))
+        async with aiosqlite.connect(self.path) as db:
+            db.row_factory = aiosqlite.Row
+            if status:
+                cursor = await db.execute(
+                    """
+                    SELECT id, telegram_user_id, plan, provider, amount, currency, status, external_payment_id, created_at, updated_at
+                    FROM billing_orders
+                    WHERE status = ?
+                    ORDER BY created_at DESC
+                    LIMIT ?
+                    """,
+                    (status, limit),
+                )
+            else:
+                cursor = await db.execute(
+                    """
+                    SELECT id, telegram_user_id, plan, provider, amount, currency, status, external_payment_id, created_at, updated_at
+                    FROM billing_orders
+                    ORDER BY created_at DESC
+                    LIMIT ?
+                    """,
+                    (limit,),
+                )
+            rows = await cursor.fetchall()
+            return [dict(row) for row in rows]
+
+    async def list_payments(self, limit: int = 20) -> list[dict[str, Any]]:
+        limit = max(1, min(int(limit), 100))
+        async with aiosqlite.connect(self.path) as db:
+            db.row_factory = aiosqlite.Row
+            cursor = await db.execute(
+                """
+                SELECT id, order_id, telegram_user_id, provider, plan, amount, currency, status, external_payment_id, created_at
+                FROM payments
+                ORDER BY created_at DESC
+                LIMIT ?
+                """,
+                (limit,),
+            )
+            rows = await cursor.fetchall()
+            return [dict(row) for row in rows]
+
+    async def list_error_logs(self, limit: int = 20) -> list[dict[str, Any]]:
+        limit = max(1, min(int(limit), 100))
+        async with aiosqlite.connect(self.path) as db:
+            db.row_factory = aiosqlite.Row
+            cursor = await db.execute(
+                """
+                SELECT id, telegram_user_id, source, error_text, created_at
+                FROM error_logs
+                ORDER BY id DESC
+                LIMIT ?
+                """,
+                (limit,),
+            )
+            rows = await cursor.fetchall()
+            return [dict(row) for row in rows]
+
+    async def reset_user_history(self, telegram_id: int, admin_id: int | None, note: str | None = None) -> dict[str, Any]:
+        now = utc_now_iso()
+        async with aiosqlite.connect(self.path) as db:
+            cursor = await db.execute(
+                """
+                UPDATE conversations
+                SET is_archived = 1, updated_at = ?
+                WHERE telegram_user_id = ? AND is_archived = 0
+                """,
+                (now, tg_text_id(telegram_id)),
+            )
+            archived = int(cursor.rowcount or 0)
+            await db.commit()
+        await self.record_access_event(telegram_id, admin_id, "history_reset", {"archived": archived, "note": note})
+        return {"telegram_id": telegram_id, "archived": archived}
 
     async def get_business_profile(self, telegram_id: int) -> dict[str, Any] | None:
         async with aiosqlite.connect(self.path) as db:

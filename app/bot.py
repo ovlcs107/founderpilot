@@ -246,12 +246,21 @@ def build_dispatcher(
             "<b>Администрирование FounderPilot AI</b>\n\n"
             "<code>/users [limit]</code> — список пользователей\n"
             "<code>/user &lt;telegram_id&gt;</code> — карточка пользователя\n"
-            "<code>/grant &lt;id&gt; &lt;days&gt; [monthly_limit] [note]</code> — выдать подписку\n"
+            "<code>/setplan &lt;id&gt; &lt;free|go|plus|pro|business&gt; [days] [note]</code> — выдать тариф\n"
+            "<code>/addcredits &lt;id&gt; &lt;amount&gt; [note]</code> — начислить кредиты\n"
+            "<code>/takecredits &lt;id&gt; &lt;amount&gt; [note]</code> — списать кредиты\n"
+            "<code>/credits &lt;id&gt; [limit]</code> — операции по кредитам\n"
+            "<code>/grant &lt;id&gt; &lt;days&gt; [monthly_limit] [note]</code> — ручная подписка\n"
             "<code>/unlimited &lt;id&gt; [note]</code> — выдать unlimited\n"
             "<code>/revoke &lt;id&gt; [note]</code> — вернуть на Free\n"
             "<code>/free_limit &lt;id&gt; &lt;count&gt; [note]</code> — изменить Free-кредиты\n"
-            "<code>/block &lt;id&gt; [note]</code> — отключить доступ\n"
-            "<code>/unblock &lt;id&gt; [note]</code> — разблокировать",
+            "<code>/block &lt;id&gt; [note]</code> / <code>/unblock &lt;id&gt;</code> — блокировка\n"
+            "<code>/orders [limit] [status]</code> — заказы\n"
+            "<code>/payments [limit]</code> — платежи\n"
+            "<code>/errors [limit]</code> — ошибки\n"
+            "<code>/admin_stats</code> — сводка проекта\n"
+            "<code>/user_history &lt;id&gt; [limit]</code> — диалоги пользователя\n"
+            "<code>/clear_history &lt;id&gt; [note]</code> — архивировать диалоги",
             parse_mode=TELEGRAM_PARSE_MODE,
         )
 
@@ -275,7 +284,8 @@ def build_dispatcher(
             title = html(format_user_title(item))
             plan = html(item.get("plan") or "free")
             total = int(item.get("requests_total") or 0)
-            lines.append(f"<code>{item['telegram_id']}</code> — {title} — {plan} — {total} кредитов")
+            purchased = int(item.get("purchased_credits") or 0)
+            lines.append(f"<code>{item['telegram_id']}</code> — {title} — {plan} — +{purchased} — {total} запросов")
         await message.answer("\n".join(lines), parse_mode=TELEGRAM_PARSE_MODE)
 
     @router.message(Command("user"))
@@ -307,7 +317,8 @@ def build_dispatcher(
             f"Статус: <b>{html(access['status_label'])}</b>\n"
             f"План: <code>{html(access['plan'])}</code>\n"
             f"Кредитов за период: <b>{access['used_period']}/{format_limit(access['current_limit'])}</b>\n"
-            f"Всего кредитов: <b>{access['used_total']}</b>\n"
+            f"Купленные/ручные кредиты: <b>{int(profile.get('purchased_credits') or 0)}</b>\n"
+            f"Всего списано: <b>{access['used_total']}</b>\n"
             f"Подписка до: <code>{html(access['subscription_until'] or '—')}</code>\n"
             f"Заметка: {html(access['admin_note'] or '—')}",
             parse_mode=TELEGRAM_PARSE_MODE,
@@ -421,6 +432,227 @@ def build_dispatcher(
             return
         await db.set_blocked(telegram_id, message.from_user.id, False, parts[2] if len(parts) > 2 else None)
         await message.answer(f"Пользователь <code>{telegram_id}</code> разблокирован.", parse_mode=TELEGRAM_PARSE_MODE)
+
+
+    @router.message(Command("addcredits"))
+    async def addcredits_command(message: Message) -> None:
+        if await deny_non_admin(message):
+            return
+        parts = (message.text or "").split(maxsplit=3)
+        if len(parts) < 3:
+            await message.answer("Формат: <code>/addcredits &lt;id&gt; &lt;amount&gt; [note]</code>", parse_mode=TELEGRAM_PARSE_MODE)
+            return
+        try:
+            telegram_id = int(parts[1])
+            amount = max(1, int(parts[2]))
+        except ValueError:
+            await message.answer("ID и amount должны быть числами.")
+            return
+        result = await db.adjust_purchased_credits(telegram_id, message.from_user.id, amount, parts[3] if len(parts) > 3 else None)
+        await message.answer(
+            f"Кредиты начислены ✅\nПользователь: <code>{telegram_id}</code>\n"
+            f"Начислено: <b>{result['delta']}</b>\nБаланс ручных кредитов: <b>{result['purchased_credits']}</b>",
+            parse_mode=TELEGRAM_PARSE_MODE,
+        )
+
+    @router.message(Command("takecredits"))
+    async def takecredits_command(message: Message) -> None:
+        if await deny_non_admin(message):
+            return
+        parts = (message.text or "").split(maxsplit=3)
+        if len(parts) < 3:
+            await message.answer("Формат: <code>/takecredits &lt;id&gt; &lt;amount&gt; [note]</code>", parse_mode=TELEGRAM_PARSE_MODE)
+            return
+        try:
+            telegram_id = int(parts[1])
+            amount = max(1, int(parts[2]))
+        except ValueError:
+            await message.answer("ID и amount должны быть числами.")
+            return
+        result = await db.adjust_purchased_credits(telegram_id, message.from_user.id, -amount, parts[3] if len(parts) > 3 else None)
+        await message.answer(
+            f"Кредиты списаны ✅\nПользователь: <code>{telegram_id}</code>\n"
+            f"Изменение: <b>{result['delta']}</b>\nБаланс ручных кредитов: <b>{result['purchased_credits']}</b>",
+            parse_mode=TELEGRAM_PARSE_MODE,
+        )
+
+    @router.message(Command("credits"))
+    async def credits_command(message: Message) -> None:
+        if await deny_non_admin(message):
+            return
+        parts = (message.text or "").split(maxsplit=2)
+        if len(parts) < 2:
+            await message.answer("Формат: <code>/credits &lt;id&gt; [limit]</code>", parse_mode=TELEGRAM_PARSE_MODE)
+            return
+        try:
+            telegram_id = int(parts[1])
+            limit = max(1, min(int(parts[2]) if len(parts) > 2 else 10, 30))
+        except ValueError:
+            await message.answer("ID и limit должны быть числами.")
+            return
+        rows = await db.list_credit_transactions(telegram_id, limit)
+        if not rows:
+            await message.answer("Операций по кредитам нет.")
+            return
+        lines = [f"<b>Кредиты пользователя <code>{telegram_id}</code></b>"]
+        for r in rows:
+            lines.append(f"{html(r['created_at'])} — <code>{html(r['transaction_type'])}</code> — {r['amount']} — {html(r.get('reason') or '')}")
+        await message.answer("\n".join(lines), parse_mode=TELEGRAM_PARSE_MODE)
+
+    @router.message(Command("setplan"))
+    async def setplan_command(message: Message) -> None:
+        if await deny_non_admin(message):
+            return
+        parts = (message.text or "").split(maxsplit=4)
+        if len(parts) < 3:
+            await message.answer("Формат: <code>/setplan &lt;id&gt; &lt;free|go|plus|pro|business&gt; [days] [note]</code>", parse_mode=TELEGRAM_PARSE_MODE)
+            return
+        try:
+            telegram_id = int(parts[1])
+        except ValueError:
+            await message.answer("Telegram id должен быть числом.")
+            return
+        plan_key = str(parts[2]).strip().lower()
+        if plan_key == "free":
+            note = parts[4] if len(parts) > 4 else (parts[3] if len(parts) > 3 else "admin setplan free")
+            await db.revoke_paid_access(telegram_id, message.from_user.id, note)
+            await message.answer(f"Пользователь <code>{telegram_id}</code> переведён на Free.", parse_mode=TELEGRAM_PARSE_MODE)
+            return
+        plans = plan_catalog(settings)
+        plan = plans.get(plan_key)
+        if not plan:
+            await message.answer("Тариф не найден. Доступно: <code>free, go, plus, pro, business</code>", parse_mode=TELEGRAM_PARSE_MODE)
+            return
+        days = 30
+        note = None
+        if len(parts) >= 4:
+            try:
+                days = max(1, int(parts[3]))
+                note = parts[4] if len(parts) >= 5 else None
+            except ValueError:
+                note = " ".join(parts[3:])
+        order_id = f"admin_{message.from_user.id}_{telegram_id}_{message.message_id}"
+        result = await db.activate_paid_subscription(telegram_id, plan.key, "admin", order_id, plan.daily_limit, plan.monthly_limit, days=days)
+        await db.record_access_event(telegram_id, message.from_user.id, "plan_set_by_admin", {"plan": plan.key, "days": days, "note": note, "order_id": order_id})
+        await message.answer(
+            f"Тариф выдан ✅\nПользователь: <code>{telegram_id}</code>\n"
+            f"Тариф: <b>{html(plan.title)}</b>\nДо: <code>{html(result['expires_at'])}</code>",
+            parse_mode=TELEGRAM_PARSE_MODE,
+        )
+
+    @router.message(Command("orders"))
+    async def orders_command(message: Message) -> None:
+        if await deny_non_admin(message):
+            return
+        parts = (message.text or "").split(maxsplit=2)
+        try:
+            limit = max(1, min(int(parts[1]) if len(parts) > 1 else 10, 30))
+        except ValueError:
+            limit = 10
+        status = parts[2].strip().lower() if len(parts) > 2 else None
+        rows = await db.list_billing_orders(limit=limit, status=status)
+        if not rows:
+            await message.answer("Заказов не найдено.")
+            return
+        lines = ["<b>Заказы</b>"]
+        for r in rows:
+            lines.append(f"<code>{html(r['id'])}</code> — user <code>{html(r['telegram_user_id'])}</code> — {html(r['plan'])} — {html(r['provider'])} — {html(r['status'])} — {r['amount']} {html(r['currency'])}")
+        await message.answer("\n".join(lines), parse_mode=TELEGRAM_PARSE_MODE)
+
+    @router.message(Command("payments"))
+    async def payments_command(message: Message) -> None:
+        if await deny_non_admin(message):
+            return
+        parts = (message.text or "").split(maxsplit=1)
+        try:
+            limit = max(1, min(int(parts[1]) if len(parts) > 1 else 10, 30))
+        except ValueError:
+            limit = 10
+        rows = await db.list_payments(limit=limit)
+        if not rows:
+            await message.answer("Платежей пока нет.")
+            return
+        lines = ["<b>Платежи</b>"]
+        for r in rows:
+            lines.append(f"#{r['id']} — user <code>{html(r['telegram_user_id'])}</code> — {html(r.get('plan') or '')} — {html(r.get('provider') or '')} — {html(r.get('status') or '')} — {r.get('amount')} {html(r.get('currency') or '')}")
+        await message.answer("\n".join(lines), parse_mode=TELEGRAM_PARSE_MODE)
+
+    @router.message(Command("errors"))
+    async def errors_command(message: Message) -> None:
+        if await deny_non_admin(message):
+            return
+        parts = (message.text or "").split(maxsplit=1)
+        try:
+            limit = max(1, min(int(parts[1]) if len(parts) > 1 else 10, 20))
+        except ValueError:
+            limit = 10
+        rows = await db.list_error_logs(limit=limit)
+        if not rows:
+            await message.answer("Ошибок нет.")
+            return
+        lines = ["<b>Последние ошибки</b>"]
+        for r in rows:
+            err = str(r.get('error_text') or '')[:220]
+            lines.append(f"#{r['id']} — {html(r['created_at'])} — <code>{html(r['source'])}</code> — {html(err)}")
+        await message.answer("\n".join(lines), parse_mode=TELEGRAM_PARSE_MODE)
+
+    @router.message(Command("admin_stats"))
+    async def admin_stats_command(message: Message) -> None:
+        if await deny_non_admin(message):
+            return
+        stats = await db.admin_stats()
+        await message.answer(
+            "<b>Сводка проекта</b>\n"
+            f"Пользователей: <b>{stats.get('users_total', 0)}</b>\n"
+            f"Активных сегодня: <b>{stats.get('active_users_today', 0)}</b>\n"
+            f"Запросов сегодня: <b>{stats.get('requests_today', 0)}</b>\n"
+            f"Списано кредитов сегодня: <b>{stats.get('credits_charged_today', 0)}</b>\n"
+            f"Платежей сегодня: <b>{stats.get('payments_today', 0)}</b>\n"
+            f"Выручка RUB всего: <b>{stats.get('revenue_rub_total', 0)}</b>\n"
+            f"Активных подписок: <b>{stats.get('active_subscriptions', 0)}</b>\n"
+            f"Pending orders: <b>{stats.get('pending_orders', 0)}</b>\n"
+            f"Ошибок сегодня: <b>{stats.get('errors_today', 0)}</b>",
+            parse_mode=TELEGRAM_PARSE_MODE,
+        )
+
+    @router.message(Command("user_history"))
+    async def user_history_command(message: Message) -> None:
+        if await deny_non_admin(message):
+            return
+        parts = (message.text or "").split(maxsplit=2)
+        if len(parts) < 2:
+            await message.answer("Формат: <code>/user_history &lt;id&gt; [limit]</code>", parse_mode=TELEGRAM_PARSE_MODE)
+            return
+        try:
+            telegram_id = int(parts[1])
+            limit = max(1, min(int(parts[2]) if len(parts) > 2 else 10, 20))
+        except ValueError:
+            await message.answer("ID и limit должны быть числами.")
+            return
+        rows = await db.list_conversations(telegram_id, limit=limit)
+        if not rows:
+            await message.answer("Диалогов нет.")
+            return
+        lines = [f"<b>Диалоги пользователя <code>{telegram_id}</code></b>"]
+        for r in rows:
+            lines.append(f"<code>{html(r['id'])}</code> — {html(r.get('title') or 'Диалог')} — {r.get('messages_count') or 0} сообщений — {html(r.get('updated_at') or '')}")
+        await message.answer("\n".join(lines), parse_mode=TELEGRAM_PARSE_MODE)
+
+    @router.message(Command("clear_history"))
+    async def clear_history_command(message: Message) -> None:
+        if await deny_non_admin(message):
+            return
+        parts = (message.text or "").split(maxsplit=2)
+        if len(parts) < 2:
+            await message.answer("Формат: <code>/clear_history &lt;id&gt; [note]</code>", parse_mode=TELEGRAM_PARSE_MODE)
+            return
+        try:
+            telegram_id = int(parts[1])
+        except ValueError:
+            await message.answer("Telegram id должен быть числом.")
+            return
+        result = await db.reset_user_history(telegram_id, message.from_user.id, parts[2] if len(parts) > 2 else None)
+        await message.answer(f"История архивирована ✅\nПользователь: <code>{telegram_id}</code>\nДиалогов: <b>{result['archived']}</b>", parse_mode=TELEGRAM_PARSE_MODE)
 
     @router.callback_query(F.data == "help")
     async def help_callback(callback) -> None:  # type: ignore[no-untyped-def]

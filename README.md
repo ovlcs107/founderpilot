@@ -22,6 +22,38 @@
 - Главная очищена от быстрых действий: теперь это центрированный AI-чат, который после первого сообщения раскрывается на весь экран.
 - Все декоративные кнопки без backend-действия теперь дают понятный feedback, а не молчат как кнопка лифта в заброшенном ТЦ.
 
+
+## AI Quality Core
+
+В этой сборке усилена главная часть продукта — AI-ответы и стабильность запросов:
+
+- добавлен детерминированный intent-router: обычное общение, бизнес, расчёты, код, тексты;
+- чат больше не превращает короткие фразы вроде “привет” в бизнес-допрос;
+- AI получает серверный контекст тарифа, лимитов, проекта, бизнес-профиля и активной организации;
+- тариф влияет на глубину ответа и выбранную модель, но пользователь не видит внутреннюю кухню;
+- добавлен plan-specific model routing через env: `OPENROUTER_MODEL_FREE/GO/PLUS/PRO/BUSINESS`;
+- добавлены retry/backoff на 429/5xx/timeout от OpenRouter;
+- сырые JSON-ошибки провайдера больше не уходят во frontend;
+- история диалога компактно обрезается по количеству сообщений и символов, чтобы старые сообщения не ломали новый ответ;
+- добавлен endpoint `/api/ai/status` для быстрой проверки активной модели, тарифа и лимитов пользователя.
+
+Пример настройки моделей:
+
+```env
+OPENROUTER_MODEL=openrouter/free
+OPENROUTER_MODEL_FREE=openrouter/free
+OPENROUTER_MODEL_GO=deepseek/deepseek-chat-v3.1
+OPENROUTER_MODEL_PLUS=deepseek/deepseek-chat-v3.1
+OPENROUTER_MODEL_PRO=anthropic/claude-3.5-sonnet
+OPENROUTER_MODEL_BUSINESS=anthropic/claude-3.5-sonnet
+AI_REQUEST_TIMEOUT_SECONDS=90
+AI_MAX_RETRIES=2
+AI_CHAT_HISTORY_MESSAGES=24
+AI_CHAT_HISTORY_CHARS=12000
+```
+
+Если ставите дорогую модель на Pro/Business, обязательно обновите `AI_INPUT_COST_USD_PER_M_TOKENS` и `AI_OUTPUT_COST_USD_PER_M_TOKENS`, иначе Profit Guard будет считать себестоимость слишком мягко.
+
 ## Как работает математика, чтобы не уходить в минус
 
 Сервис считает экономику на backend, а не доверяет frontend.
@@ -279,3 +311,33 @@ GET /ready   -> строгая готовность базы
 - добавлены мягкие анимации появления, карточек, вкладок и сообщений.
 
 Для production оставь веб-сервис с `RUN_BOT_POLLING=false`, а Telegram worker для поддержки запускай отдельно с `RUN_BOT_POLLING=true`.
+
+## Диалоги и расширенное администрирование
+
+В этой сборке AI-диалоги сохраняются надёжнее: frontend заранее создаёт conversation_id и хранит его локально, а backend записывает сообщение пользователя до обращения к AI-провайдеру. Если пользователь закрыл Mini App во время генерации ответа, открытый диалог всё равно появится в истории и восстановится при следующем входе.
+
+Расширенные админ-команды Telegram-бота:
+
+```text
+/admin
+/users [limit]
+/user <telegram_id>
+/setplan <id> <free|go|plus|pro|business> [days] [note]
+/addcredits <id> <amount> [note]
+/takecredits <id> <amount> [note]
+/credits <id> [limit]
+/grant <id> <days> [monthly_limit] [note]
+/unlimited <id> [note]
+/revoke <id> [note]
+/free_limit <id> <count> [note]
+/block <id> [note]
+/unblock <id> [note]
+/orders [limit] [status]
+/payments [limit]
+/errors [limit]
+/admin_stats
+/user_history <id> [limit]
+/clear_history <id> [note]
+```
+
+Для работы команд укажи свой Telegram ID в переменной `ADMIN_TELEGRAM_IDS` и запусти отдельный worker с `RUN_BOT_POLLING=true`.
