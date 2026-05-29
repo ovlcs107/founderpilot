@@ -39,6 +39,7 @@ class Settings(BaseSettings):
     database_url: str = Field(default="", alias="DATABASE_URL")
     dev_mode: bool = Field(default=False, alias="DEV_MODE")
     dev_skip_telegram_auth: bool = Field(default=False, alias="DEV_SKIP_TELEGRAM_AUTH")
+    telegram_init_data_max_age_seconds: int = Field(default=604800, alias="TELEGRAM_INIT_DATA_MAX_AGE_SECONDS")
     cors_allowed_origins_raw: str = Field(default="", alias="CORS_ALLOWED_ORIGINS")
     trust_proxy_headers: bool = Field(default=True, alias="TRUST_PROXY_HEADERS")
     # BOT_SERVICE_MODE fixes the old split-brain deployment problem.

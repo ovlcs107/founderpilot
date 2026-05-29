@@ -487,3 +487,17 @@ AI_ANSWER_QUALITY_MODE=balanced
 ```
 
 Fallbacks are invisible to users and are used only by backend. Keep real model costs in `.env` aligned with Profit Guard before enabling expensive models.
+
+### Telegram Mini App auth stability
+
+The frontend now keeps Telegram `initData` in session storage and can recover it from Telegram launch parameters. `/api/me` still validates the signed Telegram data on the backend before creating/updating a user.
+
+Recommended production values:
+
+```env
+DEV_MODE=false
+DEV_SKIP_TELEGRAM_AUTH=false
+TELEGRAM_INIT_DATA_MAX_AGE_SECONDS=604800
+```
+
+If Telegram profile data does not appear in the Mini App, check that `BOT_TOKEN` is the same bot that opens the Web App and that `WEBAPP_PUBLIC_URL` is the root domain without a duplicated `/app`.

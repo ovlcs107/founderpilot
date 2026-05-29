@@ -634,7 +634,11 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         if settings.allow_dev_auth:
             return dev_user()
         try:
-            return validate_telegram_init_data(x_telegram_init_data or "", settings.bot_token)
+            return validate_telegram_init_data(
+                x_telegram_init_data or "",
+                settings.bot_token,
+                max_age_seconds=settings.telegram_init_data_max_age_seconds,
+            )
         except TelegramAuthError as exc:
             raise HTTPException(status_code=401, detail=str(exc)) from exc
 

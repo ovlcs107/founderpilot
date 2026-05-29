@@ -52,6 +52,85 @@ const state = {
   historyFilter: 'all'
 };
 
+const TELEGRAM_INIT_DATA_STORAGE_KEY = 'founderpilot.telegramInitData';
+
+function parseLaunchParams() {
+  const result = new URLSearchParams(window.location.search || '');
+  const hash = String(window.location.hash || '').replace(/^#/, '');
+  if (hash) {
+    const hashParams = new URLSearchParams(hash);
+    hashParams.forEach((value, key) => {
+      if (!result.has(key)) result.set(key, value);
+    });
+  }
+  return result;
+}
+
+function getTelegramInitData() {
+  const direct = tg?.initData || '';
+  if (direct) {
+    try { sessionStorage.setItem(TELEGRAM_INIT_DATA_STORAGE_KEY, direct); } catch {}
+    return direct;
+  }
+
+  // Telegram Web sometimes exposes launch data in the URL hash while the SDK is still warming up.
+  const launch = parseLaunchParams();
+  const fromHash = launch.get('tgWebAppData') || launch.get('initData') || '';
+  if (fromHash) {
+    try {
+      const decoded = decodeURIComponent(fromHash);
+      sessionStorage.setItem(TELEGRAM_INIT_DATA_STORAGE_KEY, decoded);
+      return decoded;
+    } catch {
+      return fromHash;
+    }
+  }
+
+  try { return sessionStorage.getItem(TELEGRAM_INIT_DATA_STORAGE_KEY) || ''; } catch { return ''; }
+}
+
+function getTelegramUnsafeUser() {
+  const direct = tg?.initDataUnsafe?.user;
+  if (direct?.id) return direct;
+
+  const initData = getTelegramInitData();
+  if (!initData) return null;
+  try {
+    const parsed = new URLSearchParams(initData);
+    const rawUser = parsed.get('user');
+    return rawUser ? JSON.parse(rawUser) : null;
+  } catch {
+    return null;
+  }
+}
+
+function buildTelegramFallbackUser() {
+  const u = getTelegramUnsafeUser() || {};
+  return {
+    first_name: u.first_name || state.user?.first_name || 'Пользователь',
+    last_name: u.last_name || state.user?.last_name || '',
+    username: u.username || state.user?.username || '',
+    telegram_id: u.id || state.user?.telegram_id || null,
+    telegram_user_id: u.id ? String(u.id) : (state.user?.telegram_user_id || null),
+    id: u.id || state.user?.id || null,
+    photo_url: u.photo_url || state.user?.photo_url || '',
+    avatar_url: u.photo_url || state.user?.avatar_url || '',
+    plan: state.user?.plan || 'Free'
+  };
+}
+
+function initTelegramBridge() {
+  if (!tg) return;
+  try { tg.ready?.(); } catch {}
+  try { tg.expand?.(); } catch {}
+  try { tg.setHeaderColor?.('bg_color'); tg.setBackgroundColor?.('bg_color'); } catch {}
+  const snapshot = getTelegramUnsafeUser();
+  if (snapshot?.id && !state.user) {
+    state.user = buildTelegramFallbackUser();
+    try { updateProfileUI(); } catch {}
+  }
+}
+
 // Utils
 function escapeHTML(str) {
   return String(str || "")
@@ -84,7 +163,8 @@ function showToast(msg) {
 }
 
 function getTelegramUserId() {
-  const raw = tg?.initDataUnsafe?.user?.id || state.user?.telegram_id || state.user?.id || null;
+  const unsafe = getTelegramUnsafeUser();
+  const raw = unsafe?.id || state.user?.telegram_id || state.user?.telegram_user_id || state.user?.id || null;
   const numeric = Number(raw);
   return Number.isFinite(numeric) && numeric > 0 ? numeric : null;
 }
@@ -169,7 +249,8 @@ function openPaymentLink(url, provider) {
 // API
 async function apiRequest(url, options = {}) {
   const headers = { "Content-Type": "application/json" };
-  if (tg?.initData) headers["X-Telegram-Init-Data"] = tg.initData;
+  const initData = getTelegramInitData();
+  if (initData) headers["X-Telegram-Init-Data"] = initData;
 
   const res = await fetch(url, { ...options, headers: { ...headers, ...options.headers } });
   const text = await res.text();
@@ -1231,7 +1312,7 @@ async function loadData() {
   try {
     const userData = await apiRequest("/api/me");
     state.user = userData.user || userData || {};
-  } catch { state.user = { first_name: "Пользователь", telegram_id: null, plan: "Free" }; }
+  } catch (err) { console.warn('Telegram profile load failed', err); state.user = buildTelegramFallbackUser(); }
 
   updateProfileUI();
 
@@ -1457,6 +1538,7 @@ function revealApp() {
 async function boot() {
   try {
     injectIcons();
+    initTelegramBridge();
 
     if (tg) {
       tg.ready?.();
@@ -1781,7 +1863,7 @@ async function loadAppMeta() {
 
 async function loadData() {
   try { const userData = await apiRequest('/api/me'); state.user = userData.user || userData || {}; }
-  catch { state.user = { first_name: 'Пользователь', telegram_id: null, plan: 'Free' }; }
+  catch (err) { console.warn('Telegram profile load failed', err); state.user = buildTelegramFallbackUser(); }
   updateProfileUI();
   try { const tData = await apiRequest('/api/tools'); state.tools = Array.isArray(tData) ? tData : (tData.tools || getFallbackTools()); }
   catch { state.tools = getFallbackTools(); }
