@@ -121,7 +121,7 @@ async function apiRequest(url, options = {}) {
   try { data = JSON.parse(text); } catch { data = { detail: text }; }
 
   if (!res.ok || data?.ok === false) {
-    throw new Error(data?.error || data?.detail || "Ошибка сервера");
+    throw new Error(data?.error || data?.detail || "Сервис временно недоступен");
   }
   return data ?? {};
 }
@@ -174,10 +174,10 @@ function normalizeProviderId(id) {
 function providerInfo(id) {
   const key = normalizeProviderId(id);
   const map = {
-    telegram_stars: { id: "telegram_stars", title: "Telegram Stars", description: "Внутри Telegram", icon: "stars" },
-    yookassa: { id: "yookassa", title: "Карта / СБП", description: "Разовая оплата картой", icon: "credit-card" },
-    ton: { id: "ton", title: "TON", description: "Tonkeeper / TON", icon: "ton" },
-    btcpay_btc: { id: "btcpay_btc", title: "BTC", description: "Bitcoin invoice", icon: "btc" }
+    telegram_stars: { id: "telegram_stars", title: "Telegram Stars", description: "Оплата внутри Telegram", icon: "stars" },
+    yookassa: { id: "yookassa", title: "Карта / СБП", description: "Банковская карта или СБП", icon: "credit-card" },
+    ton: { id: "ton", title: "TON", description: "Оплата через TON", icon: "ton" },
+    btcpay_btc: { id: "btcpay_btc", title: "BTC", description: "Оплата в BTC", icon: "btc" }
   };
   return map[key] || { id: key, title: key, description: "Оплата онлайн", icon: "credit-card" };
 }
@@ -189,9 +189,10 @@ function enabledProviderIds(plan = null) {
 
 function friendlyError(err, fallback = "Что-то пошло не так") {
   const raw = String(err?.message || err || fallback);
-  if (/recurring|автопродлен|автосписан|save_payment_method|forbidden/i.test(raw)) return "Автопродление в ЮKassa не подключено. Разовая оплата работает — выключил автопродление, попробуйте оплатить ещё раз.";
+  if (/recurring|автопродлен|автосписан|save_payment_method|forbidden/i.test(raw)) return "Автопродление временно недоступно. Оплата тарифа работает без него.";
+  if (/yookassa|юkassa|shop_id|secret_key|\.env|telegram_stars|openrouter|provider/i.test(raw)) return "Оплата временно недоступна. Попробуйте позже.";
   if (/not\s*found|404/i.test(raw)) return "Функция пока недоступна";
-  if (/failed to fetch|network/i.test(raw)) return "Сервер временно недоступен";
+  if (/failed to fetch|network|сервер/i.test(raw)) return "Сервис временно недоступен";
   if (/undefined|null|\[object Object\]/i.test(raw)) return fallback;
   return raw;
 }
@@ -652,8 +653,8 @@ function renderCurrentPlanBenefits(plan) {
   const note = $("subscriptionSafetyNote");
   if (note) {
     note.textContent = plan?.profit_guard_enabled === false
-      ? 'Profit Guard отключён в настройках сервера.'
-      : 'Profit Guard активен: дорогие AI-запросы автоматически стоят больше кредитов.';
+      ? 'Лимиты и кредиты обновляются автоматически.'
+      : 'Лимиты и кредиты обновляются автоматически.';
   }
 }
 
@@ -698,17 +699,22 @@ function renderAutopayControl() {
   const toggle = $("subscriptionAutopayToggle");
   const note = $("subscriptionAutopayNote");
   const row = toggle?.closest(".toggle-row");
+  const section = row?.closest(".settings-section");
   const available = Boolean(state.billingCapabilities?.autopay_available || state.billingCapabilities?.yookassa_recurring_available);
+
+  // Не показываем пользователю технические статусы платёжного провайдера.
+  // Если автопродление недоступно, интерфейс просто остаётся чистым: пользователь видит обычную оплату тарифа.
+  if (section) {
+    section.hidden = !available;
+    section.style.display = available ? "" : "none";
+  }
+
   if (toggle) {
     toggle.disabled = !available;
     if (!available) toggle.checked = false;
   }
   if (row) row.classList.toggle("disabled-row", !available);
-  if (note) {
-    note.textContent = available
-      ? "Можно включить после первой оплаты картой"
-      : "Разовая оплата включена. Автопродление требует отдельного подключения recurring в ЮKassa.";
-  }
+  if (note) note.textContent = available ? "Можно включить для следующих списаний" : "";
 }
 
 function renderSubscription() {
@@ -769,7 +775,7 @@ function selectPlan(key) {
       box.innerHTML = `
         <div class="provider-empty-note">
           <b>Способы оплаты не настроены</b>
-          <p>Подключите ЮKassa или настройте безопасную RUB-ценность Stars в .env — кнопки оплаты больше не будут вести в пустоту, как маленькие вредные гоблины.</p>
+          <p>Оплата временно недоступна. Мы уже работаем над восстановлением способов оплаты.</p>
         </div>`;
     } else {
       const autoProvider = chooseAutoProvider(enabled);
@@ -778,7 +784,7 @@ function selectPlan(key) {
           <span class="icon" data-icon="credit-card"></span>
           <div class="info">
             <h5>Оплатить тариф</h5>
-            <p>Безопасная разовая оплата доступным способом</p>
+            <p>Безопасная оплата выбранного тарифа</p>
           </div>
         </button>`;
       const providerCards = preferred.map(prov => {
@@ -789,7 +795,7 @@ function selectPlan(key) {
             <span class="icon" data-icon="${escapeHTML(prov.icon)}"></span>
             <div class="info">
               <h5>${escapeHTML(prov.title)} ${badge}</h5>
-              <p>${escapeHTML(isEnabled ? prov.description : 'Скоро подключим')}</p>
+              <p>${escapeHTML(isEnabled ? prov.description : 'Будет доступно позже')}</p>
             </div>
           </button>`;
       }).join("");
@@ -1008,7 +1014,7 @@ async function saveAutopaySettings() {
   const enabled = Boolean(toggle?.checked);
   if (enabled && !state.billingCapabilities?.autopay_available) {
     if (toggle) toggle.checked = false;
-    return showToast("Автопродление в ЮKassa ещё не подключено. Разовая оплата работает.");
+    return showToast("Автопродление временно недоступно. Оплата тарифа работает без него.");
   }
   const activePlan = document.querySelector(".plan-card.active")?.dataset.plan || state.user?.plan || "go";
   try {
