@@ -763,3 +763,67 @@ body {
     max-width: 1020px;
   }
 }
+
+
+/* === FounderPilot emergency preloader/layout patch === */
+.app-shell.loaded { opacity: 1; }
+.app-preloader.loaded { opacity: 0; visibility: hidden; pointer-events: none; }
+
+.credit-pack-list { display: grid; gap: 10px; }
+.credit-pack {
+  border: 1px solid var(--line);
+  background: var(--surface);
+  border-radius: 16px;
+  padding: 14px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+.credit-pack h5 { font-size: 14px; font-weight: 650; }
+.credit-pack p { color: var(--muted); font-size: 12px; margin-top: 2px; }
+.price-btn {
+  border: 1px solid var(--line);
+  background: var(--blue-soft);
+  color: var(--blue);
+  border-radius: 999px;
+  padding: 8px 12px;
+  font-weight: 650;
+  white-space: nowrap;
+}
+#paymentSection { scroll-margin: 16px; }
+
+.quick-pill .icon-box,
+.quick-pill > .icon-box {
+  background: var(--blue-soft);
+  color: var(--blue);
+  border-radius: 12px;
+  width: 40px;
+  height: 40px;
+  display: grid;
+  place-items: center;
+}
+.quick-pill .text-box { min-width: 0; }
+.quick-pill .text-box b { display: block; }
+.quick-pill .text-box small { display: block; color: var(--muted); font-size: 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+.view-home.chat-active .quick-section,
+#view-home.chat-active .quick-section { display: none !important; }
+#view-home.chat-active .chat-container { flex: 1; min-height: min(58vh, 620px); }
+
+@media (max-width: 1099px) {
+  .view-inner { padding-top: calc(18px + var(--safe-top)); }
+  .home-inner { min-height: 100%; }
+  #view-home.chat-active .home-inner { height: 100%; }
+  #view-home.chat-active .chat-container { min-height: 0; flex: 1; }
+}
+
+@media (min-width: 1100px) {
+  .sidebar { display: flex; width: 260px; flex: 0 0 260px; position: sticky; top: 0; height: 100vh; }
+  .main-content { width: calc(100vw - 260px); }
+  .view-inner { max-width: 980px; padding-top: 56px; }
+  .desktop-top-bar { position: fixed; top: 20px; right: 24px; z-index: 80; display: flex; gap: 10px; align-items: center; }
+  .subscription-plan-list { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .subscription-plan-list .plan-card { border-bottom: 0; border-right: 1px solid var(--line); min-height: 112px; }
+  .subscription-plan-list .plan-card:nth-child(3n) { border-right: 0; }
+}

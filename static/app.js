@@ -164,30 +164,67 @@ function applyAvatar(el, user) {
   }
 }
 
+function setText(id, value) {
+  const el = $(id);
+  if (el) el.textContent = value;
+}
+
 function updateProfileUI() {
-  const u = state.user || { first_name: "Пользователь", plan: "Free" };
+  const fallback = { first_name: "Пользователь", username: "", telegram_id: "—", plan: "Free", photo_url: "" };
+  const u = { ...fallback, ...(state.user || {}) };
   const planName = String(u.plan || "Free");
   const planNameUpper = planName.charAt(0).toUpperCase() + planName.slice(1);
+  const subtitle = u.username ? `@${u.username}` : `ID: ${u.telegram_id || "—"}`;
 
-  if ($("homeGreeting")) $("homeGreeting").textContent = `Доброе утро, ${u.first_name}!`;
+  setText("homeGreeting", `Доброе утро, ${u.first_name}! 👋`);
 
-  applyAvatar($("sidebarAvatar"), u);
-  if ($("sidebarUserName")) $("sidebarUserName").textContent = u.first_name;
-  if ($("sidebarUserPlan")) $("sidebarUserPlan").textContent = planNameUpper;
+  ["sidebarAvatar", "headerUserAvatar", "desktopTopAvatar", "mobileHeaderAvatar", "profileUserAvatar", "profileUserAvatarLarge"].forEach(id => applyAvatar($(id), u));
 
-  applyAvatar($("profileUserAvatarLarge"), u);
-  if ($("profileUserTitle")) $("profileUserTitle").textContent = u.first_name;
-  if ($("profileUserSubtitle")) $("profileUserSubtitle").textContent = u.username ? `@${u.username}` : `ID: ${u.telegram_id || '—'}`;
+  setText("sidebarUserName", u.first_name);
+  setText("sidebarUserPlan", planNameUpper);
+  setText("profileUserTitle", u.first_name);
+  setText("profileUserTitleMirror", u.first_name);
+  setText("profileUserTitleMirror2", u.first_name);
+  setText("profileUserSubtitle", subtitle);
+  setText("profileUserSubtitleMirror", subtitle);
+  setText("profileUserSubtitleMirror2", subtitle);
+  setText("profilePlanLabel", planNameUpper);
+  setText("profilePlanLabelMirror", planNameUpper);
 
-  if ($("profileNameValue")) $("profileNameValue").value = u.first_name || '';
-  if ($("profileUsernameValue")) $("profileUsernameValue").value = u.username ? `@${u.username}` : '';
-  if ($("profileTelegramIdValue")) $("profileTelegramIdValue").value = u.telegram_id || '';
-  if ($("profileCompanyName")) $("profileCompanyName").value = u.company_name || '';
-  if ($("profileBusinessDescription")) $("profileBusinessDescription").value = u.business_profile || '';
+  const planPrice = getPlanPriceText ? getPlanPriceText(planName.toLowerCase()) : "";
+  setText("profilePlanPrice", planPrice);
+  setText("profilePlanPriceMirror", planPrice);
+  setText("subscriptionCurrentPlan", planNameUpper);
+  setText("subscriptionCurrentPrice", planPrice || "0 ₽");
+  setText("profileSubscriptionPlanTitle", planNameUpper);
+  setText("profileSubscriptionPrice", planPrice || "0 ₽");
 
-  const isBusiness = planName.toLowerCase() === 'business';
+  const assignValue = (id, value) => {
+    const el = $(id);
+    if (!el) return;
+    if ("value" in el) el.value = value;
+    else el.textContent = value;
+  };
+  assignValue("profileNameValue", u.first_name || "Пользователь");
+  assignValue("profileUsernameValue", u.username ? `@${u.username}` : "—");
+  assignValue("profileTelegramIdValue", u.telegram_id || "—");
+  assignValue("profileCompanyName", u.company_name || "");
+  assignValue("profileBusinessDescription", u.business_profile || "");
+
+  const remaining = Number(u.remaining_credits_today ?? u.remaining ?? u.credits ?? 0);
+  if ($("desktopTopCreditsValue")) $("desktopTopCreditsValue").textContent = remaining ? remaining.toLocaleString("ru-RU") : "100";
+
+  const isBusiness = planName.toLowerCase() === "business";
   if ($("teamUpsell")) $("teamUpsell").style.display = isBusiness ? "none" : "flex";
   if ($("teamActiveContent")) $("teamActiveContent").style.display = isBusiness ? "block" : "none";
+}
+
+function getPlanPriceText(planKey = "free") {
+  const key = String(planKey || "free").toLowerCase();
+  const plan = Array.isArray(state.plans) ? state.plans.find(p => String(p.key).toLowerCase() === key) : null;
+  if (plan) return plan.price_text || plan.price || "";
+  const fallback = { free: "0 ₽", go: "399 ₽ / мес", plus: "990 ₽ / мес", pro: "2 490 ₽ / мес", business: "7 990 ₽ / мес" };
+  return fallback[key] || "0 ₽";
 }
 
 // Markdown parser
@@ -335,10 +372,9 @@ function renderQuickActions() {
   if (!container) return;
   const tools = state.tools.slice(0, 4);
   container.innerHTML = tools.map(t => `
-    <button class="quick-pill" data-prompt="${escapeHTML(t.prompt_template)}">
-      <span class="icon" data-icon="stars"></span>
-      <b>${escapeHTML(t.title)}</b>
-      <span class="desc">${escapeHTML(t.description)}</span>
+    <button class="quick-pill" data-prompt="${escapeHTML(t.prompt_template || '')}">
+      <div class="icon-box"><span data-icon="stars"></span></div>
+      <div class="text-box"><b>${escapeHTML(t.title)}</b><small>${escapeHTML(t.description)}</small></div>
     </button>
   `).join("");
   injectIcons(container);
@@ -405,13 +441,15 @@ function renderSubscription() {
 
   const currentPlan = String(state.user?.plan || "free").toLowerCase();
 
+  const plans = Array.isArray(state.plans) ? state.plans : Object.values(state.plans || {});
+
   if ($("subscriptionCurrentPlan")) {
-    const cp = state.plans.find(p => p.key === currentPlan) || state.plans[0];
-    $("subscriptionCurrentPlan").textContent = cp ? cp.title : "Free";
-    if ($("subscriptionCurrentPrice")) $("subscriptionCurrentPrice").textContent = cp ? cp.price_text : "0 ₽";
+    const cp = plans.find(p => String(p.key).toLowerCase() === currentPlan) || plans[0];
+    $("subscriptionCurrentPlan").textContent = cp ? (cp.title || cp.name || "Free") : "Free";
+    if ($("subscriptionCurrentPrice")) $("subscriptionCurrentPrice").textContent = cp ? (cp.price_text || cp.price || "0 ₽") : "0 ₽";
   }
 
-  planList.innerHTML = state.plans.map(p => {
+  planList.innerHTML = plans.map(p => {
     const active = p.key === currentPlan;
     return `
       <button class="plan-card ${active ? 'active' : ''}" data-plan="${escapeHTML(p.key)}">
@@ -426,20 +464,26 @@ function renderSubscription() {
 function selectPlan(key) {
   if (key === 'free') {
     showToast("Тариф Free доступен по умолчанию");
-    $("paymentSection").style.display = "none";
+    if ($("paymentSection")) $("paymentSection").style.display = "none";
     return;
   }
 
   document.querySelectorAll(".plan-card").forEach(c => c.classList.toggle("active", c.dataset.plan === key));
 
-  const plan = state.plans.find(p => p.key === key);
-  const providers = plan?.providers || state.plans[1].providers; // fallback to go providers if missing
+  const plans = Array.isArray(state.plans) ? state.plans : Object.values(state.plans || {});
+  const plan = plans.find(p => String(p.key).toLowerCase() === String(key).toLowerCase());
+  const providers = (plan?.providers && plan.providers.length ? plan.providers : [
+    { id: 'telegram_stars', title: 'Telegram Stars', description: 'Внутри Telegram' },
+    { id: 'yookassa', title: 'Карта / СБП', description: 'Банковские карты РФ' },
+    { id: 'ton', title: 'TON', description: 'Tonkeeper / TON' },
+    { id: 'btcpay_btc', title: 'BTC', description: 'Bitcoin invoice' }
+  ]);
 
   const box = $("subscriptionPaymentProviders");
   if (box) {
     box.innerHTML = providers.map(prov => `
       <button class="provider-btn" data-provider="${escapeHTML(prov.id)}" data-plan="${escapeHTML(key)}">
-        <span class="icon" data-icon="${prov.id === 'ton' ? 'ton' : prov.id === 'telegram_stars' ? 'stars' : prov.id === 'btc' ? 'btc' : 'credit-card'}"></span>
+        <span class="icon" data-icon="${prov.id === 'ton' ? 'ton' : prov.id === 'telegram_stars' ? 'stars' : (String(prov.id).includes('btc') ? 'btc' : 'credit-card')}"></span>
         <div class="info">
           <h5>${escapeHTML(prov.title)}</h5>
           <p>${escapeHTML(prov.description || 'Оплата онлайн')}</p>
@@ -448,8 +492,10 @@ function selectPlan(key) {
     `).join("");
     injectIcons(box);
   }
-  $("paymentSection").style.display = "block";
-  $("paymentSection").scrollIntoView({ behavior: 'smooth' });
+  if ($("paymentSection")) {
+    $("paymentSection").style.display = "block";
+    $("paymentSection").scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+  }
 }
 
 async function checkout(planKey, providerId) {
@@ -512,13 +558,11 @@ async function loadData() {
 
   try {
     const pData = await apiRequest("/api/billing/plans");
-    // Ensure all 5 plans exist even if backend sends partial or fails
-    const backendPlans = Array.isArray(pData?.plans) ? pData.plans : [];
-    if (backendPlans.length >= 5) {
-      state.plans = backendPlans;
-    } else {
-      state.plans = getFallbackPlans();
-    }
+    const raw = pData?.plans || pData || [];
+    let backendPlans = [];
+    if (Array.isArray(raw)) backendPlans = raw;
+    else if (raw && typeof raw === "object") backendPlans = Object.entries(raw).map(([key, plan]) => ({ key, ...plan }));
+    state.plans = backendPlans.length >= 5 ? backendPlans : getFallbackPlans();
   } catch { state.plans = getFallbackPlans(); }
   renderSubscription();
 
@@ -635,20 +679,41 @@ function bindEvents() {
   });
 }
 
-function boot() {
-  injectIcons();
-
-  if (tg) {
-    tg.ready?.();
-    tg.expand?.();
-    try {
-      if (tg.setHeaderColor) tg.setHeaderColor("bg_color");
-      if (tg.setBackgroundColor) tg.setBackgroundColor("bg_color");
-    } catch (e) { }
-  }
-
-  bindEvents();
-  loadData();
+function revealApp() {
+  const app = $("appContainer");
+  const loader = $("appPreloader");
+  if (app) app.classList.add("loaded");
+  if (loader) loader.classList.add("loaded");
 }
 
+async function boot() {
+  try {
+    injectIcons();
+
+    if (tg) {
+      tg.ready?.();
+      tg.expand?.();
+      try {
+        if (tg.setHeaderColor) tg.setHeaderColor("bg_color");
+        if (tg.setBackgroundColor) tg.setBackgroundColor("bg_color");
+      } catch (e) { }
+    }
+
+    bindEvents();
+    await loadData();
+  } catch (err) {
+    console.error("FounderPilot boot error", err);
+    state.user = state.user || { first_name: "Пользователь", telegram_id: "—", plan: "Free" };
+    state.tools = state.tools.length ? state.tools : getFallbackTools();
+    state.plans = Array.isArray(state.plans) && state.plans.length ? state.plans : getFallbackPlans();
+    state.creditPacks = state.creditPacks.length ? state.creditPacks : getFallbackCreditPacks();
+    try { updateProfileUI(); renderQuickActions(); renderTools(); renderHistory(); renderSubscription(); renderCreditPacks(); } catch (e) { console.error("Fallback render error", e); }
+    showToast("Интерфейс загружен в резервном режиме");
+  } finally {
+    revealApp();
+  }
+}
+
+// Даже если backend/Telegram WebView зависнет, не держим пользователя на вечном прелоадере.
+window.setTimeout(revealApp, 4500);
 document.addEventListener("DOMContentLoaded", boot);
