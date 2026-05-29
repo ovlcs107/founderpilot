@@ -2449,11 +2449,15 @@ function renderWorkspaceSuite() {
   const projectCard = $('workspaceProjectCard');
   if (projectCard) {
     if (!project) {
-      projectCard.innerHTML = `<div class="workspace-empty"><b>Проект не создан</b><small>Создайте проект, чтобы AI помнил контекст, документы и задачи.</small></div>`;
+      projectCard.innerHTML = `<div class="workspace-empty polished">
+        <span class="icon-box"><span data-icon="target"></span></span>
+        <span><b>Проект пока не создан</b><small>Создайте первый проект — чат, документы и расчёты будут работать с его контекстом.</small></span>
+      </div>`;
     } else {
-      projectCard.innerHTML = `<div class="workspace-active-project">
+      projectCard.innerHTML = `<div class="workspace-active-project polished">
         <span class="icon-box"><span data-icon="target"></span></span>
         <span class="info"><h4>${escapeHTML(project.name || 'Проект')}</h4><p>${escapeHTML(project.description || project.niche || 'Контекст проекта сохранён.')}</p></span>
+        <span class="workspace-status-chip">Активен</span>
       </div>`;
     }
   }
@@ -2463,7 +2467,7 @@ function renderWorkspaceSuite() {
     const score = ws.score;
     if (!score) {
       scoreBox.className = 'score-box-empty';
-      scoreBox.innerHTML = 'Оценка появится после анализа проекта.';
+      scoreBox.innerHTML = '<b>Нет оценки</b><small>Создайте проект и нажмите «Оценить».</small>';
     } else {
       const total = Number(score.total_score || 0);
       const scores = score.scores || {};
@@ -2483,7 +2487,7 @@ function renderWorkspaceSuite() {
       <button type="button" class="mini-action-btn" data-export-doc="${escapeAttr(d.id)}">MD</button>
       <button type="button" class="mini-action-btn" data-export-docx="${escapeAttr(d.id)}">DOCX</button>
       <button type="button" class="mini-action-btn danger" data-delete-doc="${escapeAttr(d.id)}"><span data-icon="close"></span></button>
-    </div>`).join('') : `<div class="settings-row"><span><b>Документов пока нет</b><small>Сгенерируйте бизнес-план, pitch или финмодель.</small></span></div>`;
+    </div>`).join('') : `<div class="settings-row"><span><b>Документов пока нет</b><small>Выберите тип документа выше — AI подготовит черновик по проекту.</small></span></div>`;
   }
 
   const memory = $('workspaceMemoryList');
@@ -2493,7 +2497,7 @@ function renderWorkspaceSuite() {
       <span class="row-icon"><span data-icon="spark"></span></span>
       <span><b>${escapeHTML(m.key || memoryCategoryLabel(m.category))}</b><small>${escapeHTML(m.value || '')}</small></span>
       <button type="button" class="mini-action-btn danger" data-delete-memory="${escapeAttr(m.id)}"><span data-icon="close"></span></button>
-    </div>`).join('') : `<div class="settings-row"><span><b>Память пустая</b><small>Добавьте факты, чтобы AI отвечал точнее.</small></span></div>`;
+    </div>`).join('') : `<div class="settings-row"><span><b>Память пока пустая</b><small>Добавьте факты о ЦА, цене, конкурентах или ограничениях.</small></span></div>`;
   }
 
   const roadmaps = $('workspaceRoadmapList');
@@ -2503,7 +2507,7 @@ function renderWorkspaceSuite() {
       <span class="row-icon"><span data-icon="history"></span></span>
       <span><b>${escapeHTML(r.title || 'Roadmap')}</b><small>${escapeHTML(r.horizon || '30 дней')} • ${escapeHTML(r.summary || '')}</small></span>
       <span class="chevron">›</span>
-    </button>`).join('') : `<div class="settings-row"><span><b>Roadmap пока нет</b><small>Создайте план запуска в один клик.</small></span></div>`;
+    </button>`).join('') : `<div class="settings-row"><span><b>Roadmap пока нет</b><small>Соберите пошаговый план запуска проекта.</small></span></div>`;
   }
 
   const tasks = $('workspaceTaskList');
@@ -2513,7 +2517,7 @@ function renderWorkspaceSuite() {
       <button type="button" class="task-check" data-toggle-task="${escapeAttr(t.id)}" data-status="${escapeAttr(t.status || 'todo')}">${t.status === 'done' ? '✓' : ''}</button>
       <span><b>${escapeHTML(t.title || 'Задача')}</b><small>${escapeHTML(t.description || taskStatusLabel(t.status))}</small></span>
       <button type="button" class="mini-action-btn danger" data-delete-task="${escapeAttr(t.id)}"><span data-icon="close"></span></button>
-    </div>`).join('') : `<div class="settings-row"><span><b>Задач пока нет</b><small>Создайте roadmap или добавьте задачу вручную.</small></span></div>`;
+    </div>`).join('') : `<div class="settings-row"><span><b>Задач пока нет</b><small>Добавьте первую задачу или создайте roadmap.</small></span></div>`;
   }
   injectIcons($('pane-workspace') || document.body);
   setWorkspaceTab(state.workspaceTab || 'documents');

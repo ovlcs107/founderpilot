@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
   <title>FounderPilot AI</title>
-  <link rel="stylesheet" href="/static/styles.css?v=payment-select-1">
+  <link rel="stylesheet" href="/static/styles.css?v=projects-polish-1">
   <script src="https://telegram.org/js/telegram-web-app.js"></script>
 </head>
 <body>
@@ -355,19 +355,37 @@
                   <button class="profile-back-btn" type="button" data-profile-back>‹</button>
                   <h3>Проекты</h3>
                 </header>
-                <div class="workspace-dashboard-grid">
-                  <section class="workspace-card app-card-shadow">
-                    <div class="support-card-head"><h3>Активный проект</h3><button class="text-link-action-btn" id="refreshWorkspaceBtn" type="button">Обновить</button></div>
+                <div class="workspace-dashboard-grid workspace-dashboard-grid-polished">
+                  <section class="workspace-card workspace-main-card app-card-shadow">
+                    <div class="support-card-head workspace-card-head">
+                      <div>
+                        <h3>Рабочий проект</h3>
+                        <p>Контекст для чата, документов, roadmap и расчётов.</p>
+                      </div>
+                      <button class="text-link-action-btn" id="refreshWorkspaceBtn" type="button">Обновить</button>
+                    </div>
                     <div id="workspaceProjectCard" class="workspace-project-card"></div>
-                    <div class="workspace-mini-form">
-                      <input id="workspaceProjectName" type="text" placeholder="Название проекта">
-                      <textarea id="workspaceProjectDescription" rows="3" placeholder="Кратко опишите идею, нишу и цель"></textarea>
-                      <button id="createWorkspaceProjectBtn" type="button" class="primary-btn stretch">Создать проект</button>
+                    <div class="workspace-create-box">
+                      <div class="workspace-create-copy">
+                        <b>Создать новый проект</b>
+                        <small>Добавьте название и короткое описание — AI будет использовать это в работе.</small>
+                      </div>
+                      <div class="workspace-mini-form">
+                        <input id="workspaceProjectName" type="text" placeholder="Например: Telegram-сервис для предпринимателей">
+                        <textarea id="workspaceProjectDescription" rows="3" placeholder="Коротко: идея, аудитория, цель и текущая стадия"></textarea>
+                        <button id="createWorkspaceProjectBtn" type="button" class="primary-btn stretch">Создать проект</button>
+                      </div>
                     </div>
                   </section>
-                  <section class="workspace-card app-card-shadow">
-                    <div class="support-card-head"><h3>FounderPilot Score</h3><button class="text-link-action-btn" id="scoreProjectBtn" type="button">Оценить</button></div>
-                    <div id="workspaceScoreBox" class="score-box-empty">Оценка появится после анализа проекта.</div>
+                  <section class="workspace-card workspace-score-card app-card-shadow">
+                    <div class="support-card-head workspace-card-head">
+                      <div>
+                        <h3>FounderPilot Score</h3>
+                        <p>Оценка силы идеи и рисков.</p>
+                      </div>
+                      <button class="text-link-action-btn" id="scoreProjectBtn" type="button">Оценить</button>
+                    </div>
+                    <div id="workspaceScoreBox" class="score-box-empty">Создайте проект и нажмите «Оценить».</div>
                   </section>
                 </div>
 
@@ -657,6 +675,6 @@
   <div id="profileCreditsMonthPct" style="display:none;"></div>
   <div id="profileCreditsTodayPct" style="display:none;"></div>
   <div id="toast" class="toast-component">Оповещение</div>
-  <script src="/static/app.js?v=payment-select-1"></script>
+  <script src="/static/app.js?v=projects-polish-1"></script>
 </body>
 </html>
