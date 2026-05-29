@@ -137,6 +137,7 @@ class Settings(BaseSettings):
     support_group_chat_id: str = Field(default="", alias="SUPPORT_GROUP_CHAT_ID")
     support_group_thread_id: int | None = Field(default=None, alias="SUPPORT_GROUP_THREAD_ID")
     support_public_name: str = Field(default="FounderPilot Support", alias="SUPPORT_PUBLIC_NAME")
+    telegram_user_notifications_enabled: bool = Field(default=True, alias="TELEGRAM_USER_NOTIFICATIONS_ENABLED")
 
     app_version: str = Field(default="1.3.0", alias="APP_VERSION")
     app_updated_at: str = Field(default="2026-05-29", alias="APP_UPDATED_AT")

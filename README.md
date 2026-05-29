@@ -526,3 +526,30 @@ node --check static/app.js
 pytest -q
 ```
 
+
+## Workspace v3 polish additions
+
+This build continues the FounderPilot workspace work without expanding the web admin into full CRUD.
+
+Added in this package:
+
+- PDF export for project documents: `/api/documents/{document_id}/export?format=pdf`.
+- Existing document export still supports Markdown, HTML and DOCX.
+- TXT/Markdown import into the active project: `/api/documents/import`.
+- Project document UI now includes Markdown, DOCX and PDF actions.
+- Document preview modal now includes PDF download.
+- In-app notifications are still saved to PostgreSQL, and Telegram direct notifications are now sent best-effort when `TELEGRAM_USER_NOTIFICATIONS_ENABLED=true`.
+- User notifications are non-blocking: if Telegram rejects a direct message, the Mini App notification still remains.
+- Workspace UI received another desktop/mobile polish pass: cleaner document actions, scroll-safe project list, better score bars and calmer cards.
+
+Recommended env:
+
+```env
+TELEGRAM_USER_NOTIFICATIONS_ENABLED=true
+PDF_EXPORT_ENABLED=true
+```
+
+Notes:
+
+- PDF export uses ReportLab and system fonts when available. If the host lacks Cyrillic-capable fonts, install DejaVu/Liberation fonts in the deployment image.
+- Import currently accepts `.txt`, `.md` and `.markdown` up to 500 KB. PDF/DOCX import is intentionally not enabled yet to avoid unreliable parsing.

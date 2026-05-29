@@ -17,7 +17,7 @@ from typing import Any
 import uvicorn
 from aiogram import Bot
 from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup, WebAppInfo
-from fastapi import Depends, FastAPI, Header, HTTPException, Request
+from fastapi import Depends, FastAPI, Header, HTTPException, Request, UploadFile, File
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, JSONResponse, RedirectResponse, PlainTextResponse, Response
 from fastapi.staticfiles import StaticFiles
@@ -740,11 +740,29 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         return value
 
     async def notify_user(telegram_id: int | str, *, title: str, body: str = "", type: str = "system", action_url: str | None = None, metadata: dict[str, Any] | None = None) -> None:
+        """Create an in-app notification and best-effort Telegram DM.
+
+        Telegram delivery is deliberately non-blocking: if a user has not started
+        the bot or Telegram rejects the message, the Mini App notification still
+        remains the source of truth.
+        """
         try:
             await features.create_notification(telegram_id, title=title, body=body, type=type, action_url=action_url, metadata=metadata or {})
         except Exception as exc:  # noqa: BLE001
             with suppress(Exception):
                 await db.log_error("notification_create", str(exc), int(telegram_id) if str(telegram_id).isdigit() else None)
+        if settings.telegram_user_notifications_enabled and settings.bot_token and str(telegram_id).isdigit():
+            with suppress(Exception):
+                bot = Bot(token=settings.bot_token)
+                try:
+                    text = f"<b>{html_escape(title)}</b>"
+                    if body:
+                        text += "\n" + html_escape(body)
+                    if action_url:
+                        text += "\n\nОткройте FounderPilot, чтобы посмотреть детали."
+                    await bot.send_message(int(telegram_id), text, parse_mode="HTML")
+                finally:
+                    await bot.session.close()
 
     def support_ticket_public_text(ticket: dict[str, Any], message: str) -> str:
         username = ticket.get("username") or ""
@@ -2069,6 +2087,31 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     async def documents(project_id: str | None = None, user: TelegramUser = Depends(current_user)) -> dict[str, Any]:
         return {"ok": True, "items": await features.list_documents(user.id, project_id)}
 
+    @app.post("/api/documents/import")
+    async def import_document(file: UploadFile = File(...), project_id: str | None = None, user: TelegramUser = Depends(current_user)) -> dict[str, Any]:
+        filename = (file.filename or "document.txt").strip()[:160]
+        lower = filename.lower()
+        if not lower.endswith((".txt", ".md", ".markdown")):
+            raise HTTPException(status_code=415, detail="Сейчас можно импортировать TXT или Markdown.")
+        raw = await file.read()
+        if len(raw) > 512_000:
+            raise HTTPException(status_code=413, detail="Файл слишком большой. Максимум 500 КБ.")
+        try:
+            text = raw.decode("utf-8")
+        except UnicodeDecodeError:
+            text = raw.decode("cp1251", errors="replace")
+        title = re.sub(r"\.(txt|md|markdown)$", "", filename, flags=re.I).strip() or "Импортированный документ"
+        doc = await features.create_document(user.id, {
+            "project_id": project_id,
+            "title": title,
+            "document_type": "imported_note",
+            "content": text.strip(),
+            "source": "import",
+            "metadata": {"filename": filename},
+        })
+        await notify_user(user.id, title="Документ импортирован", body=f"{title} добавлен в проекты.", type="workspace", action_url="profile:workspace", metadata={"document_id": doc.get("id")})
+        return {"ok": True, "document": doc}
+
     @app.post("/api/documents")
     async def create_document(payload: DocumentRequest, user: TelegramUser = Depends(current_user)) -> dict[str, Any]:
         return {"ok": True, "document": await features.create_document(user.id, payload.model_dump(exclude_none=True))}
@@ -2169,6 +2212,14 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             "source": "ai",
             "metadata": {"mode": mode, "model": ai_model},
         })
+        await notify_user(
+            user.id,
+            title="Документ готов",
+            body=f"{title} сохранён в проектах.",
+            type="workspace",
+            action_url="profile:workspace",
+            metadata={"document_id": document.get("id"), "project_id": document.get("project_id")},
+        )
         return {"ok": True, "document": document, "usage": {"credits_charged": estimate.credits, "model": ai_model}}
 
     def _filename_safe(value: str) -> str:
@@ -2191,6 +2242,123 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             escaped = html_escape(content).replace("\n", "<br>")
             html = f"<!doctype html><html><head><meta charset='utf-8'><title>{html_escape(title)}</title><style>body{{font-family:-apple-system,BlinkMacSystemFont,Segoe UI,Arial,sans-serif;max-width:860px;margin:40px auto;line-height:1.55;padding:0 20px}}h1{{font-size:30px}}</style></head><body><h1>{html_escape(title)}</h1><div>{escaped}</div></body></html>"
             return Response(html, media_type="text/html; charset=utf-8", headers={"Content-Disposition": f'attachment; filename="{basename}.html"'})
+        if fmt == "pdf":
+            try:
+                from reportlab.lib import colors  # type: ignore
+                from reportlab.lib.enums import TA_LEFT  # type: ignore
+                from reportlab.lib.pagesizes import A4  # type: ignore
+                from reportlab.lib.styles import ParagraphStyle, getSampleStyleSheet  # type: ignore
+                from reportlab.lib.units import mm  # type: ignore
+                from reportlab.pdfbase import pdfmetrics  # type: ignore
+                from reportlab.pdfbase.ttfonts import TTFont  # type: ignore
+                from reportlab.platypus import ListFlowable, ListItem, Paragraph, SimpleDocTemplate, Spacer, Table, TableStyle  # type: ignore
+
+                font_name = "Helvetica"
+                bold_name = "Helvetica-Bold"
+                for font_path in [
+                    "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",
+                    "/usr/share/fonts/truetype/liberation2/LiberationSans-Regular.ttf",
+                ]:
+                    if Path(font_path).exists():
+                        font_name = "FounderPilotSans"
+                        pdfmetrics.registerFont(TTFont(font_name, font_path))
+                        break
+                for font_path in [
+                    "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf",
+                    "/usr/share/fonts/truetype/liberation2/LiberationSans-Bold.ttf",
+                ]:
+                    if Path(font_path).exists():
+                        bold_name = "FounderPilotSansBold"
+                        pdfmetrics.registerFont(TTFont(bold_name, font_path))
+                        break
+
+                styles = getSampleStyleSheet()
+                base = ParagraphStyle("FPBase", parent=styles["BodyText"], fontName=font_name, fontSize=10.5, leading=15, alignment=TA_LEFT, spaceAfter=7)
+                h1 = ParagraphStyle("FPH1", parent=base, fontName=bold_name, fontSize=20, leading=24, spaceAfter=14)
+                h2 = ParagraphStyle("FPH2", parent=base, fontName=bold_name, fontSize=15, leading=19, spaceBefore=10, spaceAfter=8)
+                h3 = ParagraphStyle("FPH3", parent=base, fontName=bold_name, fontSize=12.5, leading=16, spaceBefore=8, spaceAfter=6)
+                code_style = ParagraphStyle("FPCode", parent=base, fontName=font_name, fontSize=9, leading=12, backColor=colors.HexColor("#F3F6FB"), borderColor=colors.HexColor("#E3E8F2"), borderWidth=.5, borderPadding=6)
+
+                def clean_inline(value: str) -> str:
+                    text = html_escape(value)
+                    text = re.sub(r"\*\*(.+?)\*\*", r"<b>\1</b>", text)
+                    text = re.sub(r"`([^`]+)`", r"<font backColor='#F3F6FB'>\1</font>", text)
+                    return text
+
+                story: list[Any] = [Paragraph(clean_inline(title), h1)]
+                bullet_items: list[Any] = []
+                table_rows: list[list[str]] = []
+                in_code = False
+                code_lines: list[str] = []
+
+                def flush_bullets() -> None:
+                    nonlocal bullet_items
+                    if bullet_items:
+                        story.append(ListFlowable(bullet_items, bulletType="bullet", leftIndent=16, bulletFontName=font_name, bulletFontSize=7))
+                        bullet_items = []
+
+                def flush_table() -> None:
+                    nonlocal table_rows
+                    if table_rows:
+                        max_cols = max(len(r) for r in table_rows)
+                        normalized = [r + [""] * (max_cols - len(r)) for r in table_rows]
+                        tbl = Table([[Paragraph(clean_inline(c), base) for c in row] for row in normalized], hAlign="LEFT")
+                        tbl.setStyle(TableStyle([
+                            ("BOX", (0,0), (-1,-1), .5, colors.HexColor("#DDE4F0")),
+                            ("INNERGRID", (0,0), (-1,-1), .35, colors.HexColor("#E8EDF5")),
+                            ("BACKGROUND", (0,0), (-1,0), colors.HexColor("#F5F8FF")),
+                            ("VALIGN", (0,0), (-1,-1), "TOP"),
+                            ("LEFTPADDING", (0,0), (-1,-1), 6),
+                            ("RIGHTPADDING", (0,0), (-1,-1), 6),
+                            ("TOPPADDING", (0,0), (-1,-1), 5),
+                            ("BOTTOMPADDING", (0,0), (-1,-1), 5),
+                        ]))
+                        story.append(tbl)
+                        story.append(Spacer(1, 6))
+                        table_rows = []
+
+                for raw_line in content.splitlines():
+                    line = raw_line.rstrip()
+                    if line.strip().startswith("```"):
+                        if in_code:
+                            story.append(Paragraph(html_escape("\n".join(code_lines)).replace("\n", "<br/>"), code_style))
+                            code_lines = []
+                        in_code = not in_code
+                        continue
+                    if in_code:
+                        code_lines.append(line)
+                        continue
+                    stripped = line.strip()
+                    if not stripped:
+                        flush_bullets(); flush_table(); story.append(Spacer(1, 5)); continue
+                    if stripped.startswith("|") and stripped.endswith("|") and "---" not in stripped:
+                        flush_bullets()
+                        table_rows.append([cell.strip() for cell in stripped.strip("|").split("|")])
+                        continue
+                    flush_table()
+                    if stripped.startswith("### "):
+                        flush_bullets(); story.append(Paragraph(clean_inline(stripped[4:]), h3))
+                    elif stripped.startswith("## "):
+                        flush_bullets(); story.append(Paragraph(clean_inline(stripped[3:]), h2))
+                    elif stripped.startswith("# "):
+                        flush_bullets(); story.append(Paragraph(clean_inline(stripped[2:]), h1))
+                    elif stripped.startswith(('- ', '* ')):
+                        bullet_items.append(ListItem(Paragraph(clean_inline(stripped[2:]), base)))
+                    elif re.match(r"^\d+[.)]\s+", stripped):
+                        flush_bullets(); story.append(Paragraph(clean_inline(stripped), base))
+                    else:
+                        flush_bullets(); story.append(Paragraph(clean_inline(stripped), base))
+                flush_bullets(); flush_table()
+                if code_lines:
+                    story.append(Paragraph(html_escape("\n".join(code_lines)).replace("\n", "<br/>",), code_style))
+
+                buf = BytesIO()
+                pdf = SimpleDocTemplate(buf, pagesize=A4, rightMargin=18*mm, leftMargin=18*mm, topMargin=18*mm, bottomMargin=18*mm, title=title)
+                pdf.build(story)
+                return Response(buf.getvalue(), media_type="application/pdf", headers={"Content-Disposition": f'attachment; filename="{basename}.pdf"'})
+            except Exception as exc:  # noqa: BLE001
+                await db.log_error("document_pdf_export", str(exc), user.id)
+                raise HTTPException(status_code=500, detail="PDF-экспорт временно недоступен.") from exc
         if fmt == "docx":
             try:
                 from docx import Document  # type: ignore
@@ -2214,7 +2382,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             except Exception as exc:  # noqa: BLE001
                 await db.log_error("document_docx_export", str(exc), user.id)
                 raise HTTPException(status_code=500, detail="DOCX-экспорт временно недоступен.") from exc
-        raise HTTPException(status_code=400, detail="Поддерживаются форматы md, html и docx.")
+        raise HTTPException(status_code=400, detail="Поддерживаются форматы md, html, pdf и docx.")
 
     @app.post("/api/projects/{project_id}/score")
     async def score_project(project_id: str, user: TelegramUser = Depends(current_user)) -> dict[str, Any]:
@@ -2233,7 +2401,9 @@ def create_app(settings: Settings | None = None) -> FastAPI:
 
     @app.post("/api/roadmaps")
     async def create_roadmap(payload: RoadmapRequest, user: TelegramUser = Depends(current_user)) -> dict[str, Any]:
-        return {"ok": True, "roadmap": await features.create_roadmap(user.id, payload.model_dump(exclude_none=True))}
+        roadmap = await features.create_roadmap(user.id, payload.model_dump(exclude_none=True))
+        await notify_user(user.id, title="Roadmap создан", body="План запуска и первые задачи добавлены в проект.", type="workspace", action_url="profile:workspace", metadata={"roadmap_id": roadmap.get("id")})
+        return {"ok": True, "roadmap": roadmap}
 
     @app.get("/api/roadmaps/{roadmap_id}")
     async def get_roadmap(roadmap_id: str, user: TelegramUser = Depends(current_user)) -> dict[str, Any]:
