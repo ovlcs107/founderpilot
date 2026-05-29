@@ -9,6 +9,7 @@
 - Добавлены admin-endpoint'ы для проверки экономики: `/api/economics/plans` и `/api/economics/credit-packs`.
 - Telegram Stars теперь выключен по умолчанию. Его нельзя случайно продавать как рубли: нужно задать `TELEGRAM_STARS_RUB_VALUE` или явно разрешить риск через `BILLING_ALLOW_UNPRICED_STARS=true`.
 - YooKassa больше не показывается как рабочий способ оплаты без `YOOKASSA_SHOP_ID` и `YOOKASSA_SECRET_KEY`.
+- Автопродление через YooKassa выключено по умолчанию, потому что recurring-платежи требуют отдельного разрешения магазина; разовая покупка подписки работает без recurring.
 - Починена покупка подписки: стабильные alias-роуты `/api/billing/create-order`, `/api/billing/checkout`, `/api/billing/orders`, `/api/subscription/checkout`.
 - Исправлено автоопределение provider'а: frontend и backend выбирают только реально доступные способы оплаты.
 - Исправлен баг, когда frontend вне Telegram отправлял кривой `telegram_user_id`.
@@ -113,7 +114,7 @@ BILLING_ENABLE_YOOKASSA=true
 YOOKASSA_SHOP_ID=ваш_shop_id
 YOOKASSA_SECRET_KEY=ваш_secret_key
 YOOKASSA_RETURN_URL=https://ваш-домен/app
-YOOKASSA_ENABLE_SAVED_PAYMENT_METHOD=true
+YOOKASSA_ENABLE_SAVED_PAYMENT_METHOD=false
 ```
 
 В кабинете YooKassa укажите HTTP notification URL:

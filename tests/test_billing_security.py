@@ -117,3 +117,70 @@ def test_payment_provider_aliases_are_normalized():
 
     assert resolve_payment_provider(settings, "card") == "yookassa"
     assert resolve_payment_provider(settings, "stars") == "telegram_stars"
+
+
+def test_yookassa_recurring_is_disabled_by_default_in_provider_metadata():
+    settings = make_settings(YOOKASSA_SHOP_ID="shop", YOOKASSA_SECRET_KEY="secret")
+    yookassa = next(provider for provider in enabled_providers(settings) if provider["id"] == "yookassa")
+
+    assert settings.yookassa_enable_saved_payment_method is False
+    assert yookassa["recurring_available"] is False
+
+
+@pytest.mark.asyncio
+async def test_yookassa_recurring_forbidden_falls_back_to_one_time_payment(monkeypatch):
+    from app import billing as billing_module
+    from app.billing import create_yookassa_payment
+
+    settings = make_settings(
+        YOOKASSA_SHOP_ID="shop",
+        YOOKASSA_SECRET_KEY="secret",
+        YOOKASSA_ENABLE_SAVED_PAYMENT_METHOD=True,
+    )
+    plan = plan_catalog(settings)["go"]
+    order = {"id": "ord_test", "amount": "399", "telegram_user_id": 123}
+    calls = []
+
+    class FakeResponse:
+        def __init__(self, status_code, payload):
+            self.status_code = status_code
+            self._payload = payload
+            import json
+            self.text = json.dumps(payload)
+
+        def json(self):
+            return self._payload
+
+    class FakeAsyncClient:
+        def __init__(self, *args, **kwargs):
+            pass
+
+        async def __aenter__(self):
+            return self
+
+        async def __aexit__(self, exc_type, exc, tb):
+            return False
+
+        async def post(self, url, json, auth, headers):  # noqa: A002
+            calls.append({"json": json, "headers": headers})
+            if len(calls) == 1:
+                return FakeResponse(403, {
+                    "type": "error",
+                    "id": "019e74f-45b701bb-56b1590ed4b",
+                    "description": "This store can't make recurring payments. Contact the YooMoney manager to learn more",
+                    "code": "forbidden",
+                })
+            return FakeResponse(200, {
+                "id": "pay_1",
+                "confirmation": {"confirmation_url": "https://pay.example.test/checkout"},
+            })
+
+    monkeypatch.setattr(billing_module.httpx, "AsyncClient", FakeAsyncClient)
+
+    external_id, url = await create_yookassa_payment(settings, order, plan, save_payment_method=True)
+
+    assert external_id == "pay_1"
+    assert url == "https://pay.example.test/checkout"
+    assert calls[0]["json"]["save_payment_method"] is True
+    assert "save_payment_method" not in calls[1]["json"]
+    assert calls[1]["json"]["metadata"]["auto_renew"] == "0"

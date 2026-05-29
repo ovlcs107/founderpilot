@@ -161,7 +161,17 @@ def enabled_providers(settings: Settings) -> list[dict[str, Any]]:
     # Otherwise the UI lets the user click a dead provider and gets “Not found”/setup errors.
     yookassa_ready = bool(settings.yookassa_shop_id and settings.yookassa_secret_key)
     if yookassa_ready:
-        providers.append({"id": "yookassa", "title": "Карта / СБП", "description": "Безопасная оплата через ЮKassa", "currency": "RUB"})
+        providers.append({
+            "id": "yookassa",
+            "title": "Карта / СБП",
+            "description": "Безопасная разовая оплата через ЮKassa",
+            "currency": "RUB",
+            # Saved payment methods / recurring charges are a separate YooKassa permission.
+            # Many shops can accept normal payments, but get 403 forbidden for recurring.
+            # The frontend uses this flag to keep the autopay switch disabled instead of
+            # sending users into a broken checkout.
+            "recurring_available": bool(settings.yookassa_enable_saved_payment_method),
+        })
 
     if settings.billing_enable_ton and settings.ton_receiver_address:
         providers.append({"id": "ton", "title": "TON", "description": "Tonkeeper / TON", "currency": "TON"})
@@ -262,40 +272,96 @@ async def create_telegram_stars_invoice(settings: Settings, bot: Bot, order: dic
         )
 
 
+def _friendly_yookassa_error(response_text: str, status_code: int) -> str:
+    """Convert raw YooKassa JSON into a user-safe Russian message."""
+    try:
+        data = json.loads(response_text)
+    except Exception:
+        data = {}
+    code = str(data.get("code") or "").lower()
+    description = str(data.get("description") or response_text or "").strip()
+    if code == "forbidden" and "recurring" in description.lower():
+        return (
+            "ЮKassa не разрешила автопродление для этого магазина. "
+            "Разовая оплата доступна, а автосписания нужно отдельно подключить в ЮKassa."
+        )
+    if description:
+        return f"ЮKassa вернула ошибку {status_code}: {description[:220]}"
+    return f"ЮKassa вернула ошибку {status_code}."
+
+
+def _is_yookassa_recurring_forbidden(response_text: str, status_code: int) -> bool:
+    if status_code != 403:
+        return False
+    try:
+        data = json.loads(response_text)
+    except Exception:
+        data = {}
+    description = str(data.get("description") or response_text or "").lower()
+    return str(data.get("code") or "").lower() == "forbidden" and "recurring" in description
+
+
 async def create_yookassa_payment(settings: Settings, order: dict[str, Any], plan: Plan, *, save_payment_method: bool = False) -> tuple[str, str]:
     if not settings.yookassa_shop_id or not settings.yookassa_secret_key:
         raise BillingError("ЮKassa не настроена: заполните YOOKASSA_SHOP_ID и YOOKASSA_SECRET_KEY.")
 
     auth = (settings.yookassa_shop_id, settings.yookassa_secret_key)
     return_url = build_payment_return_url(settings, order["id"])
-    body = {
-        "amount": {"value": rub_value(Decimal(str(order["amount"]))), "currency": "RUB"},
-        "capture": True,
-        "confirmation": {"type": "redirect", "return_url": return_url},
-        "description": f"FounderPilot AI {plan.title} на {PLAN_DAYS} дней",
-        "metadata": {
-            "order_id": order["id"],
-            "telegram_user_id": order["telegram_user_id"],
-            "plan": plan.key,
-            "auto_renew": "1" if save_payment_method else "0",
-        },
-    }
-    if save_payment_method and settings.yookassa_enable_saved_payment_method:
-        # YooKassa stores the payment method on its side and returns only a reusable token.
-        # We never store card numbers or CVV in FounderPilot.
-        body["save_payment_method"] = True
-    headers = {"Idempotence-Key": order["id"]}
-    async with httpx.AsyncClient(timeout=30) as client:
-        response = await client.post("https://api.yookassa.ru/v3/payments", json=body, auth=auth, headers=headers)
-        if response.status_code >= 400:
-            raise BillingError(f"ЮKassa вернула ошибку: {response.status_code} {response.text[:300]}")
-        data = response.json()
+
+    # Important: YooKassa recurring payments are not enabled for every store.
+    # A normal shop can accept card/SBP payments and still reject save_payment_method
+    # with: "This store can't make recurring payments". Therefore recurring is opt-in
+    # via YOOKASSA_ENABLE_SAVED_PAYMENT_METHOD=false by default, and even if an old
+    # env enables it, we gracefully retry as a one-time payment instead of killing the sale.
+    def build_body(should_save_method: bool) -> dict[str, Any]:
+        body: dict[str, Any] = {
+            "amount": {"value": rub_value(Decimal(str(order["amount"]))), "currency": "RUB"},
+            "capture": True,
+            "confirmation": {"type": "redirect", "return_url": return_url},
+            "description": f"FounderPilot AI {plan.title} на {PLAN_DAYS} дней",
+            "metadata": {
+                "order_id": order["id"],
+                "telegram_user_id": order["telegram_user_id"],
+                "plan": plan.key,
+                "auto_renew": "1" if should_save_method else "0",
+            },
+        }
+        if should_save_method:
+            body["save_payment_method"] = True
+        return body
+
+    effective_save_method = bool(save_payment_method and settings.yookassa_enable_saved_payment_method)
+    attempts = [(effective_save_method, order["id"])]
+    if effective_save_method:
+        attempts.append((False, f"{order['id']}_once"))
+
+    last_response_text = ""
+    last_status_code = 0
+    data: dict[str, Any] | None = None
+    for should_save_method, idempotence_key in attempts:
+        body = build_body(should_save_method)
+        headers = {"Idempotence-Key": idempotence_key}
+        async with httpx.AsyncClient(timeout=30) as client:
+            response = await client.post("https://api.yookassa.ru/v3/payments", json=body, auth=auth, headers=headers)
+        if response.status_code < 400:
+            data = response.json()
+            if effective_save_method and not should_save_method:
+                logger.warning("YooKassa recurring rejected for order %s; one-time payment fallback was created.", order["id"])
+            break
+        last_response_text = response.text
+        last_status_code = response.status_code
+        if should_save_method and _is_yookassa_recurring_forbidden(response.text, response.status_code):
+            continue
+        raise BillingError(_friendly_yookassa_error(response.text, response.status_code))
+
+    if data is None:
+        raise BillingError(_friendly_yookassa_error(last_response_text, last_status_code or 400))
+
     payment_url = data.get("confirmation", {}).get("confirmation_url")
     external_id = data.get("id")
     if not payment_url or not external_id:
         raise BillingError("ЮKassa не вернула ссылку оплаты.")
     return external_id, payment_url
-
 
 
 async def create_yookassa_credit_pack_payment(settings: Settings, order: dict[str, Any], pack: dict[str, Any]) -> tuple[str, str]:
@@ -330,7 +396,7 @@ async def create_yookassa_credit_pack_payment(settings: Settings, order: dict[st
     async with httpx.AsyncClient(timeout=30) as client:
         response = await client.post("https://api.yookassa.ru/v3/payments", json=body, auth=auth, headers=headers)
         if response.status_code >= 400:
-            raise BillingError(f"ЮKassa вернула ошибку: {response.status_code} {response.text[:300]}")
+            raise BillingError(_friendly_yookassa_error(response.text, response.status_code))
         data = response.json()
     payment_url = data.get("confirmation", {}).get("confirmation_url")
     external_id = data.get("id")
@@ -346,7 +412,7 @@ async def fetch_yookassa_payment(settings: Settings, payment_id: str) -> dict[st
     async with httpx.AsyncClient(timeout=20) as client:
         response = await client.get(f"https://api.yookassa.ru/v3/payments/{payment_id}", auth=auth)
         if response.status_code >= 400:
-            raise BillingError(f"Не удалось проверить платёж ЮKassa: {response.status_code} {response.text[:300]}")
+            raise BillingError(_friendly_yookassa_error(response.text, response.status_code))
         return response.json()
 
 
@@ -367,6 +433,8 @@ async def verify_yookassa_payment(settings: Settings, order: dict[str, Any], pay
 
 
 async def create_yookassa_autopayment(settings: Settings, *, payment_method_id: str, order: dict[str, Any], plan: Plan) -> tuple[str, str, dict[str, Any]]:
+    if not settings.yookassa_enable_saved_payment_method:
+        raise BillingError("Автосписания ЮKassa выключены: включите YOOKASSA_ENABLE_SAVED_PAYMENT_METHOD только после подключения recurring-платежей у ЮKassa.")
     if not settings.yookassa_shop_id or not settings.yookassa_secret_key:
         raise BillingError("ЮKassa не настроена: заполните YOOKASSA_SHOP_ID и YOOKASSA_SECRET_KEY.")
     auth = (settings.yookassa_shop_id, settings.yookassa_secret_key)
@@ -386,7 +454,7 @@ async def create_yookassa_autopayment(settings: Settings, *, payment_method_id: 
     async with httpx.AsyncClient(timeout=30) as client:
         response = await client.post("https://api.yookassa.ru/v3/payments", json=body, auth=auth, headers=headers)
         if response.status_code >= 400:
-            raise BillingError(f"ЮKassa автосписание вернуло ошибку: {response.status_code} {response.text[:300]}")
+            raise BillingError(_friendly_yookassa_error(response.text, response.status_code))
         data = response.json()
     external_id = data.get("id")
     status = str(data.get("status") or "pending")

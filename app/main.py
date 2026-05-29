@@ -581,7 +581,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         method_id = method.get("id")
         saved_meta = metadata_from_order(order)
         payment_meta = verified_payment.get("metadata") or {}
-        if method_id and (saved_meta.get("auto_renew") or str(payment_meta.get("auto_renew")) == "1"):
+        if settings.yookassa_enable_saved_payment_method and method_id and (saved_meta.get("auto_renew") or str(payment_meta.get("auto_renew")) == "1"):
             await db.save_autopay_payment_method(
                 int(order["telegram_user_id"]),
                 plan=plan.key,
@@ -1260,7 +1260,16 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                     "profit_guard_enabled": settings.profit_guard_enabled,
                 }
             )
-        return {"ok": True, "plans": plans, "providers": providers}
+        return {
+            "ok": True,
+            "plans": plans,
+            "providers": providers,
+            "capabilities": {
+                "yookassa_ready": bool(settings.yookassa_shop_id and settings.yookassa_secret_key),
+                "yookassa_recurring_available": bool(settings.yookassa_enable_saved_payment_method),
+                "autopay_available": bool(settings.yookassa_shop_id and settings.yookassa_secret_key and settings.yookassa_enable_saved_payment_method),
+            },
+        }
 
     @app.get("/api/economics/plans")
     async def economics_plans(x_admin_secret: str | None = Header(default=None)) -> dict[str, Any]:
@@ -1319,12 +1328,23 @@ def create_app(settings: Settings | None = None) -> FastAPI:
 
     @app.get("/api/billing/autopay")
     async def get_autopay(user: TelegramUser = Depends(current_user)) -> dict[str, Any]:
-        return {"ok": True, "autopay": await db.get_autopay_settings(user.id)}
+        return {
+            "ok": True,
+            "autopay": await db.get_autopay_settings(user.id),
+            "available": bool(settings.yookassa_shop_id and settings.yookassa_secret_key and settings.yookassa_enable_saved_payment_method),
+            "reason": None if settings.yookassa_enable_saved_payment_method else "recurring_disabled",
+        }
 
     @app.post("/api/billing/autopay")
     async def update_autopay(payload: AutopaySettingsRequest, user: TelegramUser = Depends(current_user)) -> dict[str, Any]:
         if payload.provider != "yookassa":
             return {"ok": False, "error": "Автоподписка сейчас поддерживается только через ЮKassa."}
+        if payload.enabled and not settings.yookassa_enable_saved_payment_method:
+            return {
+                "ok": False,
+                "error": "Автопродление сейчас выключено: у магазина ЮKassa не подключены recurring-платежи. Разовая покупка подписки работает без этого.",
+                "requires_recurring_permission": True,
+            }
         plan_key = (payload.plan or "").lower() or None
         if payload.enabled:
             plans = plan_catalog(settings)
@@ -1351,6 +1371,8 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     @app.post("/api/billing/autopay/run-due")
     async def run_due_autopay(limit: int = 25, x_admin_secret: str | None = Header(default=None)) -> dict[str, Any]:
         require_admin(x_admin_secret)
+        if not settings.yookassa_enable_saved_payment_method:
+            return {"ok": False, "error": "Автосписания ЮKassa выключены в настройках сервера.", "results": []}
         results: list[dict[str, Any]] = []
         plans = plan_catalog(settings)
         for item in await db.list_due_autopay(limit=limit):
@@ -1417,6 +1439,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         if amount <= 0:
             return {"ok": False, "error": "Для выбранного способа оплаты не указана цена тарифа."}
 
+        effective_auto_renew = bool(payload.auto_renew and provider == "yookassa" and settings.yookassa_enable_saved_payment_method)
         order_id = make_order_id()
         order = await db.create_billing_order(
             order_id,
@@ -1425,7 +1448,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             provider,
             float(amount),
             currency,
-            metadata={"plan_title": plan.title, "auto_renew": bool(payload.auto_renew), "requested_provider": payload.provider or "auto"},
+            metadata={"plan_title": plan.title, "auto_renew": effective_auto_renew, "requested_auto_renew": bool(payload.auto_renew), "requested_provider": payload.provider or "auto"},
         )
 
         try:
@@ -1436,7 +1459,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                 await db.update_billing_order(order_id, payment_url=invoice_link, payload=order_id)
                 return {"ok": True, "order_id": order_id, "provider": provider, "payment_url": invoice_link}
             if provider == "yookassa":
-                external_id, payment_url = await create_yookassa_payment(settings, order, plan, save_payment_method=payload.auto_renew)
+                external_id, payment_url = await create_yookassa_payment(settings, order, plan, save_payment_method=effective_auto_renew)
                 await db.update_billing_order(order_id, external_payment_id=external_id, payment_url=payment_url)
                 await db.record_payment(
                     order_id=order_id,
@@ -1448,7 +1471,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                     status="pending",
                     external_payment_id=external_id,
                 )
-                return {"ok": True, "order_id": order_id, "provider": provider, "payment_url": payment_url}
+                return {"ok": True, "order_id": order_id, "provider": provider, "payment_url": payment_url, "auto_renew_enabled": effective_auto_renew}
             if provider == "ton":
                 ton_transaction = build_ton_transaction(settings, order)
                 ton_payment_url = build_ton_payment_link(settings, order)

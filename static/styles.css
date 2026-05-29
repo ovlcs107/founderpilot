@@ -1906,3 +1906,223 @@ input:focus, textarea:focus, button:focus-visible { outline: none; box-shadow: v
   #view-home .chat-composer-zone { min-height: 116px !important; }
   .quick-pill { min-height: 62px !important; }
 }
+
+/* === FounderPilot clean ChatGPT-style home patch ===
+   Быстрые действия полностью убраны. Главная: только приветствие + чат по центру.
+   После первого сообщения поле ввода плавно опускается вниз, чат занимает экран. */
+#view-home .quick-section,
+#quickStrip {
+  display: none !important;
+}
+
+#view-home .view-inner.home-inner {
+  width: 100%;
+  min-height: 100%;
+  height: 100%;
+  max-width: 780px;
+  display: flex !important;
+  flex-direction: column;
+  justify-content: center;
+  gap: 14px;
+  overflow: hidden !important;
+  padding-top: calc(18px + var(--safe-top)) !important;
+  padding-bottom: calc(84px + var(--safe-bottom)) !important;
+  transition: max-width .38s cubic-bezier(.22,.61,.36,1), padding .38s cubic-bezier(.22,.61,.36,1);
+}
+
+#view-home .home-mobile-head {
+  width: 100%;
+  max-width: 720px;
+  margin: 0 auto 6px !important;
+  transition: opacity .26s ease, transform .34s cubic-bezier(.22,.61,.36,1), max-height .34s ease, margin .34s ease;
+}
+
+#view-home .home-mobile-head h2 {
+  font-size: clamp(24px, 6vw, 34px) !important;
+  line-height: 1.08 !important;
+  font-weight: 760 !important;
+}
+
+#view-home .home-mobile-head p {
+  margin-top: 6px !important;
+  font-size: 14px !important;
+}
+
+#view-home .chat-container {
+  width: 100% !important;
+  max-width: 720px;
+  min-height: 0 !important;
+  height: auto;
+  margin: 0 auto;
+  display: flex !important;
+  flex-direction: column;
+  gap: 10px;
+  border: 0 !important;
+  background: transparent !important;
+  box-shadow: none !important;
+  overflow: visible !important;
+  transition: max-width .38s cubic-bezier(.22,.61,.36,1), height .38s cubic-bezier(.22,.61,.36,1);
+}
+
+#view-home:not(.chat-active) .chat-scroll {
+  display: none !important;
+}
+
+#view-home .chat-composer-zone {
+  width: 100%;
+  min-height: 118px !important;
+  border: 1px solid rgba(216, 222, 234, .95) !important;
+  border-radius: 24px !important;
+  background: rgba(255, 255, 255, .97) !important;
+  backdrop-filter: blur(18px);
+  -webkit-backdrop-filter: blur(18px);
+  box-shadow: 0 18px 54px rgba(16, 20, 31, .09) !important;
+  padding: 14px !important;
+  position: relative !important;
+  bottom: auto !important;
+  z-index: 16;
+  transition: border-radius .34s ease, box-shadow .34s ease, min-height .34s ease, padding .34s ease;
+}
+
+#view-home .chat-composer-zone textarea {
+  min-height: 46px !important;
+  max-height: 138px;
+  font-size: 15px !important;
+  line-height: 1.35 !important;
+}
+
+#view-home .composer-actions-row {
+  margin-top: 8px;
+}
+
+#view-home .ai-disclaimer-label {
+  width: 100%;
+  max-width: 720px;
+  margin: 0 auto !important;
+  font-size: 12px !important;
+  opacity: .72;
+  transition: opacity .24s ease, transform .3s ease, max-height .3s ease, margin .3s ease;
+}
+
+#view-home.chat-active .view-inner.home-inner {
+  max-width: 920px;
+  justify-content: flex-start;
+  gap: 0;
+  padding-top: calc(12px + var(--safe-top)) !important;
+  padding-bottom: calc(76px + var(--safe-bottom)) !important;
+}
+
+#view-home.chat-active .home-mobile-head {
+  max-height: 0;
+  margin: 0 !important;
+  opacity: 0;
+  transform: translateY(-10px);
+  pointer-events: none;
+  overflow: hidden;
+}
+
+#view-home.chat-active .chat-container {
+  flex: 1 1 auto;
+  height: 100%;
+  max-width: 920px;
+  min-height: 0 !important;
+  overflow: hidden !important;
+}
+
+#view-home.chat-active .chat-scroll {
+  display: flex !important;
+  flex: 1 1 auto;
+  min-height: 0 !important;
+  max-height: none !important;
+  overflow-y: auto !important;
+  padding: 8px 2px 16px !important;
+  gap: 12px;
+  border: 0 !important;
+  border-radius: 0 !important;
+  background: transparent !important;
+  box-shadow: none !important;
+  scroll-behavior: smooth;
+}
+
+#view-home.chat-active .chat-composer-zone {
+  flex: 0 0 auto;
+  min-height: 86px !important;
+  margin-top: auto;
+  border-radius: 24px !important;
+  box-shadow: 0 14px 44px rgba(16, 20, 31, .12) !important;
+}
+
+#view-home.chat-active .ai-disclaimer-label {
+  max-height: 0;
+  opacity: 0;
+  transform: translateY(8px);
+  margin: 0 !important;
+  pointer-events: none;
+  overflow: hidden;
+}
+
+#view-home .msg {
+  max-width: min(86%, 720px);
+}
+
+@media (max-width: 560px) {
+  #view-home .view-inner.home-inner {
+    padding-left: 22px !important;
+    padding-right: 22px !important;
+    padding-bottom: calc(76px + var(--safe-bottom)) !important;
+  }
+
+  #view-home .home-mobile-head h2 {
+    font-size: 25px !important;
+  }
+
+  #view-home .chat-composer-zone {
+    min-height: 112px !important;
+    border-radius: 22px !important;
+  }
+
+  #view-home.chat-active .view-inner.home-inner {
+    padding-left: 14px !important;
+    padding-right: 14px !important;
+    padding-top: calc(8px + var(--safe-top)) !important;
+    padding-bottom: calc(70px + var(--safe-bottom)) !important;
+  }
+
+  #view-home.chat-active .chat-scroll {
+    padding-top: 4px !important;
+  }
+
+  #view-home.chat-active .chat-composer-zone {
+    min-height: 82px !important;
+    border-radius: 22px !important;
+  }
+}
+
+@media (min-width: 1100px) {
+  #view-home .view-inner.home-inner {
+    max-width: 820px !important;
+    padding-top: 72px !important;
+    padding-bottom: 54px !important;
+  }
+
+  #view-home .chat-container,
+  #view-home .home-mobile-head,
+  #view-home .ai-disclaimer-label {
+    max-width: 760px;
+  }
+
+  #view-home.chat-active .view-inner.home-inner {
+    max-width: 960px !important;
+    padding-top: 54px !important;
+    padding-bottom: 40px !important;
+  }
+
+  #view-home.chat-active .chat-container {
+    max-width: 920px;
+  }
+
+  #view-home.chat-active .chat-scroll {
+    padding-left: 18px !important;
+    padding-right: 18px !important;
+  }
+}

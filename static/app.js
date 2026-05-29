@@ -356,9 +356,38 @@ function renderMarkdown(text) {
 }
 
 // Chat
+function activateHomeChatMode() {
+  const view = $("view-home");
+  if (!view || view.classList.contains("chat-active")) return;
+
+  const composer = view.querySelector(".chat-composer-zone");
+  const firstRect = composer?.getBoundingClientRect();
+
+  view.classList.add("chat-active");
+
+  // FLIP-анимация: поле ввода плавно переезжает из центра вниз, как в ChatGPT.
+  if (composer && firstRect && composer.animate) {
+    const lastRect = composer.getBoundingClientRect();
+    const dx = firstRect.left - lastRect.left;
+    const dy = firstRect.top - lastRect.top;
+    const scaleX = firstRect.width && lastRect.width ? firstRect.width / lastRect.width : 1;
+
+    composer.animate([
+      { transform: `translate(${dx}px, ${dy}px) scaleX(${scaleX})`, transformOrigin: "center bottom" },
+      { transform: "translate(0, 0) scaleX(1)", transformOrigin: "center bottom" }
+    ], {
+      duration: 420,
+      easing: "cubic-bezier(.22,.61,.36,1)",
+      fill: "both"
+    });
+  }
+}
+
 function appendMessage(role, text, id = null) {
   const scroll = $("homeChatScroll");
   if (!scroll) return;
+
+  activateHomeChatMode();
 
   const wrap = document.createElement("div");
   wrap.className = `msg ${role}`;
@@ -390,8 +419,6 @@ function appendMessage(role, text, id = null) {
   scroll.appendChild(wrap);
   scroll.scrollTop = scroll.scrollHeight;
   injectIcons(wrap);
-
-  $("view-home").classList.add("chat-active"); // Hides empty state & quick actions
 }
 
 function autoResizeTextarea() {

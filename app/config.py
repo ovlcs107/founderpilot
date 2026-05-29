@@ -99,7 +99,7 @@ class Settings(BaseSettings):
     yookassa_shop_id: str = Field(default="", alias="YOOKASSA_SHOP_ID")
     yookassa_secret_key: str = Field(default="", alias="YOOKASSA_SECRET_KEY")
     yookassa_return_url: str = Field(default="", alias="YOOKASSA_RETURN_URL")
-    yookassa_enable_saved_payment_method: bool = Field(default=True, alias="YOOKASSA_ENABLE_SAVED_PAYMENT_METHOD")
+    yookassa_enable_saved_payment_method: bool = Field(default=False, alias="YOOKASSA_ENABLE_SAVED_PAYMENT_METHOD")
 
     ton_receiver_address: str = Field(default="", alias="TON_RECEIVER_ADDRESS")
     ton_manifest_url: str = Field(default="", alias="TON_MANIFEST_URL")
