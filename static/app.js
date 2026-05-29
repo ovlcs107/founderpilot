@@ -226,11 +226,13 @@ function updateProfileUI() {
 
 function getPlanPriceText(planKey = "free") {
   const key = String(planKey || "free").toLowerCase();
+  // Canonical public prices. Do not trust stale backend/cache values for these keys.
+  const canonical = { free: "0 ₽", go: "399 ₽ / мес", plus: "990 ₽ / мес", pro: "2 490 ₽ / мес", business: "7 990 ₽ / мес" };
+  if (canonical[key]) return canonical[key];
   const plans = Array.isArray(state.plans) ? state.plans : Object.values(state.plans || {});
   const plan = plans.find(p => String(p.key || p.id || p.slug || p.title || "").toLowerCase() === key);
   if (plan) return plan.price_text || plan.price || "";
-  const fallback = { free: "0 ₽", go: "399 ₽ / мес", plus: "990 ₽ / мес", pro: "2 490 ₽ / мес", business: "7 990 ₽ / мес" };
-  return fallback[key] || "0 ₽";
+  return "0 ₽";
 }
 
 // Markdown parser
@@ -452,7 +454,7 @@ function renderSubscription() {
   if ($("subscriptionCurrentPlan")) {
     const cp = plans.find(p => String(p.key).toLowerCase() === currentPlan) || plans[0];
     $("subscriptionCurrentPlan").textContent = cp ? (cp.title || cp.name || "Free") : "Free";
-    if ($("subscriptionCurrentPrice")) $("subscriptionCurrentPrice").textContent = cp ? (cp.price_text || cp.price || "0 ₽") : "0 ₽";
+    if ($("subscriptionCurrentPrice")) $("subscriptionCurrentPrice").textContent = cp ? getPlanPriceText(cp.key || cp.id || currentPlan) : "0 ₽";
   }
 
   planList.innerHTML = plans.map(p => {
@@ -461,7 +463,7 @@ function renderSubscription() {
     return `
       <button class="plan-card subscription-plan-row ${active ? 'active' : ''}" data-plan="${escapeHTML(key)}">
         <div><h4>${escapeHTML(p.title || p.name || key)}</h4><small>${escapeHTML(p.description || p.subtitle || "")}</small></div>
-        <div class="subscription-price">${escapeHTML(p.price_text || p.price || getPlanPriceText(key))}</div>
+        <div class="subscription-price">${escapeHTML(getPlanPriceText(key))}</div>
         <span class="check">✓</span>
       </button>
     `;
@@ -514,7 +516,8 @@ function pollOrderStatus(orderId) {
     tries += 1;
     try {
       const data = await apiRequest(`/api/billing/order/${encodeURIComponent(orderId)}`);
-      const status = String(data.status || data.payment_status || "").toLowerCase();
+      const order = data.order || data;
+      const status = String(order.status || data.status || data.payment_status || "").toLowerCase();
       if (["paid", "success", "active", "succeeded"].includes(status)) {
         clearInterval(timer);
         showToast("Оплата получена");
@@ -535,12 +538,12 @@ async function checkout(planKey, providerId) {
   try {
     const res = await apiRequest("/api/billing/create-order", {
       method: "POST",
-      body: JSON.stringify({ plan: planKey, provider: providerId, telegram_user_id: getTelegramUserId() })
+      body: JSON.stringify({ plan: planKey, provider: providerId, telegram_user_id: getTelegramUserId(), auto_renew: Boolean($("subscriptionAutopayToggle")?.checked) })
     }).catch(async () => {
       // Fallback endpoint
       return await apiRequest("/api/billing/checkout", {
         method: "POST",
-        body: JSON.stringify({ plan: planKey, provider: providerId, telegram_user_id: getTelegramUserId() })
+        body: JSON.stringify({ plan: planKey, provider: providerId, telegram_user_id: getTelegramUserId(), auto_renew: Boolean($("subscriptionAutopayToggle")?.checked) })
       });
     });
 
@@ -662,7 +665,23 @@ async function loadData() {
     let backendPlans = [];
     if (Array.isArray(raw)) backendPlans = raw;
     else if (raw && typeof raw === "object") backendPlans = Object.entries(raw).map(([key, plan]) => ({ key, ...plan }));
-    state.plans = backendPlans.length >= 5 ? backendPlans : getFallbackPlans();
+    const globalProviders = Array.isArray(pData?.providers) ? pData.providers : [];
+    const fallbackByKey = Object.fromEntries(getFallbackPlans().map(p => [p.key, p]));
+    state.providers = globalProviders;
+    state.plans = (backendPlans.length >= 5 ? backendPlans : getFallbackPlans()).map(plan => {
+      const key = String(plan.key || plan.id || plan.slug || plan.title || "").toLowerCase();
+      const fallback = fallbackByKey[key] || {};
+      return {
+        ...fallback,
+        ...plan,
+        key,
+        title: plan.title || plan.name || fallback.title || key,
+        description: plan.description || plan.subtitle || fallback.description || "",
+        price_text: getPlanPriceText(key),
+        price: getPlanPriceText(key),
+        providers: key === "free" ? [] : (Array.isArray(plan.providers) && plan.providers.length ? plan.providers : globalProviders)
+      };
+    });
   } catch { state.plans = getFallbackPlans(); }
   renderSubscription();
 
@@ -806,6 +825,13 @@ async function boot() {
 
     bindEvents();
     await loadData();
+
+    const params = new URLSearchParams(window.location.search || "");
+    const returnedOrderId = params.get("order_id");
+    if (params.get("payment_return") && returnedOrderId) {
+      showToast("Проверяем оплату...");
+      pollOrderStatus(returnedOrderId);
+    }
   } catch (err) {
     console.error("FounderPilot boot error", err);
     state.user = state.user || { first_name: "Пользователь", telegram_id: "—", plan: "Free" };
