@@ -7,6 +7,7 @@ import logging
 import json
 import re
 from contextlib import suppress
+from pathlib import Path
 from dataclasses import replace
 from datetime import datetime, timedelta, timezone
 from typing import Any
@@ -58,6 +59,8 @@ from app.secure_store import decrypt_text, encrypt_text, mask_account, mask_toke
 from app.features import FeatureStore, init_features
 
 logger = logging.getLogger(__name__)
+BASE_DIR = Path(__file__).resolve().parents[1]
+STATIC_DIR = BASE_DIR / "static"
 
 
 class AskRequest(BaseModel):
@@ -425,7 +428,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                 return add_security_headers(response)
         return add_security_headers(await call_next(request))
 
-    app.mount("/static", StaticFiles(directory="static"), name="static")
+    app.mount("/static", StaticFiles(directory=str(STATIC_DIR)), name="static")
 
     @app.exception_handler(HTTPException)
     async def http_exception_handler(request: Request, exc: HTTPException) -> JSONResponse:
@@ -700,12 +703,12 @@ def create_app(settings: Settings | None = None) -> FastAPI:
 
     @app.get("/app", include_in_schema=False)
     async def mini_app() -> FileResponse:
-        return FileResponse("static/index.html")
+        return FileResponse(STATIC_DIR / "index.html")
 
     @app.get("/legal", include_in_schema=False)
     @app.get("/requisites", include_in_schema=False)
     async def legal_page() -> FileResponse:
-        return FileResponse("static/legal.html")
+        return FileResponse(STATIC_DIR / "legal.html")
 
     @app.get("/api/modes")
     async def modes() -> dict[str, Any]:
@@ -1946,29 +1949,50 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     return app
 
 
+async def _run_bot_polling(settings: Settings) -> None:
+    """Run Telegram long polling only when it is explicitly enabled.
+
+    Railway deploys this project as an HTTP web service and checks /health.
+    Long polling can fail when another deployment/local process already calls
+    getUpdates for the same bot token. That should not kill the web app.
+    """
+    db = Database(settings.database_path)
+    await db.init()
+    ai_client = OpenRouterClient(settings)
+    rate_limiter = RateLimiter(settings, db)
+    bot = Bot(token=settings.bot_token)
+    dp = build_dispatcher(settings, db, ai_client, rate_limiter)
+    try:
+        logger.info("Telegram bot polling started")
+        await dp.start_polling(bot)
+    except Exception as exc:  # noqa: BLE001
+        logger.exception("Telegram bot polling stopped with error: %s", exc)
+        if settings.bot_polling_strict:
+            raise
+    finally:
+        await bot.session.close()
+
+
 async def async_main() -> None:
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
     settings = get_settings()
     require_runtime_settings(settings)
 
-    db = Database(settings.database_path)
-    await db.init()
-    ai_client = OpenRouterClient(settings)
-    rate_limiter = RateLimiter(settings, db)
-
     app = create_app(settings)
-    bot = Bot(token=settings.bot_token)
-    dp = build_dispatcher(settings, db, ai_client, rate_limiter)
-
     config = uvicorn.Config(app=app, host=settings.host, port=settings.port, log_level="info")
     server = uvicorn.Server(config=config)
 
-    server_task = asyncio.create_task(server.serve(), name="uvicorn-server")
-    bot_task = asyncio.create_task(dp.start_polling(bot), name="telegram-bot")
-
-    logger.info("FounderPilot AI is running")
+    logger.info("FounderPilot AI web service is running")
     logger.info("Mini App local URL: http://%s:%s/app", settings.host, settings.port)
     logger.info("Telegram WebApp URL from .env: %s", settings.webapp_url)
+
+    if not settings.run_bot_polling:
+        logger.info("Telegram bot polling is disabled. Set RUN_BOT_POLLING=true only for a separate worker/local run.")
+        await server.serve()
+        return
+
+    server_task = asyncio.create_task(server.serve(), name="uvicorn-server")
+    bot_task = asyncio.create_task(_run_bot_polling(settings), name="telegram-bot")
 
     done, pending = await asyncio.wait({server_task, bot_task}, return_when=asyncio.FIRST_EXCEPTION)
     for task in done:

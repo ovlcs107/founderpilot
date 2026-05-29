@@ -199,3 +199,8 @@ pytest                                 ✅ 22 passed
 - Реальные платежи требуют рабочие кабинеты YooKassa/BTCPay, Telegram Bot API и публичный HTTPS URL.
 - Backend не хранит номера карт/CVV. Для автопродления сохраняется только токен платёжного метода от YooKassa в зашифрованном виде.
 - Не коммитьте `.env`, `.venv`, `*.sqlite3`, `__pycache__`.
+
+
+## Railway / production
+
+Основной web-сервис: `RUN_BOT_POLLING=false`. Для команд бота запускайте отдельный worker с `RUN_BOT_POLLING=true`.

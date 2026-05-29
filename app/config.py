@@ -23,6 +23,8 @@ class Settings(BaseSettings):
     dev_skip_telegram_auth: bool = Field(default=False, alias="DEV_SKIP_TELEGRAM_AUTH")
     cors_allowed_origins_raw: str = Field(default="", alias="CORS_ALLOWED_ORIGINS")
     trust_proxy_headers: bool = Field(default=True, alias="TRUST_PROXY_HEADERS")
+    run_bot_polling: bool = Field(default=False, alias="RUN_BOT_POLLING")
+    bot_polling_strict: bool = Field(default=False, alias="BOT_POLLING_STRICT")
     max_request_body_bytes: int = Field(default=262_144, alias="MAX_REQUEST_BODY_BYTES")
     daily_free_limit: int = Field(default=20, alias="DAILY_FREE_LIMIT")
     free_trial_requests: int = Field(default=20, alias="FREE_TRIAL_REQUESTS")
