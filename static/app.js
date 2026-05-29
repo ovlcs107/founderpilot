@@ -46,6 +46,8 @@ const state = {
   providers: [],
   billingCapabilities: { autopay_available: false, yookassa_recurring_available: false },
   autopay: null,
+  selectedPaymentProvider: null,
+  selectedPaymentPlan: null,
   creditPacks: [],
   organizations: { active: null, owned: [], memberships: [] },
   supportTickets: [],
@@ -921,7 +923,89 @@ function renderSubscription() {
 
 function chooseAutoProvider(enabled) {
   const order = tg?.initData ? ["telegram_stars", "yookassa", "ton", "btcpay_btc"] : ["yookassa", "telegram_stars", "ton", "btcpay_btc"];
-  return order.find(id => enabled.has(id)) || Array.from(enabled)[0] || "auto";
+  return order.find(id => enabled.has(id)) || Array.from(enabled)[0] || "";
+}
+
+function setSelectedPaymentProvider(planKey, providerId, options = {}) {
+  const provider = normalizeProviderId(providerId);
+  if (!provider) return;
+  state.selectedPaymentPlan = String(planKey || state.selectedPaymentPlan || '').toLowerCase();
+  state.selectedPaymentProvider = provider;
+  const info = providerInfo(provider);
+  const title = $("selectedPaymentProviderTitle");
+  const subtitle = $("selectedPaymentProviderSubtitle");
+  const icon = $("selectedPaymentProviderIcon");
+  const payBtn = $("paySelectedProviderBtn");
+  if (title) title.textContent = info.title;
+  if (subtitle) subtitle.textContent = info.description;
+  if (icon) {
+    icon.setAttribute('data-icon', info.icon || 'credit-card');
+    icon.innerHTML = '';
+    injectIcons(icon.parentElement || icon);
+  }
+  document.querySelectorAll("#subscriptionPaymentProviders .payment-provider-option").forEach(btn => {
+    const active = normalizeProviderId(btn.dataset.provider) === provider;
+    btn.classList.toggle("selected", active);
+    btn.setAttribute("aria-pressed", active ? "true" : "false");
+  });
+  if (payBtn) {
+    payBtn.disabled = false;
+    payBtn.dataset.provider = provider;
+    payBtn.dataset.plan = state.selectedPaymentPlan;
+    payBtn.innerHTML = `<span data-icon="credit-card"></span><span>Оплатить через ${escapeHTML(info.title)}</span>`;
+    injectIcons(payBtn);
+  }
+  if (!options.silent) showToast(`Выбран способ оплаты: ${info.title}`);
+}
+
+function renderPaymentProviders(planKey, plan) {
+  const box = $("subscriptionPaymentProviders");
+  if (!box) return;
+  const enabled = enabledProviderIds(plan);
+  const preferred = ["telegram_stars", "yookassa", "ton", "btcpay_btc"].map(providerInfo);
+
+  if (!enabled.size) {
+    state.selectedPaymentProvider = null;
+    state.selectedPaymentPlan = planKey;
+    box.innerHTML = `
+      <div class="provider-empty-note payment-empty-state">
+        <b>Оплата временно недоступна</b>
+        <p>Сейчас нельзя создать заказ. Попробуйте позже.</p>
+      </div>`;
+    injectIcons(box);
+    return;
+  }
+
+  const selected = enabled.has(state.selectedPaymentProvider) ? state.selectedPaymentProvider : chooseAutoProvider(enabled);
+  state.selectedPaymentProvider = selected;
+  state.selectedPaymentPlan = planKey;
+  const selectedInfo = providerInfo(selected);
+
+  const providerCards = preferred.map(prov => {
+    const isEnabled = enabled.has(prov.id);
+    const isSelected = isEnabled && prov.id === selected;
+    const badge = isEnabled ? (isSelected ? `<span class="provider-selected-badge">Выбран</span>` : '') : `<span class="provider-soon">Скоро</span>`;
+    return `
+      <button type="button" class="provider-btn payment-provider-option ${isSelected ? 'selected' : ''} ${isEnabled ? '' : 'disabled'}" ${isEnabled ? '' : 'disabled'} data-provider="${escapeHTML(prov.id)}" data-plan="${escapeHTML(planKey)}" aria-pressed="${isSelected ? 'true' : 'false'}" aria-disabled="${isEnabled ? 'false' : 'true'}">
+        <span class="icon" data-icon="${escapeHTML(prov.icon)}"></span>
+        <div class="info">
+          <h5>${escapeHTML(prov.title)} ${badge}</h5>
+          <p>${escapeHTML(isEnabled ? prov.description : 'Будет доступно позже')}</p>
+        </div>
+        <span class="payment-check">✓</span>
+      </button>`;
+  }).join("");
+
+  box.innerHTML = `
+    <div class="payment-selected-card">
+      <div class="payment-selected-main">
+        <span class="payment-selected-icon"><span id="selectedPaymentProviderIcon" data-icon="${escapeHTML(selectedInfo.icon || 'credit-card')}"></span></span>
+        <span class="payment-selected-text"><b id="selectedPaymentProviderTitle">${escapeHTML(selectedInfo.title)}</b><small id="selectedPaymentProviderSubtitle">${escapeHTML(selectedInfo.description)}</small></span>
+      </div>
+      <button type="button" class="primary-btn pay-selected-provider-btn" id="paySelectedProviderBtn" data-provider="${escapeHTML(selected)}" data-plan="${escapeHTML(planKey)}"><span data-icon="credit-card"></span><span>Оплатить через ${escapeHTML(selectedInfo.title)}</span></button>
+    </div>
+    <div class="payment-provider-list">${providerCards}</div>`;
+  injectIcons(box);
 }
 
 function selectPlan(key) {
@@ -937,43 +1021,7 @@ function selectPlan(key) {
   const plans = Array.isArray(state.plans) ? state.plans : Object.values(state.plans || {});
   const plan = plans.find(p => String(p.key || p.id || p.slug).toLowerCase() === key) || null;
   renderCurrentPlanBenefits(plan);
-  const enabled = enabledProviderIds(plan);
-  const preferred = ["telegram_stars", "yookassa", "ton", "btcpay_btc"].map(providerInfo);
-
-  const box = $("subscriptionPaymentProviders");
-  if (box) {
-    if (!enabled.size) {
-      box.innerHTML = `
-        <div class="provider-empty-note">
-          <b>Способы оплаты не настроены</b>
-          <p>Оплата временно недоступна. Мы уже работаем над восстановлением способов оплаты.</p>
-        </div>`;
-    } else {
-      const autoProvider = chooseAutoProvider(enabled);
-      const autoCard = `
-        <button class="provider-btn provider-primary" data-provider="${escapeHTML(autoProvider)}" data-plan="${escapeHTML(key)}">
-          <span class="icon" data-icon="credit-card"></span>
-          <div class="info">
-            <h5>Оплатить тариф</h5>
-            <p>Безопасная оплата выбранного тарифа</p>
-          </div>
-        </button>`;
-      const providerCards = preferred.map(prov => {
-        const isEnabled = enabled.has(prov.id);
-        const badge = isEnabled ? "" : `<span class="provider-soon">Скоро</span>`;
-        return `
-          <button class="provider-btn ${isEnabled ? '' : 'disabled'}" ${isEnabled ? '' : 'disabled'} data-provider="${escapeHTML(prov.id)}" data-plan="${escapeHTML(key)}" aria-disabled="${isEnabled ? 'false' : 'true'}">
-            <span class="icon" data-icon="${escapeHTML(prov.icon)}"></span>
-            <div class="info">
-              <h5>${escapeHTML(prov.title)} ${badge}</h5>
-              <p>${escapeHTML(isEnabled ? prov.description : 'Будет доступно позже')}</p>
-            </div>
-          </button>`;
-      }).join("");
-      box.innerHTML = autoCard + providerCards;
-    }
-    injectIcons(box);
-  }
+  renderPaymentProviders(key, plan);
   if ($("paymentSection")) {
     $("paymentSection").style.display = "block";
     $("paymentSection").scrollIntoView({ behavior: 'smooth', block: 'nearest' });
@@ -1505,10 +1553,17 @@ function bindEvents() {
     if (card) selectPlan(card.dataset.plan);
   });
   $("subscriptionPaymentProviders")?.addEventListener("click", e => {
-    const btn = e.target.closest(".provider-btn");
-    if (!btn) return;
-    if (btn.disabled || btn.classList.contains("disabled")) return showToast("Этот способ оплаты скоро появится");
-    checkout(btn.dataset.plan, btn.dataset.provider);
+    const payBtn = e.target.closest(".pay-selected-provider-btn");
+    if (payBtn) {
+      const provider = normalizeProviderId(payBtn.dataset.provider || state.selectedPaymentProvider);
+      const plan = payBtn.dataset.plan || state.selectedPaymentPlan;
+      if (!provider) return showToast("Выберите способ оплаты");
+      return checkout(plan, provider);
+    }
+    const option = e.target.closest(".payment-provider-option");
+    if (!option) return;
+    if (option.disabled || option.classList.contains("disabled")) return showToast("Этот способ оплаты скоро появится");
+    setSelectedPaymentProvider(option.dataset.plan, option.dataset.provider);
   });
   $("creditPackList")?.addEventListener("click", e => {
     const btn = e.target.closest(".price-btn");
