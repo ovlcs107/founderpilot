@@ -1,11 +1,9 @@
 /**
- * FounderPilot AI - Frontend App (Vanilla JS)
- * Premium Minimal SaaS Edition - V2 (Stable Production)
+ * FounderPilot AI - Frontend App
+ * Clean iOS/Linear Style
  */
 
 const tg = window.Telegram?.WebApp || null;
-const OWNER_INN = "713304603876";
-const OWNER_DISPLAY_NAME = "Самозанятый Муравьев К.А";
 
 const iconPaths = {
   home: '<path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path><polyline points="9 22 9 12 15 12 15 22"></polyline>',
@@ -13,80 +11,34 @@ const iconPaths = {
   history: '<circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline>',
   user: '<path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle>',
   send: '<line x1="22" y1="2" x2="11" y2="13"></line><polygon points="22 2 15 22 11 13 2 9 22 2"></polygon>',
-  close: '<line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line>',
+  search: '<circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line>',
+  stars: '<polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"></polygon>',
+  target: '<circle cx="12" cy="12" r="10"></circle><circle cx="12" cy="12" r="6"></circle><circle cx="12" cy="12" r="2"></circle>',
+  message: '<path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"></path>',
+  save: '<path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"></path><polyline points="17 21 17 13 7 13 7 21"></polyline><polyline points="7 3 7 8 15 8"></polyline>',
   back: '<line x1="19" y1="12" x2="5" y2="12"></line><polyline points="12 19 5 12 12 5"></polyline>',
   copy: '<rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>',
-  save: '<path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"></path><polyline points="17 21 17 13 7 13 7 21"></polyline><polyline points="7 3 7 8 15 8"></polyline>',
-  edit: '<path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path>',
-  chart: '<line x1="18" y1="20" x2="18" y2="10"></line><line x1="12" y1="20" x2="12" y2="4"></line><line x1="6" y1="20" x2="6" y2="14"></line>',
-  wallet: '<path d="M22 12V6a2 2 0 0 0-2-2H4a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-2"></path><rect x="18" y="10" width="4" height="4"></rect>',
-  calculator: '<rect x="4" y="2" width="16" height="20" rx="2"></rect><line x1="8" y1="6" x2="16" y2="6"></line><line x1="8" y1="10" x2="8" y2="10"></line><line x1="12" y1="10" x2="12" y2="10"></line><line x1="16" y1="10" x2="16" y2="10"></line>',
-  target: '<circle cx="12" cy="12" r="10"></circle><circle cx="12" cy="12" r="6"></circle><circle cx="12" cy="12" r="2"></circle>',
-  search: '<circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line>',
-  message: '<path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"></path>',
   'credit-card': '<rect x="1" y="4" width="22" height="16" rx="2" ry="2"></rect><line x1="1" y1="10" x2="23" y2="10"></line>',
-  stars: '<polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"></polygon>',
   ton: '<polygon points="12 2 3 9 12 22 21 9 12 2"></polygon><polyline points="3 9 12 13 21 9"></polyline><line x1="12" y1="22" x2="12" y2="13"></line>',
   btc: '<path d="M12 22c5.523 0 10-4.477 10-10S17.523 2 12 2 2 6.477 2 12s4.477 10 10 10z"></path><path d="M10 8h2.5a1.5 1.5 0 0 1 0 3H10V8z"></path><path d="M10 13h3a1.5 1.5 0 0 1 0 3h-3v-3z"></path><path d="M12 5v2"></path><path d="M12 17v2"></path>'
 };
 
+const $ = id => document.getElementById(id);
+
 const state = {
   user: null,
+  activeView: 'home',
+  isSending: false,
   tools: [],
+  history: [],
   plans: {},
   providers: [],
-  history: [],
-  historyFilter: "all",
-  activeView: "home",
-  activeProfilePane: "account",
-  activePlanKey: null,
-  isSending: false,
-  onboardingStep: 0,
-  onboardingData: {},
-  orderPollTimer: null,
-  toastTimer: null,
-
-  onboardingConfig: [
-    {
-      id: "role", title: "Чем вы занимаетесь?", type: "choices", options: [
-        { key: "wb_seller", label: "Селлер WB/Ozon" },
-        { key: "entrepreneur", label: "Предприниматель" },
-        { key: "marketer", label: "Маркетолог" },
-        { key: "beginner", label: "Новичок" },
-        { key: "other", label: "Другое" }
-      ]
-    },
-    {
-      id: "pain", title: "Что хотите улучшить?", type: "choices", options: [
-        { key: "sales", label: "Продажи" },
-        { key: "cards", label: "Карточки товара" },
-        { key: "ads", label: "Рекламу" },
-        { key: "ideas", label: "Идеи товара" },
-        { key: "strategy", label: "Стратегию" },
-        { key: "unit", label: "Расчёты" }
-      ]
-    },
-    { id: "desc", title: "Коротко опишите бизнес", type: "textarea", placeholder: "Например: продаю автотовары на WB, хочу поднять маржу" }
-  ]
+  creditPacks: [],
+  organizations: { active: null, owned: [], memberships: [] },
+  historyFilter: 'all'
 };
 
-Object.assign(state, {
-  projects: [],
-  activeProject: null,
-  memory: [],
-  templates: [],
-  creditPacks: [],
-  notificationPrefs: {},
-  analytics: null,
-  toolSearch: "",
-  historySearch: "",
-  organizations: { owned: [], memberships: [], pending_invites: [], active: null },
-  activeOrganization: null,
-  activeInviteToken: null
-});
-
-const $ = (id) => document.getElementById(id);
-
+// Utils
 function escapeHTML(str) {
   return String(str || "")
     .replace(/&/g, "&amp;")
@@ -100,7 +52,7 @@ function injectIcons(root = document) {
   root.querySelectorAll("[data-icon]").forEach(el => {
     const name = el.getAttribute("data-icon");
     if (iconPaths[name] && !el.querySelector("svg")) {
-      el.innerHTML = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">${iconPaths[name]}</svg>`;
+      el.innerHTML = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${iconPaths[name]}</svg>`;
     }
   });
 }
@@ -110,25 +62,31 @@ function showToast(msg) {
   if (!el) return;
   el.textContent = msg;
   el.classList.add("visible");
-  clearTimeout(state.toastTimer);
-  state.toastTimer = setTimeout(() => el.classList.remove("visible"), 2500);
+  setTimeout(() => el.classList.remove("visible"), 2500);
 }
 
 function getTelegramUserId() {
   return String(tg?.initDataUnsafe?.user?.id || state.user?.telegram_id || "dev");
 }
 
+function openExternal(url) {
+  if (!url) return;
+  if (tg?.openLink) tg.openLink(url);
+  else window.open(url, "_blank", "noopener,noreferrer");
+}
+
+// API
 async function apiRequest(url, options = {}) {
   const headers = { "Content-Type": "application/json" };
   if (tg?.initData) headers["X-Telegram-Init-Data"] = tg.initData;
 
   const res = await fetch(url, { ...options, headers: { ...headers, ...options.headers } });
   const text = await res.text();
-  let data = null;
+  let data;
   try { data = JSON.parse(text); } catch { data = { detail: text }; }
 
   if (!res.ok || data?.ok === false) {
-    throw new Error(data?.error || data?.detail || data?.message || "Ошибка сервера");
+    throw new Error(data?.error || data?.detail || "Ошибка сервера");
   }
   return data ?? {};
 }
@@ -141,1050 +99,163 @@ async function apiTry(urlPrimary, urlFallback, options = {}) {
   }
 }
 
-function normalizeUserResponse(data) {
-  const root = data?.user || data || {};
-  const tgUser = tg?.initDataUnsafe?.user || {};
-
-  const dailyLimit = Number(root.credits_daily_limit ?? root.daily_credits_limit ?? root.daily_limit ?? root.limit_today ?? 100);
-  const monthlyLimit = Number(root.credits_monthly_limit ?? root.monthly_credits_limit ?? root.monthly_limit ?? root.period_limit ?? 0);
-
-  let dailyUsed = Number(root.credits_used_today ?? root.used_today ?? root.daily_used ?? 0);
-  let monthlyUsed = Number(root.credits_used_month ?? root.used_period ?? root.monthly_used ?? 0);
-
-  if (root.remaining_credits_today !== undefined && dailyLimit) {
-    dailyUsed = Math.max(0, dailyLimit - Number(root.remaining_credits_today));
-  } else if (root.remaining !== undefined && dailyLimit) {
-    dailyUsed = Math.max(0, dailyLimit - Number(root.remaining));
-  }
-
-  if (root.remaining_credits_month !== undefined && monthlyLimit) {
-    monthlyUsed = Math.max(0, monthlyLimit - Number(root.remaining_credits_month));
-  }
-
-  return {
-    telegram_id: root.telegram_id || root.id || tgUser.id || "dev",
-    first_name: root.first_name || root.name || tgUser.first_name || "Пользователь",
-    username: root.username || tgUser.username || "",
-    photo_url: root.photo_url || tgUser.photo_url || "",
-    plan: root.plan || root.plan_name || "Free",
-    daily_limit: dailyLimit,
-    daily_used: dailyUsed,
-    monthly_limit: monthlyLimit,
-    monthly_used: monthlyUsed,
-    business_profile: root.business_profile || root.description || "",
-    inn: root.inn || OWNER_INN,
-    company_name: root.company_name || root.company || OWNER_DISPLAY_NAME,
-    onboarding_required: Boolean(data?.onboarding_required || root.onboarding_required)
-  };
-}
-
-function normalizeBillingPlans(data) {
-  const rawPlans = data?.plans || data || {};
-  const globalProviders = Array.isArray(data?.providers) ? data.providers : [];
-  const result = {};
-
-  if (Array.isArray(rawPlans)) {
-    rawPlans.forEach((plan) => {
-      const key = String(plan.key || plan.id || plan.slug || plan.name || plan.title || "").toLowerCase();
-      if (!key) return;
-      result[key] = {
-        ...plan,
-        key,
-        providers: Array.isArray(plan.providers) && plan.providers.length ? plan.providers : globalProviders
-      };
-    });
-  } else if (rawPlans && typeof rawPlans === "object") {
-    Object.entries(rawPlans).forEach(([key, plan]) => {
-      if (!plan || typeof plan !== "object") return;
-      result[key] = {
-        ...plan,
-        key: plan.key || key,
-        providers: Array.isArray(plan.providers) && plan.providers.length ? plan.providers : globalProviders
-      };
-    });
-  }
-  state.providers = globalProviders;
-  return result;
-}
-
-function normalizeToolsResponse(data) {
-  if (Array.isArray(data)) return data;
-  if (Array.isArray(data?.tools)) return data.tools;
-  if (Array.isArray(data?.items)) return data.items;
-  return [];
-}
-
-function normalizeHistoryResponse(data) {
-  if (Array.isArray(data)) return data;
-  if (Array.isArray(data?.history)) return data.history;
-  if (Array.isArray(data?.items)) return data.items;
-  if (Array.isArray(data?.results)) return data.results;
-  return [];
-}
-
+// Fallbacks
 function getFallbackTools() {
   return [
-    { id: "margin", title: "Анализ идеи", description: "Оценка рынка и перспектив", prompt_template: "Проанализируй идею нового продукта и оцени риски, спрос и первые шаги запуска.", icon: "target" },
-    { id: "plan", title: "Бизнес-план", description: "Пошаговый план и финмодель", prompt_template: "Составь пошаговый бизнес-план и финмодель для моего проекта.", icon: "tools" },
-    { id: "pitch", title: "Презентация", description: "Создание питч-дека", prompt_template: "Сделай план презентации для инвесторов.", icon: "edit" },
-    { id: "market", title: "Маркетинг-план", description: "Стратегия и каналы", prompt_template: "Составь маркетинговый план продвижения.", icon: "chart" },
-    { id: "legal", title: "Юридические документы", description: "Шаблоны и договоры", prompt_template: "Подготовь шаблоны юридических документов для бизнеса.", icon: "save" },
-    { id: "fin", title: "Финансовый анализ", description: "Показатели и прогнозы", prompt_template: "Выполни финансовый анализ проекта.", icon: "wallet" }
+    { id: "margin", title: "Анализ идеи", description: "Оценка рынка и перспектив", prompt_template: "Проанализируй идею нового продукта и оцени спрос." },
+    { id: "plan", title: "Бизнес-план", description: "Пошаговый план и финмодель", prompt_template: "Составь пошаговый бизнес-план." },
+    { id: "pitch", title: "Презентация", description: "Создание питч-дека", prompt_template: "Сделай план презентации для инвесторов." },
+    { id: "market", title: "Маркетинг", description: "Стратегия продвижения", prompt_template: "Составь маркетинговый план." }
   ];
 }
 
-function getPlanProviders(plan) {
-  if (Array.isArray(plan?.providers) && plan.providers.length) return plan.providers;
-  if (Array.isArray(state.providers) && state.providers.length) return state.providers;
+function getFallbackPlans() {
   return [
-    { id: "telegram_stars", title: "Telegram Stars", description: "Внутри Telegram" },
-    { id: "yookassa", title: "Карта / СБП", description: "Банковские карты РФ" },
-    { id: "ton", title: "TON", description: "Оплата криптовалютой" }
+    { key: "free", title: "Free", description: "Для ознакомления", price_text: "0 ₽", providers: [] },
+    { key: "go", title: "Go", description: "Базовые задачи", price_text: "399 ₽ / мес", providers: [{ id: 'yookassa', title: 'Карта / СБП' }, { id: 'telegram_stars', title: 'Telegram Stars' }] },
+    { key: "plus", title: "Plus", description: "Активная работа", price_text: "990 ₽ / мес", providers: [{ id: 'yookassa', title: 'Карта' }, { id: 'telegram_stars', title: 'Stars' }, { id: 'ton', title: 'TON' }] },
+    { key: "pro", title: "Pro", description: "Полный безлимит", price_text: "2 490 ₽ / мес", providers: [{ id: 'yookassa', title: 'Карта' }, { id: 'telegram_stars', title: 'Stars' }, { id: 'ton', title: 'TON' }] },
+    { key: "business", title: "Business", description: "Для команд", price_text: "7 990 ₽ / мес", providers: [{ id: 'yookassa', title: 'Карта' }, { id: 'ton', title: 'TON' }] }
   ];
 }
 
-function updateSendButton() {
-  const input = $("homeChatInput");
-  const btn = $("homeChatSendBtn");
-  if (input && btn) btn.disabled = !input.value.trim() || state.isSending;
+function getFallbackCreditPacks() {
+  return [
+    { id: "pack1", title: "1 000 кредитов", price_text: "199 ₽" },
+    { id: "pack2", title: "5 000 кредитов", price_text: "799 ₽" },
+    { id: "pack3", title: "15 000 кредитов", price_text: "1 990 ₽" },
+    { id: "pack4", title: "50 000 кредитов", price_text: "5 490 ₽" }
+  ];
 }
 
+// Navigation & UI
 function switchView(target) {
   document.querySelectorAll(".view").forEach(v => v.classList.remove("active"));
   document.querySelectorAll(".nav-item").forEach(b => b.classList.toggle("active", b.dataset.target === target));
 
   const v = $(`view-${target}`);
   if (v) v.classList.add("active");
-
-  const titles = { home: "Главная", tools: "Инструменты", history: "История", subscription: "Подписка", profile: "Профиль" };
-  if ($("pageTitle")) $("pageTitle").textContent = titles[target] || "FounderPilot";
-
   state.activeView = target;
-  if (target === "tools" && !state.tools.length) loadTools();
-  if (target === "history" && !state.history.length) loadHistory();
-  if (target === "subscription") renderSubscriptionPage();
 }
 
 function switchProfilePane(paneId) {
-  if (paneId === "subscription" && window.innerWidth < 1100) {
-    switchView("subscription");
-    return;
+  if (window.innerWidth < 1100) {
+    $("profileShell").classList.add("detail-open");
   }
-  state.activeProfilePane = paneId;
-
-  document.querySelectorAll(".mobile-tab-link").forEach(btn => {
-    btn.classList.toggle("active", btn.dataset.pane === paneId);
+  document.querySelectorAll(".mobile-tab-link").forEach(b => b.classList.toggle("active", b.dataset.pane === paneId));
+  document.querySelectorAll(".profile-sub-pane").forEach(p => {
+    p.classList.toggle("active", p.id === `pane-${paneId}`);
   });
-  document.querySelectorAll("#profileDesktopRail .rail-link").forEach(btn => {
-    btn.classList.toggle("active", btn.dataset.pane === paneId);
-  });
-  document.querySelectorAll(".profile-sub-pane").forEach(pane => {
-    pane.classList.toggle("active", pane.id === `pane-${paneId}`);
-  });
-
-  const shell = $("profileShell");
-  if (shell && window.matchMedia("(max-width: 1099px)").matches) {
-    shell.classList.add("detail-open");
-  }
 }
 
 function closeProfilePane() {
-  const shell = $("profileShell");
-  if (shell) shell.classList.remove("detail-open");
+  $("profileShell").classList.remove("detail-open");
 }
 
-function updateCreditsUI() {
-  if (!state.user) return;
-  const u = state.user;
-
-  if ($("desktopTopCreditsValue")) {
-    const remaining = Math.max(0, u.daily_limit - u.daily_used);
-    $("desktopTopCreditsValue").textContent = remaining.toLocaleString();
-  }
-}
-
-function applyAvatar(el, initial, photoUrl = "") {
+function applyAvatar(el, user) {
   if (!el) return;
-  el.textContent = "";
-  el.style.backgroundImage = "";
-  el.style.backgroundSize = "cover";
-  el.style.backgroundPosition = "center";
-
-  if (photoUrl) {
-    el.style.backgroundImage = `url("${String(photoUrl).replace(/"/g, "%22")}")`;
-    el.setAttribute("aria-label", "Telegram avatar");
-    return;
+  const initial = user?.first_name?.charAt(0).toUpperCase() || "U";
+  if (user?.photo_url) {
+    el.style.backgroundImage = `url("${user.photo_url.replace(/"/g, "%22")}")`;
+    el.textContent = "";
+  } else {
+    el.style.backgroundImage = "";
+    el.textContent = initial;
   }
-
-  el.textContent = initial;
-  el.removeAttribute("aria-label");
-}
-
-function getCurrentPlanKey() {
-  return String(state.user?.plan || "free").toLowerCase();
-}
-
-function getCurrentPlan() {
-  const key = getCurrentPlanKey();
-  return state.plans?.[key] || state.plans?.[Object.keys(state.plans || {}).find(k => String(k).toLowerCase() === key)] || null;
-}
-
-function getPlanPriceText(planKey = null) {
-  const key = String(planKey || getCurrentPlanKey()).toLowerCase();
-  const plan = state.plans?.[key];
-  if (plan) return plan.price_text || plan.price || "";
-  const fallback = { free: "0 ₽", go: "299 ₽ / мес", plus: "699 ₽ / мес", pro: "1 490 ₽ / мес", business: "2 990 ₽ / мес" };
-  return fallback[key] || "0 ₽";
 }
 
 function updateProfileUI() {
-  if (!state.user) return;
-  const u = state.user;
-  const initial = u.first_name.charAt(0).toUpperCase() || "F";
-  const subtitle = u.username ? `@${u.username}` : `ID: ${u.telegram_id}`;
-  const planLabel = String(u.plan || "Free");
-  const planPrice = getPlanPriceText();
+  const u = state.user || { first_name: "Пользователь", plan: "Free" };
+  const planName = String(u.plan || "Free");
+  const planNameUpper = planName.charAt(0).toUpperCase() + planName.slice(1);
 
-  if ($("homeGreeting")) $("homeGreeting").textContent = `Доброе утро, ${u.first_name}! 👋`;
-  applyAvatar($("headerUserAvatar"), initial, u.photo_url);
-  applyAvatar($("mobileHeaderAvatar"), initial, u.photo_url);
-  applyAvatar($("profileUserAvatar"), initial, u.photo_url);
-  applyAvatar($("profileUserAvatarLarge"), initial, u.photo_url);
-  applyAvatar($("desktopTopAvatar"), initial, u.photo_url);
+  if ($("homeGreeting")) $("homeGreeting").textContent = `Доброе утро, ${u.first_name}!`;
 
-  const setText = (id, value) => { if ($(id)) $(id).textContent = value; };
-  setText("profileUserTitle", u.first_name);
-  setText("profileUserTitleMirror", u.first_name);
-  setText("profileUserSubtitle", subtitle);
-  setText("profileUserSubtitleMirror", subtitle);
-  setText("profilePlanLabel", planLabel);
-  setText("profilePlanLabelMirror", planLabel);
-  setText("profilePlanPrice", planPrice);
-  setText("profilePlanPriceMirror", planPrice);
-  setText("profileNameValue", u.first_name);
-  setText("profileUsernameValue", u.username ? `@${u.username}` : "—");
-  setText("profileTelegramIdValue", u.telegram_id || "—");
-  setText("profileSubscriptionPlanTitle", planLabel);
-  setText("profileSubscriptionPrice", planPrice);
-  setText("subscriptionCurrentPlan", planLabel);
-  setText("subscriptionCurrentPrice", planPrice);
+  applyAvatar($("sidebarAvatar"), u);
+  if ($("sidebarUserName")) $("sidebarUserName").textContent = u.first_name;
+  if ($("sidebarUserPlan")) $("sidebarUserPlan").textContent = planNameUpper;
 
-  if ($("profileBusinessDescription")) $("profileBusinessDescription").value = u.business_profile;
-  if ($("profileCompanyName")) $("profileCompanyName").value = u.company_name || "";
-  syncLegalBadges();
-  updateCreditsUI();
-  renderSubscriptionPage();
-}
+  applyAvatar($("profileUserAvatarLarge"), u);
+  if ($("profileUserTitle")) $("profileUserTitle").textContent = u.first_name;
+  if ($("profileUserSubtitle")) $("profileUserSubtitle").textContent = u.username ? `@${u.username}` : `ID: ${u.telegram_id || '—'}`;
 
-function getLegalInn() {
-  return state.user?.inn || OWNER_INN;
-}
+  if ($("profileNameValue")) $("profileNameValue").value = u.first_name || '';
+  if ($("profileUsernameValue")) $("profileUsernameValue").value = u.username ? `@${u.username}` : '';
+  if ($("profileTelegramIdValue")) $("profileTelegramIdValue").value = u.telegram_id || '';
+  if ($("profileCompanyName")) $("profileCompanyName").value = u.company_name || '';
+  if ($("profileBusinessDescription")) $("profileBusinessDescription").value = u.business_profile || '';
 
-function syncLegalBadges() {
-  const inn = getLegalInn();
-  document.querySelectorAll("[data-legal-inn]").forEach(el => {
-    el.textContent = `ИНН ${inn}`;
-  });
-  document.querySelectorAll("[data-owner-name]").forEach(el => {
-    el.textContent = state.user?.company_name || OWNER_DISPLAY_NAME;
-  });
-  if ($("profileCompanyName") && !$('profileCompanyName').value) $('profileCompanyName').value = state.user?.company_name || OWNER_DISPLAY_NAME;
-}
-
-function normalizeArrayPayload(data, keys = []) {
-  if (Array.isArray(data)) return data;
-  for (const key of keys) {
-    if (Array.isArray(data?.[key])) return data[key];
-  }
-  if (Array.isArray(data?.items)) return data.items;
-  if (Array.isArray(data?.results)) return data.results;
-  return [];
-}
-
-function normalizeObjectPayload(data, key) {
-  if (data?.[key] && typeof data[key] === "object") return data[key];
-  if (data && typeof data === "object") return data;
-  return {};
-}
-
-function openExternal(url) {
-  if (!url) return;
-  if (tg?.openLink) tg.openLink(url);
-  else window.open(url, "_blank", "noopener,noreferrer");
-}
-
-function copyText(text, msg = "Скопировано") {
-  const value = String(text || "");
-  if (navigator.clipboard?.writeText) {
-    navigator.clipboard.writeText(value).then(() => showToast(msg)).catch(() => showToast("Не удалось скопировать"));
-    return;
-  }
-  const ta = document.createElement("textarea");
-  ta.value = value;
-  ta.style.position = "fixed";
-  ta.style.opacity = "0";
-  document.body.appendChild(ta);
-  ta.select();
-  try { document.execCommand("copy"); showToast(msg); }
-  catch { showToast("Не удалось скопировать"); }
-  finally { ta.remove(); }
-}
-
-function getFallbackProjects() {
-  return [
-    { id: "main", title: "Основной бизнес", niche: "Маркетплейсы / услуги", goal: "Рост продаж и контроль маржи" }
-  ];
-}
-
-function getFallbackTemplates() {
-  return [
-    { id: "unit", title: "Юнит-экономика", prompt: "Посчитай маржу, чистую прибыль, ROI и точку безубыточности. Данные: " },
-    { id: "offer", title: "Оффер", prompt: "Сделай 5 сильных офферов для продукта с разными болями ЦА. Продукт: " }
-  ];
-}
-
-function getFallbackCreditPacks() {
-  return [
-    { id: "starter", title: "1 000 кредитов", description: "Для разовых задач", price_text: "149 ₽" },
-    { id: "growth", title: "5 000 кредитов", description: "Для active работы", price_text: "499 ₽" },
-    { id: "scale", title: "20 000 кредитов", description: "Для плотного использования", price_text: "1 490 ₽" }
-  ];
-}
-
-function renderNotifications() {
-  const prefs = state.notificationPrefs || {};
-  const set = (id, val) => { const el = $(id); if (el) el.checked = Boolean(val); };
-  set("notifyLimitToggle", prefs.limit_alerts ?? true);
-  set("notifyBillingToggle", prefs.billing_alerts ?? true);
-  set("notifyProductToggle", prefs.product_news ?? false);
-}
-
-function renderTools() {
-  const grid = $("toolsGrid");
-  if (!grid) return;
-  const q = String(state.toolSearch || "").trim().toLowerCase();
-  const items = (state.tools.length ? state.tools : getFallbackTools()).filter(t => {
-    if (!q) return true;
-    return [t.title, t.name, t.description, t.subtitle].filter(Boolean).join(" ").toLowerCase().includes(q);
-  });
-  if (!items.length) {
-    grid.innerHTML = `<div class="subtle-empty">Ничего не найдено. Попробуйте другой запрос.</div>`;
-    return;
-  }
-  grid.innerHTML = items.map(t => {
-    const iconKey = t.icon || "tools";
-    return `
-      <button class="tool-card" data-prompt="${escapeHTML(t.prompt_template || t.prompt || '')}">
-        <span class="row-icon-no-bg" data-icon="${escapeHTML(iconKey)}"></span>
-        <div class="tool-info">
-          <h4>${escapeHTML(t.title || t.name || 'Инструмент')}</h4>
-          <p>${escapeHTML(t.description || t.subtitle || 'Интеграционный сценарий')}</p>
-        </div>
-      </button>
-    `;
-  }).join("");
-  injectIcons(grid);
-}
-
-async function loadTools() {
-  try {
-    const data = await apiRequest("/api/tools");
-    state.tools = normalizeToolsResponse(data);
-  } catch {
-    state.tools = getFallbackTools();
-  }
-  renderTools();
-}
-
-async function loadHistory() {
-  try {
-    const data = await apiRequest("/api/history");
-    state.history = normalizeHistoryResponse(data);
-  } catch {
-    state.history = [
-      { id: 1, title: "Анализ рынка для SaaS-стартапа", date: "10:24", type: "chat", icon: "message" },
-      { id: 2, title: "Финмодель v1", date: "09:15", type: "tools", icon: "save" },
-      { id: 3, title: "Питч-дек для инвесторов", date: "Вчера", type: "tools", icon: "edit" },
-      { id: 4, title: "Маркетинг-план запуска", date: "7 мая", type: "tools", icon: "chart" }
-    ];
-  }
-  renderHistory();
-}
-
-function renderHistory() {
-  const list = $("historyList");
-  const empty = $("historyEmptyState");
-  if (!list) return;
-
-  let items = state.history || [];
-  const q = String(state.historySearch || "").trim().toLowerCase();
-
-  if (q) {
-    items = items.filter(h => [h.title, h.message, h.text, h.answer, h.response].filter(Boolean).join(" ").toLowerCase().includes(q));
-  }
-
-  if (state.historyFilter !== "all") {
-    items = items.filter(h => h.type === state.historyFilter || h.mode === state.historyFilter || (state.historyFilter === "favorites" && h.is_favorite));
-  }
-
-  if (!items.length) {
-    list.innerHTML = "";
-    if (empty) empty.style.display = "block";
-    return;
-  }
-
-  if (empty) empty.style.display = "none";
-
-  list.innerHTML = items.map(h => {
-    const iconKey = h.icon || (h.type === "chat" ? "message" : "save");
-    return `
-      <div class="history-item">
-        <span class="row-icon-no-bg" data-icon="${iconKey}"></span>
-        <div class="tool-info" style="flex:1;">
-          <h4>${escapeHTML(h.title || h.message || h.text || "Запрос к AI")}</h4>
-          <p>${escapeHTML(h.type === 'chat' ? 'Чат с AI' : 'Документ')}</p>
-        </div>
-        <span class="item-meta" style="color:var(--muted); font-size:13px;">${escapeHTML(h.date || h.created_at || "Недавно")}</span>
-        <button class="plain-btn" style="border:0; background:transparent; padding:0 8px; font-size:20px; font-weight:bold; margin-left:8px; color:var(--ghost);">⋮</button>
-      </div>
-    `;
-  }).join("");
-  injectIcons(list);
-}
-
-function openBillingModal() {
-  const modal = $("billingModal");
-  if (!modal) return;
-  modal.classList.add("active");
-  $("billingPlanList").hidden = false;
-  $("paymentProviderBox").hidden = true;
-  $("billingTitle").textContent = "Выбор тарифа";
-  renderBillingPlans();
-}
-
-function orderedPlans() {
-  const order = ["free", "go", "plus", "pro", "business"];
-  const plans = Object.values(state.plans || {});
-  return plans.sort((a, b) => order.indexOf(String(a.key).toLowerCase()) - order.indexOf(String(b.key).toLowerCase()));
-}
-
-function renderBillingPlans() {
-  const container = $("billingPlanList");
-  if (!container) return;
-  const plans = orderedPlans();
-  if (!plans.length) return;
-  const current = getCurrentPlanKey();
-  container.innerHTML = plans.map(p => {
-    const key = String(p.key || '').toLowerCase();
-    const active = key === current;
-    return `
-      <button type="button" class="choice-btn plan-card ${active ? 'active' : ''}" data-plan="${escapeHTML(key)}">
-        <strong>${escapeHTML(p.title || p.name || key)}</strong>
-        <b>${escapeHTML(p.price_text || p.price || '')}</b>
-        <p style="margin-top:4px;">${escapeHTML(p.description || '')}</p>
-      </button>
-    `;
-  }).join("");
-}
-
-function selectPlan(planKey) {
-  const key = String(planKey || "").toLowerCase();
-  if (key === "free") {
-    showToast("Тариф Free доступен по умолчанию");
-    return;
-  }
-  state.activePlanKey = key;
-  const modal = $("billingModal");
-  if (modal) modal.classList.add("active");
-  $("billingPlanList").hidden = true;
-  $("paymentProviderBox").hidden = false;
-  $("billingTitle").textContent = "Выбор способа оплаты";
-  renderProviders(key);
-}
-
-function renderSubscriptionProviders() {
-  const box = $("subscriptionProviderList");
-  if (!box) return;
-  const providers = getPlanProviders(state.plans?.[state.activePlanKey] || getCurrentPlan() || {});
-  box.innerHTML = providers.map(p => `
-    <button type="button" class="payment-btn subscription-provider-btn" data-provider="${escapeHTML(p.id)}">
-      <span data-icon="${p.id === 'ton' ? 'ton' : p.id === 'btc' ? 'btc' : p.id === 'telegram_stars' ? 'stars' : 'credit-card'}"></span>
-      <span><b>${escapeHTML(p.title || p.name || p.id)}</b><small style="display:block;">${escapeHTML(p.description || '')}</small></span>
-    </button>
-  `).join("");
-  injectIcons(box);
-}
-
-function renderSubscriptionPage() {
-  const planBox = $("subscriptionPlanList");
-  if (!planBox) return;
-  const plans = orderedPlans();
-  const current = getCurrentPlanKey();
-  
-  const currentPlanObj = getCurrentPlan();
-  if ($("subscriptionCurrentPlan")) $("subscriptionCurrentPlan").textContent = currentPlanObj?.title || state.user?.plan || "Free";
-  if ($("subscriptionCurrentPrice")) $("subscriptionCurrentPrice").textContent = getPlanPriceText();
-  if ($("profileSubscriptionPlanTitle")) $("profileSubscriptionPlanTitle").textContent = currentPlanObj?.title || state.user?.plan || "Free";
-  if ($("profileSubscriptionPrice")) $("profileSubscriptionPrice").textContent = getPlanPriceText();
-
-  // Отфильтруем Free, оставим платные как в макете, либо покажем все
-  const displayPlans = plans.filter(p => p.key !== 'go' && p.key !== 'plus');
-
-  planBox.innerHTML = displayPlans.map(p => {
-    const key = String(p.key || '').toLowerCase();
-    const active = key === current;
-    return `
-      <button type="button" class="subscription-plan-row ${active ? 'active' : ''}" data-subscription-plan="${escapeHTML(key)}">
-        <span><h4>${escapeHTML(p.title || p.name || key)}</h4><small>${escapeHTML(p.description || 'Базовые инструменты')}</small></span>
-        <div style="display:flex; justify-content:space-between; align-items:center; width:100%; margin-top: 12px;">
-          <b class="subscription-price">${escapeHTML(p.price_text || p.price || '')}</b>
-          ${active ? '<span class="mini-plan-badge" style="background:#eef5ff; color:var(--blue);">Текущий</span>' : '<span class="chevron" style="color:var(--ghost);">›</span>'}
-        </div>
-      </button>
-    `;
-  }).join("");
-  renderSubscriptionProviders();
-}
-
-function renderProviders(planKey) {
-  const container = $("providerList");
-  if (!container) return;
-  const plan = state.plans[planKey];
-  const providers = getPlanProviders(plan);
-  container.innerHTML = providers.map(prov => `
-    <button type="button" class="choice-btn provider-btn" data-provider="${escapeHTML(prov.id)}">
-      <strong>${escapeHTML(prov.title)}</strong>
-      <small style="display:block; font-size:12px; color:var(--muted); font-weight:normal; margin-top:2px;">${escapeHTML(prov.description || '')}</small>
-    </button>
-  `).join("");
-}
-
-async function checkout(providerId) {
-  showToast("Оформление подписки...");
-  try {
-    const res = await apiRequest("/api/billing/checkout", {
-      method: "POST",
-      body: JSON.stringify({
-        plan: state.activePlanKey,
-        provider: providerId,
-        telegram_user_id: getTelegramUserId()
-      })
-    });
-    const link = res.payment_url || res.invoice_url || res.invoice_link || res.url;
-    if (link) openExternal(link);
-    $("billingModal").classList.remove("active");
-  } catch (err) {
-    showToast(err.message || "Ошибка оплаты");
-  }
-}
-
-function openOnboarding() {
-  const modal = $("onboardingModal");
-  if (!modal) return;
-  modal.classList.add("active");
-  state.onboardingStep = 0;
-  state.onboardingData = {};
-  renderOnboardingStep();
-}
-
-function renderOnboardingStep() {
-  const config = state.onboardingConfig[state.onboardingStep];
-  if (!config) return;
-  
-  if ($("onboardingTitle")) $("onboardingTitle").textContent = config.title;
-  
-  const dots = document.querySelectorAll("#onboardingProgressRow .dot");
-  dots.forEach((dot, idx) => dot.classList.toggle("active", idx === state.onboardingStep));
-  
-  const body = $("onboardingBody");
-  if (!body) return;
-  
-  if (config.type === "choices") {
-    body.innerHTML = config.options.map(opt => `
-      <button type="button" class="choice-btn onboarding-choice ${state.onboardingData[config.id] === opt.key ? 'active' : ''}" data-key="${escapeHTML(opt.key)}">
-        ${escapeHTML(opt.label)}
-      </button>
-    `).join("");
-    
-    body.querySelectorAll(".onboarding-choice").forEach(btn => {
-      btn.addEventListener("click", () => {
-        body.querySelectorAll(".onboarding-choice").forEach(b => b.classList.remove("active"));
-        btn.classList.add("active");
-        state.onboardingData[config.id] = btn.dataset.key;
-      });
-    });
-  } else if (config.type === "textarea") {
-    body.innerHTML = `
-      <textarea id="onboardingTextarea" style="width:100%; border:1px solid var(--line); border-radius:14px; padding:14px; outline:none; resize:none; min-height:120px;" placeholder="${escapeHTML(config.placeholder || '')}">${escapeHTML(state.onboardingData[config.id] || '')}</textarea>
-    `;
-  }
-  
-  if ($("onboardingBackBtn")) $("onboardingBackBtn").disabled = state.onboardingStep === 0;
-  if ($("onboardingNextBtn")) $("onboardingNextBtn").textContent = state.onboardingStep === state.onboardingConfig.length - 1 ? "Завершить" : "Продолжить";
-}
-
-async function nextOnboarding() {
-  const config = state.onboardingConfig[state.onboardingStep];
-  if (config.type === "textarea") {
-    state.onboardingData[config.id] = $("onboardingTextarea")?.value.trim() || "";
-  }
-  
-  if (state.onboardingStep < state.onboardingConfig.length - 1) {
-    state.onboardingStep++;
-    renderOnboardingStep();
-  } else {
-    showToast("Сохранение...");
-    try {
-      await apiRequest("/api/onboarding", {
-        method: "POST",
-        body: JSON.stringify({
-          telegram_user_id: getTelegramUserId(),
-          ...state.onboardingData
-        })
-      });
-      $("onboardingModal").classList.remove("active");
-      await loadMe();
-    } catch (err) {
-      showToast(err.message || "Ошибка сохранения онбординга");
-    }
-  }
-}
-
-function pollOrderStatus(orderId) {
-  clearTimeout(state.orderPollTimer);
-  state.orderPollTimer = setTimeout(async () => {
-    try {
-      const res = await apiRequest(`/api/credits/packs/order/${orderId}`);
-      if (res.status === "paid" || res.success || res.paid) {
-        showToast("Оплата успешно получена!");
-        loadMe();
-      } else {
-        pollOrderStatus(orderId);
-      }
-    } catch {
-      pollOrderStatus(orderId);
-    }
-  }, 3000);
-}
-
-async function loadProjects() {
-  try {
-    const data = await apiRequest("/api/projects");
-    state.projects = normalizeArrayPayload(data, ["projects"]);
-    state.activeProject = data?.active_project || data?.current_project || state.projects[0] || null;
-  } catch {
-    state.projects = getFallbackProjects();
-    state.activeProject = state.projects[0];
-  }
-}
-
-async function loadMemory() {
-  try {
-    const data = await apiRequest("/api/memory");
-    state.memory = normalizeArrayPayload(data, ["memory", "items"]);
-  } catch {
-    state.memory = [];
-  }
-}
-
-async function loadTemplates() {
-  try {
-    const data = await apiRequest("/api/templates");
-    state.templates = normalizeArrayPayload(data, ["templates"]);
-  } catch {
-    state.templates = getFallbackTemplates();
-  }
-}
-
-async function loadCreditPacks() {
-  try {
-    const data = await apiRequest("/api/credits/packs");
-    state.creditPacks = normalizeArrayPayload(data, ["packs", "credit_packs"]);
-  } catch {
-    state.creditPacks = getFallbackCreditPacks();
-  }
-}
-
-async function loadNotificationPrefs() {
-  try {
-    const data = await apiRequest("/api/notifications/preferences");
-    state.notificationPrefs = normalizeObjectPayload(data, "preferences");
-  } catch {
-    state.notificationPrefs = { limit_alerts: true, billing_alerts: true, product_news: false };
-  }
-  renderNotifications();
-}
-
-async function loadAnalyticsSummary() {
-  try {
-    const data = await apiRequest("/api/analytics/summary");
-    state.analytics = data?.summary || data;
-  } catch {
-    state.analytics = null;
-  }
-}
-
-async function saveWorkspaceProject() {
-  const title = $("projectTitleInput")?.value.trim() || "Основной бизнес";
-  const niche = $("projectNicheInput")?.value.trim() || "";
-  const goal = $("projectGoalInput")?.value.trim() || "";
-  try {
-    const payload = { title, name: title, niche, goal, telegram_user_id: getTelegramUserId() };
-    const data = await apiRequest("/api/projects", { method: "POST", body: JSON.stringify(payload) });
-    const project = data?.project || data;
-    state.activeProject = project;
-    await loadProjects();
-    showToast("Проект сохранён");
-  } catch {
-    const project = { id: `local_${Date.now()}`, title, niche, goal };
-    state.projects.unshift(project);
-    state.activeProject = project;
-    showToast("Проект сохранён локально");
-  }
-}
-
-async function addMemoryItem() {
-  const input = $("memoryInput");
-  const text = input?.value.trim();
-  if (!text) return;
-  try {
-    const payload = { text, content: text, telegram_user_id: getTelegramUserId(), project_id: state.activeProject?.id };
-    const data = await apiRequest("/api/memory", { method: "POST", body: JSON.stringify(payload) });
-    state.memory.unshift(data?.item || data?.memory || { text });
-    input.value = "";
-    showToast("Факт добавлен в память");
-  } catch {
-    state.memory.unshift({ text });
-    input.value = "";
-    showToast("Факт добавлен локально");
-  }
-}
-
-async function saveTemplateItem() {
-  const title = $("templateTitleInput")?.value.trim();
-  const prompt = $("templatePromptInput")?.value.trim();
-  if (!title || !prompt) { showToast("Заполните название и текст шаблона"); return; }
-  try {
-    const data = await apiRequest("/api/templates", { method: "POST", body: JSON.stringify({ title, prompt, content: prompt, telegram_user_id: getTelegramUserId() }) });
-    state.templates.unshift(data?.template || { title, prompt });
-    $("templateTitleInput").value = "";
-    $("templatePromptInput").value = "";
-    showToast("Шаблон сохранён");
-  } catch {
-    state.templates.unshift({ id: `local_${Date.now()}`, title, prompt });
-    $("templateTitleInput").value = "";
-    $("templatePromptInput").value = "";
-    showToast("Шаблон сохранён локально");
-  }
-}
-
-async function buyCreditPack(packId) {
-  if (!packId) return;
-  showToast("Создание заказа...");
-  try {
-    const res = await apiRequest("/api/credits/packs/order", { method: "POST", body: JSON.stringify({ pack_id: packId, telegram_user_id: getTelegramUserId() }) });
-    const link = res.payment_url || res.invoice_url || res.invoice_link || res.url;
-    const orderId = res.order_id || res.id;
-    if (link) {
-      openExternal(link);
-      if (orderId) pollOrderStatus(orderId);
-      return;
-    }
-    if (res.ok || res.success) { showToast("Кредиты начислены"); loadMe(); }
-  } catch (err) {
-    showToast(err.message || "Не удалось создать заказ");
-  }
-}
-
-async function saveNotificationPrefs() {
-  const prefs = {
-    limit_alerts: Boolean($("notifyLimitToggle")?.checked),
-    billing_alerts: Boolean($("notifyBillingToggle")?.checked),
-    product_news: Boolean($("notifyProductToggle")?.checked)
-  };
-  try {
-    await apiRequest("/api/notifications/preferences", { method: "POST", body: JSON.stringify(prefs) });
-    state.notificationPrefs = prefs;
-    showToast("Уведомления обновлены");
-  } catch {
-    state.notificationPrefs = prefs;
-    showToast("Настройки сохранены локально");
-  }
-}
-
-function exportHistory() {
-  openExternal("/api/export/history.txt");
-}
-
-function renderOrganizations() {
-  const orgBox = $("organizationList");
-  const inviteBox = $("organizationInviteList");
-  const orgs = state.organizations || { owned: [], memberships: [], pending_invites: [] };
-  const owned = orgs.owned || [];
-  const memberships = orgs.memberships || [];
-  const pending = orgs.pending_invites || [];
-  const active = state.activeOrganization || orgs.active || memberships[0] || null;
-
-  const isBusiness = String(state.user?.plan || '').toLowerCase() === 'business';
-  
-  if ($("teamBusinessNotice")) $("teamBusinessNotice").style.display = isBusiness ? "none" : "block";
+  const isBusiness = planName.toLowerCase() === 'business';
+  if ($("teamUpsell")) $("teamUpsell").style.display = isBusiness ? "none" : "flex";
   if ($("teamActiveContent")) $("teamActiveContent").style.display = isBusiness ? "block" : "none";
-
-  if (orgBox) {
-    const all = [
-      { id: 'me', title: state.user?.first_name || 'Максим', role: 'Владелец', avatar: 'M' },
-      { id: 'user1', title: 'Ирина', sub: '@irina_example', role: 'Админ', avatar: 'И' },
-      { id: 'user2', title: 'Алексей', sub: '@alex_example', role: 'Участник', avatar: 'А' }
-    ];
-    // Если есть реальные данные, можно заменить моки
-    // const all = [...owned.map(o => ({ ...o, role: 'owner' })), ...memberships.filter(m => !owned.some(o => String(o.id) === String(m.id)))];
-    
-    orgBox.innerHTML = all.map(o => `
-      <div class="organization-row">
-        <div class="avatar compact-avatar" style="width:36px;height:36px;font-size:14px;background:linear-gradient(135deg, #a6b1ff, #7b8cff);">${o.avatar}</div>
-        <div style="flex:1;">
-          <strong>${escapeHTML(o.title || o.organization_title || 'Участник')}</strong>
-          <small>${escapeHTML(o.sub || o.role === 'owner' ? '@max_example' : '')}</small>
-        </div>
-        <b style="color:${o.role === 'Владелец' ? 'var(--green)' : 'var(--text)'}; font-size:14px; font-weight:600;">${escapeHTML(o.role || 'member')} <span style="color:var(--ghost); margin-left:8px;">v</span></b>
-      </div>
-    `).join("");
-  }
-
-  if (inviteBox) {
-    if (pending.length) {
-      inviteBox.style.display = 'block';
-      inviteBox.innerHTML = pending.map(inv => `
-        <button type="button" class="organization-row invite" data-accept-invite="${escapeHTML(inv.token)}">
-          <span><strong>Приглашение в ${escapeHTML(inv.organization_title || 'Компанию')}</strong><small>Нажмите, чтобы принять приглашение</small></span>
-          <b>Вступить</b>
-        </button>
-      `).join("");
-    } else {
-      inviteBox.style.display = 'none';
-    }
-  }
 }
 
-async function loadOrganizations() {
-  try {
-    const data = await apiTry("/api/organizations", "/api/organizations/current");
-    state.organizations = data?.organizations || data;
-    state.activeOrganization = data?.active || data?.current || null;
-  } catch {
-    state.organizations = { owned: [], memberships: [], pending_invites: [], active: null };
-    state.activeOrganization = null;
-  }
-  renderOrganizations();
-}
-
-async function createOrganization() {
-  const title = $("organizationTitleInput")?.value.trim();
-  if (!title) { showToast("Введите название компании"); return; }
-  try {
-    const data = await apiRequest("/api/organizations", { method: "POST", body: JSON.stringify({ title }) });
-    if (data.ok === false) throw new Error(data.error || "Не удалось создать компанию");
-    $("organizationTitleInput").value = "";
-    await loadOrganizations();
-    showToast("Компания успешно создана");
-  } catch (err) {
-    showToast(err.message || "Не удалось создать компанию");
-  }
-}
-
-async function inviteOrganizationMember() {
-  const username = $("organizationInviteUsername")?.value.trim();
-  const org = (state.organizations?.owned || [])[0] || state.activeOrganization;
-  if (!username) { showToast("Введите username участника"); return; }
-  try {
-    const data = await apiTry(`/api/organizations/${encodeURIComponent(org?.id || 'dev')}/invites`, "/api/organizations/invite", {
-      method: "POST",
-      body: JSON.stringify({ username, invite_username: username })
-    });
-    if (data.ok === false) throw new Error(data.error || "Не удалось отправить инвайт");
-    $("organizationInviteUsername").value = "";
-    showToast("Приглашение успешно отправлено");
-    await loadOrganizations();
-  } catch (err) {
-    showToast(err.message || "Не удалось отправить инвайт");
-  }
-}
-
-async function loadPendingInvites() {
-  try {
-    const data = await apiRequest("/api/organizations/invites/pending");
-    if (data && Array.isArray(data.invites)) {
-      state.organizations.pending_invites = data.invites;
-      renderOrganizations();
-    }
-  } catch (e) { /* Изолированный сбой */ }
-}
-
-async function acceptOrganizationInvite(token) {
-  const targetToken = token || state.activeInviteToken;
-  if (!targetToken) return;
-  try {
-    const data = await apiRequest("/api/organizations/invites/accept", {
-      method: "POST",
-      body: JSON.stringify({ token: targetToken })
-    });
-    $("organizationInviteBannerModal").classList.remove("active");
-    await loadOrganizations();
-    showOrganizationJoinedModal(data.organization_title || "организацию");
-  } catch (err) {
-    showToast(err.message || "Не удалось принять приглашение");
-  }
-}
-
-async function declineOrganizationInvite() {
-  if (!state.activeInviteToken) return;
-  try {
-    await apiRequest("/api/organizations/invites/decline", {
-      method: "POST",
-      body: JSON.stringify({ token: state.activeInviteToken })
-    });
-    $("organizationInviteBannerModal").classList.remove("active");
-    showToast("Приглашение отклонено");
-    await loadOrganizations();
-  } catch (err) {
-    showToast(err.message || "Не удалось отклонить приглашение");
-  }
-}
-
- function showOrganizationJoinedModal(title) {
-  const modal = $("organizationAcceptedModal");
-  if (!modal) return;
-  const text = $("organizationAcceptedText");
-  if (text) {
-    text.textContent = `Вы успешно вступили в организацию «${title}». Теперь данные компании отображаются в вашем личном профиле.`;
-  }
-  modal.classList.add("active");
-}
-
-function checkInviteFromUrl() {
-  const params = new URLSearchParams(window.location.search);
-  const token = params.get("invite") || params.get("invite_token");
-  if (token) {
-    state.activeInviteToken = token;
-    const modal = $("organizationInviteBannerModal");
-    const txt = $("incomingInviteBannerText");
-    if (txt) txt.textContent = `Вы получили официальное приглашение присоединиться к общему рабочему пространству организации. Нажмите кнопку ниже для подтверждения входа.`;
-    if (modal) modal.classList.add("active");
-  }
-}
-
-function autoResizeTextarea(el) {
-  if (!el) return;
-  el.style.height = "auto";
-  el.style.height = `${Math.min(el.scrollHeight, 120)}px`;
-}
-
-function renderMarkdownInline(text) {
+// Markdown parser
+function renderMarkdown(text) {
   let out = escapeHTML(text);
 
-  out = out.replace(/\[([^\]]+)\]\((https?:\/\/[^\s)]+)\)/g, (_match, label, url) => {
-    const safeUrl = escapeHTML(url);
-    const safeLabel = renderMarkdownInline(label);
-    return `<a href="${safeUrl}" target="_blank" rel="noopener noreferrer">${safeLabel}</a>`;
-  });
+  // Basic inline formatting
+  out = out.replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>');
+  out = out.replace(/\*([^*]+)\*/g, '<em>$1</em>');
+  out = out.replace(/`([^`]+)`/g, '<code>$1</code>');
 
-  out = out
-    .replace(/`([^`]+)`/g, '<code>$1</code>')
-    .replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>')
-    .replace(/__([^_]+)__/g, '<strong>$1</strong>')
-    .replace(/(^|[^*])\*([^*\n]+)\*/g, '$1<em>$2</em>');
+  // Split into lines for block-level parsing
+  const lines = out.split('\n');
+  let result = [];
+  let inCodeBlock = false;
+  let codeBuffer = [];
 
-  return out;
-}
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i].trim();
 
-function renderMarkdown(text) {
-  const raw = String(text || '').replace(/\r\n/g, '\n');
-  const lines = raw.split('\n');
-  const out = [];
-  let listType = null;
-  let listItems = [];
-  let inCode = false;
-  let codeLines = [];
-
-  const closeList = () => {
-    if (!listType) return;
-    out.push(`<${listType}>${listItems.map(item => `<li>${renderMarkdownInline(item)}</li>`).join('')}</${listType}>`);
-    listType = null;
-    listItems = [];
-  };
-
-  const closeCode = () => {
-    out.push(`<pre><code>${escapeHTML(codeLines.join('\n'))}</code></pre>`);
-    inCode = false;
-    codeLines = [];
-  };
-
-  for (const line of lines) {
-    const trimmed = line.trim();
-
-    if (trimmed.startsWith('```')) {
-      closeList();
-      if (inCode) closeCode();
-      else { inCode = true; codeLines = []; }
+    if (line.startsWith('```')) {
+      if (inCodeBlock) {
+        result.push(`<pre><code>${codeBuffer.join('\n')}</code></pre>`);
+        inCodeBlock = false;
+        codeBuffer = [];
+      } else {
+        inCodeBlock = true;
+      }
       continue;
     }
 
-    if (inCode) {
-      codeLines.push(line);
+    if (inCodeBlock) {
+      codeBuffer.push(line);
       continue;
     }
 
-    if (!trimmed) {
-      closeList();
+    if (line.startsWith('- ') || line.startsWith('* ')) {
+      result.push(`<ul><li>${line.substring(2)}</li></ul>`);
       continue;
     }
 
-    const heading = trimmed.match(/^(#{1,3})\s+(.+)$/);
-    if (heading) {
-      closeList();
-      const level = Math.min(4, heading[1].length + 3);
-      out.push(`<h${level}>${renderMarkdownInline(heading[2])}</h${level}>`);
+    if (line.match(/^\d+\.\s/)) {
+      result.push(`<ol><li>${line.replace(/^\d+\.\s/, '')}</li></ol>`);
       continue;
     }
 
-    const unordered = trimmed.match(/^[-*]\s+(.+)$/);
-    if (unordered) {
-      if (listType !== 'ul') closeList();
-      listType = 'ul';
-      listItems.push(unordered[1]);
+    if (line.startsWith('> ')) {
+      result.push(`<blockquote>${line.substring(2)}</blockquote>`);
       continue;
     }
 
-    const ordered = trimmed.match(/^\d+[.)]\s+(.+)$/);
-    if (ordered) {
-      if (listType !== 'ol') closeList();
-      listType = 'ol';
-      listItems.push(ordered[1]);
-      continue;
+    if (line === '') {
+      continue; // Skip empty lines between paragraphs
     }
 
-    const quote = trimmed.match(/^>\s?(.+)$/);
-    if (quote) {
-      closeList();
-      out.push(`<blockquote>${renderMarkdownInline(quote[1])}</blockquote>`);
-      continue;
-    }
-
-    closeList();
-    out.push(`<p>${renderMarkdownInline(trimmed)}</p>`);
+    result.push(`<p>${line}</p>`);
   }
 
-  closeList();
-  if (inCode) closeCode();
-  return out.join('');
+  // Clean up adjacent lists
+  return result.join('')
+    .replace(/<\/ul><ul>/g, '')
+    .replace(/<\/ol><ol>/g, '');
 }
 
+// Chat
 function appendMessage(role, text, id = null) {
   const scroll = $("homeChatScroll");
-  if (!scroll) return null;
-
-  const empty = $("chatEmptyState");
-  if (empty) empty.remove();
+  if (!scroll) return;
 
   const wrap = document.createElement("div");
   wrap.className = `msg ${role}`;
@@ -1204,33 +275,28 @@ function appendMessage(role, text, id = null) {
     act.className = "message-actions";
 
     const copyBtn = document.createElement("button");
-    copyBtn.type = "button";
     copyBtn.innerHTML = `<span data-icon="copy"></span> Скопировать`;
-    copyBtn.addEventListener("click", () => {
-      navigator.clipboard.writeText(text).then(() => showToast("Текст скопирован"));
-    });
-
-    const saveBtn = document.createElement("button");
-    saveBtn.type = "button";
-    saveBtn.innerHTML = `<span data-icon="save"></span> Сохранить`;
-    saveBtn.addEventListener("click", async () => {
-      try {
-        await apiRequest("/api/saved", { method: "POST", body: JSON.stringify({ telegram_user_id: getTelegramUserId(), content: text }) });
-        showToast("Сохранено в историю");
-      } catch {
-        showToast("Не удалось зафиксировать ответ");
-      }
-    });
+    copyBtn.onclick = () => {
+      navigator.clipboard.writeText(text).then(() => showToast("Скопировано"));
+    };
 
     act.appendChild(copyBtn);
-    act.appendChild(saveBtn);
     wrap.appendChild(act);
   }
 
   scroll.appendChild(wrap);
   scroll.scrollTop = scroll.scrollHeight;
   injectIcons(wrap);
-  return wrap;
+
+  $("view-home").classList.add("chat-active"); // Hides empty state & quick actions
+}
+
+function autoResizeTextarea() {
+  const el = $("homeChatInput");
+  if (!el) return;
+  el.style.height = "auto";
+  el.style.height = `${Math.min(el.scrollHeight, 120)}px`;
+  $("homeChatSendBtn").disabled = !el.value.trim() || state.isSending;
 }
 
 async function handleChatSend() {
@@ -1241,7 +307,7 @@ async function handleChatSend() {
   state.isSending = true;
   $("homeChatSendBtn").disabled = true;
   input.value = "";
-  autoResizeTextarea(input);
+  autoResizeTextarea();
 
   appendMessage("user", text);
   const sysId = `sys_${Date.now()}`;
@@ -1254,261 +320,335 @@ async function handleChatSend() {
     $(sysId)?.remove();
     const answer = res.answer || res.response || res.result || res.text || "Аналитический модуль вернул пустой результат.";
     appendMessage("bot", answer);
-
-    if (state.user) {
-      if (res.usage?.credits_used_today !== undefined) state.user.daily_used = res.usage.credits_used_today;
-      else if (res.used_today !== undefined) state.user.daily_used = res.used_today;
-      else if (res.usage?.daily_used !== undefined) state.user.daily_used = res.usage.daily_used;
-
-      if (res.usage?.credits_used_month !== undefined) state.user.monthly_used = res.usage.credits_used_month;
-      else if (res.credits_used_month !== undefined) state.user.monthly_used = res.credits_used_month;
-      else if (res.used_period !== undefined) state.user.monthly_used = res.used_period;
-      else if (res.usage?.used_period !== undefined) state.user.monthly_used = res.usage.used_period;
-
-      updateCreditsUI();
-    }
   } catch (err) {
     const sys = $(sysId);
     if (sys) sys.textContent = "Ошибка: " + err.message;
-    else showToast(err.message);
   } finally {
     state.isSending = false;
-    updateSendButton();
+    autoResizeTextarea();
   }
 }
 
-function hidePreloader() {
-  const preloader = $("appPreloader");
-  const container = $("appContainer");
-  if (preloader) preloader.classList.add("loaded");
-  if (container) container.classList.add("loaded");
+// Rendering
+function renderQuickActions() {
+  const container = $("quickStrip");
+  if (!container) return;
+  const tools = state.tools.slice(0, 4);
+  container.innerHTML = tools.map(t => `
+    <button class="quick-pill" data-prompt="${escapeHTML(t.prompt_template)}">
+      <span class="icon" data-icon="stars"></span>
+      <b>${escapeHTML(t.title)}</b>
+      <span class="desc">${escapeHTML(t.description)}</span>
+    </button>
+  `).join("");
+  injectIcons(container);
 }
 
-async function loadMe() {
-  try {
-    const data = await apiRequest("/api/me");
-    state.user = normalizeUserResponse(data);
-    state.organizations = data.organizations || state.organizations;
-    state.activeOrganization = data.organization || state.organizations?.active || null;
-    renderOrganizations();
-    updateProfileUI();
-    hidePreloader();
-    if (state.user.onboarding_required) openOnboarding();
-  } catch (err) {
-    console.error("loadMe fail:", err);
-    state.user = normalizeUserResponse({}); // mock fallback
-    updateProfileUI();
-    hidePreloader();
+function renderTools() {
+  const container = $("toolsGrid");
+  if (!container) return;
+  const q = $("toolsSearchInput")?.value.toLowerCase().trim() || "";
+
+  const filtered = state.tools.filter(t => (t.title + " " + t.description).toLowerCase().includes(q));
+
+  container.innerHTML = filtered.map(t => `
+    <button class="list-row tool-card" data-prompt="${escapeHTML(t.prompt_template)}">
+      <div class="icon-box"><span data-icon="tools"></span></div>
+      <div class="info">
+        <h4>${escapeHTML(t.title)}</h4>
+        <p>${escapeHTML(t.description)}</p>
+      </div>
+      <span class="chevron">›</span>
+    </button>
+  `).join("");
+  injectIcons(container);
+}
+
+function renderHistory() {
+  const container = $("historyList");
+  const empty = $("historyEmptyState");
+  if (!container || !empty) return;
+
+  let items = state.history || [];
+  const q = $("historySearchInput")?.value.toLowerCase().trim() || "";
+
+  if (q) {
+    items = items.filter(i => (i.title || i.message || "").toLowerCase().includes(q));
   }
+  if (state.historyFilter !== 'all') {
+    items = items.filter(i => i.type === state.historyFilter || i.mode === state.historyFilter);
+  }
+
+  if (items.length === 0) {
+    container.innerHTML = "";
+    empty.style.display = "block";
+    return;
+  }
+  empty.style.display = "none";
+
+  container.innerHTML = items.map(h => `
+    <div class="list-row">
+      <div class="icon-box"><span data-icon="${h.type === 'chat' ? 'message' : 'save'}"></span></div>
+      <div class="info">
+        <h4>${escapeHTML(h.title || h.message || "Диалог")}</h4>
+        <p>${escapeHTML(h.type === 'chat' ? 'Чат с AI' : 'Документ')}</p>
+      </div>
+      <span class="meta">${escapeHTML(h.date || h.created_at || "Недавно")}</span>
+    </div>
+  `).join("");
+  injectIcons(container);
 }
 
-async function loadBillingPlans() {
+function renderSubscription() {
+  const planList = $("subscriptionPlanList");
+  if (!planList) return;
+
+  const currentPlan = String(state.user?.plan || "free").toLowerCase();
+
+  if ($("subscriptionCurrentPlan")) {
+    const cp = state.plans.find(p => p.key === currentPlan) || state.plans[0];
+    $("subscriptionCurrentPlan").textContent = cp ? cp.title : "Free";
+    if ($("subscriptionCurrentPrice")) $("subscriptionCurrentPrice").textContent = cp ? cp.price_text : "0 ₽";
+  }
+
+  planList.innerHTML = state.plans.map(p => {
+    const active = p.key === currentPlan;
+    return `
+      <button class="plan-card ${active ? 'active' : ''}" data-plan="${escapeHTML(p.key)}">
+        <h4>${escapeHTML(p.title)}</h4>
+        <div class="price">${escapeHTML(p.price_text)}</div>
+        <div class="desc">${escapeHTML(p.description)}</div>
+      </button>
+    `;
+  }).join("");
+}
+
+function selectPlan(key) {
+  if (key === 'free') {
+    showToast("Тариф Free доступен по умолчанию");
+    $("paymentSection").style.display = "none";
+    return;
+  }
+
+  document.querySelectorAll(".plan-card").forEach(c => c.classList.toggle("active", c.dataset.plan === key));
+
+  const plan = state.plans.find(p => p.key === key);
+  const providers = plan?.providers || state.plans[1].providers; // fallback to go providers if missing
+
+  const box = $("subscriptionPaymentProviders");
+  if (box) {
+    box.innerHTML = providers.map(prov => `
+      <button class="provider-btn" data-provider="${escapeHTML(prov.id)}" data-plan="${escapeHTML(key)}">
+        <span class="icon" data-icon="${prov.id === 'ton' ? 'ton' : prov.id === 'telegram_stars' ? 'stars' : prov.id === 'btc' ? 'btc' : 'credit-card'}"></span>
+        <div class="info">
+          <h5>${escapeHTML(prov.title)}</h5>
+          <p>${escapeHTML(prov.description || 'Оплата онлайн')}</p>
+        </div>
+      </button>
+    `).join("");
+    injectIcons(box);
+  }
+  $("paymentSection").style.display = "block";
+  $("paymentSection").scrollIntoView({ behavior: 'smooth' });
+}
+
+async function checkout(planKey, providerId) {
+  showToast("Создание заказа...");
   try {
-    const data = await apiRequest("/api/billing/plans");
-    state.plans = normalizeBillingPlans(data);
-  } catch (err) {
-    console.error("billing fail", err);
-    state.plans = normalizeBillingPlans({
-      plans: [
-        { key: "free", title: "Free", description: "Базовые инструменты и лимиты", price_text: "0 ₽ / мес", providers: [] },
-        { key: "pro", title: "Pro", description: "Полный доступ ко всем функциям", price_text: "1 490 ₽ / мес" },
-        { key: "business", title: "Business", description: "Для команд и масштабирования", price_text: "2 990 ₽ / мес" }
-      ]
+    const res = await apiRequest("/api/billing/create-order", {
+      method: "POST",
+      body: JSON.stringify({ plan: planKey, provider: providerId, telegram_user_id: getTelegramUserId() })
+    }).catch(async () => {
+      // Fallback endpoint
+      return await apiRequest("/api/billing/checkout", {
+        method: "POST",
+        body: JSON.stringify({ plan: planKey, provider: providerId, telegram_user_id: getTelegramUserId() })
+      });
     });
+
+    const link = res.payment_url || res.url;
+    if (link) openExternal(link);
+    else showToast("Успешно оформлено");
+  } catch (err) {
+    showToast(err.message || "Ошибка оплаты");
   }
-  renderSubscriptionPage();
-  updateProfileUI();
 }
 
+function renderCreditPacks() {
+  const container = $("creditPackList");
+  if (!container) return;
+  container.innerHTML = state.creditPacks.map(p => `
+    <div class="credit-pack">
+      <div class="info">
+        <h5>${escapeHTML(p.title)}</h5>
+        <p>Разовое пополнение</p>
+      </div>
+      <button class="price-btn" data-pack="${escapeHTML(p.id)}">${escapeHTML(p.price_text)}</button>
+    </div>
+  `).join("");
+}
+
+// Data Loaders
+async function loadData() {
+  try {
+    const userData = await apiRequest("/api/me");
+    state.user = userData.user || userData || {};
+  } catch { state.user = { first_name: "Пользователь", telegram_id: "—", plan: "Free" }; }
+
+  updateProfileUI();
+
+  try {
+    const tData = await apiRequest("/api/tools");
+    state.tools = Array.isArray(tData) ? tData : (tData.tools || getFallbackTools());
+  } catch { state.tools = getFallbackTools(); }
+  renderQuickActions();
+  renderTools();
+
+  try {
+    const hData = await apiRequest("/api/history");
+    state.history = Array.isArray(hData) ? hData : (hData.history || []);
+  } catch { state.history = []; }
+  renderHistory();
+
+  try {
+    const pData = await apiRequest("/api/billing/plans");
+    // Ensure all 5 plans exist even if backend sends partial or fails
+    const backendPlans = Array.isArray(pData?.plans) ? pData.plans : [];
+    if (backendPlans.length >= 5) {
+      state.plans = backendPlans;
+    } else {
+      state.plans = getFallbackPlans();
+    }
+  } catch { state.plans = getFallbackPlans(); }
+  renderSubscription();
+
+  try {
+    const cData = await apiRequest("/api/credits/packs");
+    state.creditPacks = Array.isArray(cData?.packs) ? cData.packs : getFallbackCreditPacks();
+  } catch { state.creditPacks = getFallbackCreditPacks(); }
+  renderCreditPacks();
+}
+
+// Event Bindings
 function bindEvents() {
+  // Navigation
   document.querySelectorAll(".nav-item").forEach(b => {
     b.addEventListener("click", () => switchView(b.dataset.target));
   });
-  $("headerProfileBtn")?.addEventListener("click", () => switchView("profile"));
 
+  // Profile Tabs
   document.querySelectorAll(".mobile-tab-link").forEach(link => {
-    link.addEventListener("click", () => switchProfilePane(link.dataset.pane));
-  });
-  document.querySelectorAll("#profileDesktopRail .rail-link").forEach(link => {
     link.addEventListener("click", () => switchProfilePane(link.dataset.pane));
   });
   document.querySelectorAll("[data-profile-back]").forEach(btn => {
     btn.addEventListener("click", closeProfilePane);
   });
-  document.querySelectorAll(".profile-hero-card[data-pane]").forEach(btn => {
-    btn.addEventListener("click", () => switchProfilePane(btn.dataset.pane));
-  });
-  $("subscriptionPlanList")?.addEventListener("click", e => {
-    const row = e.target.closest("[data-subscription-plan]");
-    if (row) selectPlan(row.dataset.subscriptionPlan);
-  });
-  $("subscriptionProviderList")?.addEventListener("click", e => {
-    const btn = e.target.closest(".subscription-provider-btn");
-    if (btn) checkout(btn.dataset.provider);
-  });
-  $("subscriptionAutopayToggle")?.addEventListener("change", () => {
-    showToast("Настройка автопродления сохранена");
-  });
 
+  // Chat
   const chatInput = $("homeChatInput");
-  const chatBtn = $("homeChatSendBtn");
-  if (chatInput && chatBtn) {
-    chatInput.addEventListener("input", () => {
-      autoResizeTextarea(chatInput);
-      updateSendButton();
-    });
+  if (chatInput) {
+    chatInput.addEventListener("input", autoResizeTextarea);
     chatInput.addEventListener("keydown", e => {
       if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); handleChatSend(); }
     });
-    chatBtn.addEventListener("click", handleChatSend);
   }
+  $("homeChatSendBtn")?.addEventListener("click", handleChatSend);
 
+  // Quick actions to chat
   $("quickStrip")?.addEventListener("click", e => {
-    const b = e.target.closest(".quick-pill");
-    if (b && chatInput) { chatInput.value = b.dataset.prompt; chatInput.focus(); autoResizeTextarea(chatInput); updateSendButton(); }
-  });
-  $("toolsGrid")?.addEventListener("click", e => {
-    const r = e.target.closest(".tool-card");
-    if (r) { switchView("home"); if (chatInput) { chatInput.value = r.dataset.prompt; chatInput.focus(); autoResizeTextarea(chatInput); updateSendButton(); } }
+    const btn = e.target.closest(".quick-pill");
+    if (btn && chatInput) {
+      chatInput.value = btn.dataset.prompt;
+      chatInput.focus();
+      autoResizeTextarea();
+    }
   });
 
+  // Tools to chat
+  $("toolsGrid")?.addEventListener("click", e => {
+    const card = e.target.closest(".tool-card");
+    if (card && chatInput) {
+      switchView("home");
+      chatInput.value = card.dataset.prompt;
+      chatInput.focus();
+      autoResizeTextarea();
+    }
+  });
+
+  // Tools Search
+  $("toolsSearchInput")?.addEventListener("input", renderTools);
+
+  // History Search & Filters
+  $("historySearchInput")?.addEventListener("input", renderHistory);
   $("historyFilters")?.addEventListener("click", e => {
-    const b = e.target.closest(".chip");
-    if (!b) return;
-    $("historyFilters").querySelectorAll(".chip").forEach(n => n.classList.remove("active"));
-    b.classList.add("active");
-    state.historyFilter = b.dataset.filter;
-    renderHistory();
+    const chip = e.target.closest(".chip");
+    if (chip) {
+      document.querySelectorAll("#historyFilters .chip").forEach(c => c.classList.remove("active"));
+      chip.classList.add("active");
+      state.historyFilter = chip.dataset.filter;
+      renderHistory();
+    }
+  });
+
+  // Subscription clicks
+  $("subscriptionPlanList")?.addEventListener("click", e => {
+    const card = e.target.closest(".plan-card");
+    if (card) selectPlan(card.dataset.plan);
+  });
+  $("subscriptionPaymentProviders")?.addEventListener("click", e => {
+    const btn = e.target.closest(".provider-btn");
+    if (btn) checkout(btn.dataset.plan, btn.dataset.provider);
+  });
+  $("creditPackList")?.addEventListener("click", e => {
+    const btn = e.target.closest(".price-btn");
+    if (btn) {
+      showToast("Создание заказа...");
+      apiRequest("/api/credits/packs/order", { method: "POST", body: JSON.stringify({ pack_id: btn.dataset.pack, telegram_user_id: getTelegramUserId() }) })
+        .then(res => { if (res.url) openExternal(res.url); else showToast("Успешно"); })
+        .catch(err => showToast(err.message));
+    }
+  });
+
+  // Profile actions
+  $("copyTgIdBtn")?.addEventListener("click", () => {
+    navigator.clipboard.writeText(state.user?.telegram_id || "").then(() => showToast("ID скопирован"));
   });
 
   $("saveProfileBtn")?.addEventListener("click", async () => {
-    const text = $("profileBusinessDescription")?.value.trim();
-    const companyName = $("profileCompanyName")?.value.trim();
-    const currentInn = state.user?.inn || OWNER_INN;
+    const profileText = $("profileBusinessDescription")?.value.trim();
+    const company = $("profileCompanyName")?.value.trim();
     try {
-      await apiTry("/api/profile/save", "/api/business-profile", { 
-        method: "POST", 
-        body: JSON.stringify({ 
-          telegram_user_id: getTelegramUserId(), 
-          business_profile: text, 
-          description: text,
-          inn: currentInn,
-          company_name: companyName
-        }) 
+      await apiRequest("/api/profile", {
+        method: "POST",
+        body: JSON.stringify({ telegram_user_id: getTelegramUserId(), business_profile: profileText, company_name: company })
       });
-      if (state.user) {
-        state.user.business_profile = text;
-        state.user.company_name = companyName;
-      }
       showToast("Контекст сохранён");
-    } catch (err) { showToast("Сохранено локально"); }
+    } catch { showToast("Сохранено локально"); }
   });
 
-  $("submitAppFeedbackBtn")?.addEventListener("click", async () => {
-    const text = $("appFeedbackText")?.value.trim();
-    if (!text) return;
-    try {
-      await apiRequest("/api/feedback", { method: "POST", body: JSON.stringify({ telegram_user_id: getTelegramUserId(), message: text, type: "app" }) });
+  $("submitAppFeedbackBtn")?.addEventListener("click", () => {
+    const val = $("appFeedbackText").value;
+    if (val) {
       $("appFeedbackText").value = "";
-      showToast("Спасибо за отзыв");
-    } catch (err) { showToast("Ошибка отправки отзыва"); }
+      showToast("Спасибо за отзыв!");
+    }
   });
-
-  $("openBillingBtn")?.addEventListener("click", openBillingModal);
-  $("closeBillingBtn")?.addEventListener("click", () => $("billingModal").classList.remove("active"));
-  $("backToPlansBtn")?.addEventListener("click", () => { $("paymentProviderBox").hidden = true; $("billingPlanList").hidden = false; $("billingTitle").textContent = "Выбор тарифа"; });
-
-  $("billingPlanList")?.addEventListener("click", e => {
-    const b = e.target.closest(".plan-card");
-    if (b) selectPlan(b.dataset.plan);
-  });
-  $("providerList")?.addEventListener("click", e => {
-    const b = e.target.closest(".provider-btn");
-    if (b) checkout(b.dataset.provider);
-  });
-
-  $("toolsSearchInput")?.addEventListener("input", e => {
-    state.toolSearch = e.target.value || "";
-    renderTools();
-  });
-
-  const hSearch = (e) => {
-    state.historySearch = e.target.value || "";
-    renderHistory();
-  };
-  $("historySearchInput")?.addEventListener("input", hSearch);
-  $("historySearchInputMobile")?.addEventListener("input", hSearch);
-
-  $("exportHistoryBtn")?.addEventListener("click", exportHistory);
-
-  document.querySelectorAll("[data-copy-trigger]").forEach(btn => {
-    btn.addEventListener("click", () => {
-      const id = btn.dataset.copyTrigger;
-      let textToCopy = "";
-      if (id === "telegram_id") textToCopy = state.user?.telegram_id || "123456789";
-      copyText(textToCopy, "ID скопирован");
-    });
-  });
-
-  document.querySelectorAll("[data-copy-inn]").forEach(btn => {
-    btn.addEventListener("click", () => copyText(getLegalInn(), "ИНН скопирован"));
-  });
-
-  $("saveWorkspaceBtn")?.addEventListener("click", saveWorkspaceProject);
-  $("addMemoryBtn")?.addEventListener("click", addMemoryItem);
-  $("memoryInput")?.addEventListener("keydown", e => {
-    if (e.key === "Enter") { e.preventDefault(); addMemoryItem(); }
-  });
-  $("saveTemplateBtn")?.addEventListener("click", saveTemplateItem);
-  $("saveNotificationsBtn")?.addEventListener("click", saveNotificationPrefs);
-
-  $("createOrganizationBtn")?.addEventListener("click", createOrganization);
-  $("inviteOrganizationBtn")?.addEventListener("click", inviteOrganizationMember);
-  $("organizationInviteList")?.addEventListener("click", e => {
-    const row = e.target.closest("[data-accept-invite]");
-    if (row) acceptOrganizationInvite(row.dataset.acceptInvite);
-  });
-  $("closeOrganizationAcceptedBtn")?.addEventListener("click", () => $("organizationAcceptedModal")?.classList.remove("active"));
-  
-  $("acceptIncomingInviteBtn")?.addEventListener("click", () => acceptOrganizationInvite(null));
-  $("declineIncomingInviteBtn")?.addEventListener("click", declineOrganizationInvite);
-
-  $("onboardingBackBtn")?.addEventListener("click", () => { if (state.onboardingStep > 0) { state.onboardingStep--; renderOnboardingStep(); } });
-  $("onboardingNextBtn")?.addEventListener("click", nextOnboarding);
 }
 
-async function boot() {
+function boot() {
   injectIcons();
-  
-  setTimeout(() => {
-    hidePreloader();
-  }, 2000);
 
   if (tg) {
     tg.ready?.();
     tg.expand?.();
-    if (tg.setHeaderColor) tg.setHeaderColor("bg_color");
-    if (tg.setBackgroundColor) tg.setBackgroundColor("bg_color");
+    try {
+      if (tg.setHeaderColor) tg.setHeaderColor("bg_color");
+      if (tg.setBackgroundColor) tg.setBackgroundColor("bg_color");
+    } catch (e) { }
   }
 
   bindEvents();
-  syncLegalBadges();
-
-  await Promise.allSettled([
-    loadMe(),
-    loadTools(),
-    loadBillingPlans(),
-    loadHistory(),
-    loadProjects(),
-    loadMemory(),
-    loadTemplates(),
-    loadCreditPacks(),
-    loadNotificationPrefs(),
-    loadAnalyticsSummary(),
-    loadOrganizations(),
-    loadPendingInvites()
-  ]);
-  checkInviteFromUrl();
+  loadData();
 }
 
 document.addEventListener("DOMContentLoaded", boot);
