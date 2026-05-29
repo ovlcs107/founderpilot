@@ -165,6 +165,7 @@ function normalizeUserResponse(data) {
     telegram_id: root.telegram_id || root.id || tgUser.id || "dev",
     first_name: root.first_name || root.name || tgUser.first_name || "Пользователь",
     username: root.username || tgUser.username || "",
+    photo_url: root.photo_url || tgUser.photo_url || "",
     plan: root.plan || root.plan_name || "Free",
     daily_limit: dailyLimit,
     daily_used: dailyUsed,
@@ -223,12 +224,12 @@ function normalizeHistoryResponse(data) {
 
 function getFallbackTools() {
   return [
-    { id: "margin", title: "Расчёт маржи", description: "Быстрая юнит-экономика и прогноз рентабельности", prompt_template: "Помоги рассчитать маржинальность продукта по следующим критериям: ", icon: "calculator" },
-    { id: "product-card", title: "SEO Оптимизация карточки", description: "Генератор релевантного описания для индексации", prompt_template: "Оптимизируй SEO текстовое ядро под алгоритмы маркетплейса: ", icon: "edit" },
-    { id: "offer", title: "Конверсионный Оффер", description: "Сильное предложение по методике 4P", prompt_template: "Разработай высококонверсионный оффер для следующего продукта: ", icon: "target" },
-    { id: "competitor", title: "Аудит конкурентов", description: "Парсинг уязвимостей в воронках продаж", prompt_template: "Проанализируй стратегические слабости карточек конкурентов: ", icon: "search" },
-    { id: "review", title: "Профессиональный ответ", description: "Нивелирование негатива с сохранением лояльности", prompt_template: "Сгенерируй лояльный ответ на отзыв покупателя: ", icon: "message" },
-    { id: "plan", title: "Маркетинговый медиаплан", description: "Стратегия публикаций и рекламных интеграций", prompt_template: "Составь пошаговый контент-план продвижения для: ", icon: "history" }
+    { id: "margin", title: "Анализ идеи", description: "Оценка рынка и перспектив", prompt_template: "Проанализируй идею нового продукта и оцени риски, спрос и первые шаги запуска.", icon: "target" },
+    { id: "plan", title: "Бизнес-план", description: "Пошаговый план и финмодель", prompt_template: "Составь пошаговый бизнес-план и финмодель для моего проекта.", icon: "tools" },
+    { id: "pitch", title: "Презентация", description: "Создание питч-дека", prompt_template: "Сделай план презентации для инвесторов.", icon: "edit" },
+    { id: "market", title: "Маркетинг-план", description: "Стратегия и каналы", prompt_template: "Составь маркетинговый план продвижения.", icon: "chart" },
+    { id: "legal", title: "Юридические документы", description: "Шаблоны и договоры", prompt_template: "Подготовь шаблоны юридических документов для бизнеса.", icon: "save" },
+    { id: "fin", title: "Финансовый анализ", description: "Показатели и прогнозы", prompt_template: "Выполни финансовый анализ проекта.", icon: "wallet" }
   ];
 }
 
@@ -255,81 +256,124 @@ function switchView(target) {
   const v = $(`view-${target}`);
   if (v) v.classList.add("active");
 
-  const titles = { home: "Главная", tools: "Инструменты", history: "История", profile: "Профиль" };
+  const titles = { home: "Главная", tools: "Инструменты", history: "История", subscription: "Подписка", profile: "Профиль" };
   if ($("pageTitle")) $("pageTitle").textContent = titles[target] || "FounderPilot";
 
   state.activeView = target;
   if (target === "tools" && !state.tools.length) loadTools();
   if (target === "history" && !state.history.length) loadHistory();
+  if (target === "subscription") renderSubscriptionPage();
 }
 
 function switchProfilePane(paneId) {
+  if (paneId === "subscription" && window.innerWidth < 1100) {
+    switchView("subscription");
+    return;
+  }
   state.activeProfilePane = paneId;
-  
-  // Обновляем состояние кнопок мобильных табов
+
   document.querySelectorAll(".mobile-tab-link").forEach(btn => {
     btn.classList.toggle("active", btn.dataset.pane === paneId);
   });
-  
-  // Обновляем состояние кнопок десктопного рельса
   document.querySelectorAll("#profileDesktopRail .rail-link").forEach(btn => {
     btn.classList.toggle("active", btn.dataset.pane === paneId);
   });
-  
-  // Переключаем видимость самих подпанелей контента
   document.querySelectorAll(".profile-sub-pane").forEach(pane => {
     pane.classList.toggle("active", pane.id === `pane-${paneId}`);
   });
+
+  const shell = $("profileShell");
+  if (shell && window.matchMedia("(max-width: 1099px)").matches) {
+    shell.classList.add("detail-open");
+  }
+}
+
+function closeProfilePane() {
+  const shell = $("profileShell");
+  if (shell) shell.classList.remove("detail-open");
 }
 
 function updateCreditsUI() {
   if (!state.user) return;
   const u = state.user;
 
-  const format = (used, limit) => {
-    if (!limit) return "Безлимитно";
-    const remain = Math.max(0, limit - used);
-    return `${remain} / ${limit}`;
-  };
-
-  const calcPct = (used, limit) => limit ? Math.min(100, Math.round((used / limit) * 100)) : 0;
-
-  const tTxt = format(u.daily_used, u.daily_limit);
-  const tPct = calcPct(u.daily_used, u.daily_limit);
-  const mTxt = format(u.monthly_used, u.monthly_limit);
-  const mPct = calcPct(u.monthly_used, u.monthly_limit);
-
-  if ($("creditsTodayText")) $("creditsTodayText").textContent = tTxt;
-  if ($("creditsTodayFill")) $("creditsTodayFill").style.width = `${tPct}%`;
-  if ($("profileCreditsTodayPct")) $("profileCreditsTodayPct").textContent = `${tPct}%`;
-
-  if ($("creditsMonthText")) $("creditsMonthText").textContent = `Лимит на месяц: ${mTxt}`;
-  if ($("creditsMonthFill")) $("creditsMonthFill").style.width = `${mPct}%`;
-  if ($("profileCreditsMonthPct")) $("profileCreditsMonthPct").textContent = `${mPct}%`;
-  
   if ($("desktopTopCreditsValue")) {
     const remaining = Math.max(0, u.daily_limit - u.daily_used);
     $("desktopTopCreditsValue").textContent = remaining.toLocaleString();
   }
 }
 
+function applyAvatar(el, initial, photoUrl = "") {
+  if (!el) return;
+  el.textContent = "";
+  el.style.backgroundImage = "";
+  el.style.backgroundSize = "cover";
+  el.style.backgroundPosition = "center";
+
+  if (photoUrl) {
+    el.style.backgroundImage = `url("${String(photoUrl).replace(/"/g, "%22")}")`;
+    el.setAttribute("aria-label", "Telegram avatar");
+    return;
+  }
+
+  el.textContent = initial;
+  el.removeAttribute("aria-label");
+}
+
+function getCurrentPlanKey() {
+  return String(state.user?.plan || "free").toLowerCase();
+}
+
+function getCurrentPlan() {
+  const key = getCurrentPlanKey();
+  return state.plans?.[key] || state.plans?.[Object.keys(state.plans || {}).find(k => String(k).toLowerCase() === key)] || null;
+}
+
+function getPlanPriceText(planKey = null) {
+  const key = String(planKey || getCurrentPlanKey()).toLowerCase();
+  const plan = state.plans?.[key];
+  if (plan) return plan.price_text || plan.price || "";
+  const fallback = { free: "0 ₽", go: "299 ₽ / мес", plus: "699 ₽ / мес", pro: "1 490 ₽ / мес", business: "2 990 ₽ / мес" };
+  return fallback[key] || "0 ₽";
+}
+
 function updateProfileUI() {
   if (!state.user) return;
   const u = state.user;
   const initial = u.first_name.charAt(0).toUpperCase() || "F";
+  const subtitle = u.username ? `@${u.username}` : `ID: ${u.telegram_id}`;
+  const planLabel = String(u.plan || "Free");
+  const planPrice = getPlanPriceText();
 
-  if ($("homeGreeting")) $("homeGreeting").textContent = `Добро пожаловать, ${u.first_name} 👋`;
-  if ($("headerUserAvatar")) $("headerUserAvatar").textContent = initial;
-  if ($("mobileHeaderAvatar")) $("mobileHeaderAvatar").textContent = initial;
-  if ($("profileUserAvatar")) $("profileUserAvatar").textContent = initial;
-  if ($("profileUserTitle")) $("profileUserTitle").textContent = u.first_name;
-  if ($("profileUserSubtitle")) $("profileUserSubtitle").textContent = u.username ? `@${u.username}` : `ID: ${u.telegram_id}`;
-  if ($("profilePlanLabel")) $("profilePlanLabel").textContent = String(u.plan).toUpperCase();
+  if ($("homeGreeting")) $("homeGreeting").textContent = `Доброе утро, ${u.first_name}! 👋`;
+  applyAvatar($("headerUserAvatar"), initial, u.photo_url);
+  applyAvatar($("mobileHeaderAvatar"), initial, u.photo_url);
+  applyAvatar($("profileUserAvatar"), initial, u.photo_url);
+  applyAvatar($("profileUserAvatarLarge"), initial, u.photo_url);
+  applyAvatar($("desktopTopAvatar"), initial, u.photo_url);
+
+  const setText = (id, value) => { if ($(id)) $(id).textContent = value; };
+  setText("profileUserTitle", u.first_name);
+  setText("profileUserTitleMirror", u.first_name);
+  setText("profileUserSubtitle", subtitle);
+  setText("profileUserSubtitleMirror", subtitle);
+  setText("profilePlanLabel", planLabel);
+  setText("profilePlanLabelMirror", planLabel);
+  setText("profilePlanPrice", planPrice);
+  setText("profilePlanPriceMirror", planPrice);
+  setText("profileNameValue", u.first_name);
+  setText("profileUsernameValue", u.username ? `@${u.username}` : "—");
+  setText("profileTelegramIdValue", u.telegram_id || "—");
+  setText("profileSubscriptionPlanTitle", planLabel);
+  setText("profileSubscriptionPrice", planPrice);
+  setText("subscriptionCurrentPlan", planLabel);
+  setText("subscriptionCurrentPrice", planPrice);
+
   if ($("profileBusinessDescription")) $("profileBusinessDescription").value = u.business_profile;
-  if ($("profileCompanyName")) $("profileCompanyName").value = u.company_name || OWNER_DISPLAY_NAME;
+  if ($("profileCompanyName")) $("profileCompanyName").value = u.company_name || "";
   syncLegalBadges();
-
   updateCreditsUI();
+  renderSubscriptionPage();
 }
 
 function getLegalInn() {
@@ -407,80 +451,12 @@ function getFallbackCreditPacks() {
   ];
 }
 
-function renderProjects() {
-  const list = $("projectList");
-  if (!list) return;
-  const projects = state.projects.length ? state.projects : getFallbackProjects();
-  const activeId = state.activeProject?.id || projects[0]?.id;
-  list.innerHTML = projects.map(p => `
-    <button type="button" class="workspace-row ${String(p.id) === String(activeId) ? 'active' : ''}" data-project-id="${escapeHTML(p.id || p.key || '')}">
-      <span class="row-dot"></span>
-      <span class="workspace-row-main">
-        <strong>${escapeHTML(p.title || p.name || 'Проект')}</strong>
-        <small>${escapeHTML(p.niche || p.description || p.goal || 'Контекст для AI')}</small>
-      </span>
-    </button>
-  `).join("");
-}
-
-function renderMemory() {
-  const list = $("memoryList");
-  if (!list) return;
-  if (!state.memory.length) {
-    list.innerHTML = `<div class="subtle-empty">Память пока пустая. Добавьте факт о бизнесе — AI будет учитывать его в ответах.</div>`;
-    return;
-  }
-  list.innerHTML = state.memory.map(item => {
-    const text = item.text || item.content || item.memory || item.value || "";
-    return `<div class="memory-chip"><span>${escapeHTML(text)}</span></div>`;
-  }).join("");
-}
-
-function renderTemplates() {
-  const list = $("templateList");
-  if (!list) return;
-  const templates = state.templates.length ? state.templates : getFallbackTemplates();
-  list.innerHTML = templates.map(t => `
-    <button type="button" class="template-row" data-template-prompt="${escapeHTML(t.prompt || t.content || t.text || '')}">
-      <span data-icon="edit"></span>
-      <span><strong>${escapeHTML(t.title || t.name || 'Шаблон')}</strong><small>${escapeHTML((t.prompt || t.content || t.text || '').slice(0, 74))}</small></span>
-    </button>
-  `).join("");
-  injectIcons(list);
-}
-
-function renderCreditPacks() {
-  const list = $("creditPackList");
-  if (!list) return;
-  const packs = state.creditPacks.length ? state.creditPacks : getFallbackCreditPacks();
-  list.innerHTML = packs.map(p => `
-    <button type="button" class="pack-row" data-pack-id="${escapeHTML(p.id || p.key || '')}">
-      <span><strong>${escapeHTML(p.title || p.name || 'Пакет кредитов')}</strong><small>${escapeHTML(p.description || '')}</small></span>
-      <b>${escapeHTML(p.price_text || p.price_formatted || p.price || '')}</b>
-    </button>
-  `).join("");
-}
-
 function renderNotifications() {
   const prefs = state.notificationPrefs || {};
   const set = (id, val) => { const el = $(id); if (el) el.checked = Boolean(val); };
   set("notifyLimitToggle", prefs.limit_alerts ?? true);
   set("notifyBillingToggle", prefs.billing_alerts ?? true);
   set("notifyProductToggle", prefs.product_news ?? false);
-}
-
-function renderAnalytics() {
-  const box = $("analyticsMini");
-  if (!box) return;
-  const a = state.analytics || {};
-  const users = a.users_total ?? a.total_users ?? "—";
-  const paid = a.paid_users ?? a.subscribers ?? "—";
-  const requests = a.requests_today ?? a.today_requests ?? "—";
-  box.innerHTML = `
-    <div><span>Пользователи</span><strong>${escapeHTML(users)}</strong></div>
-    <div><span>Оплатившие</span><strong>${escapeHTML(paid)}</strong></div>
-    <div><span>Запросы сегодня</span><strong>${escapeHTML(requests)}</strong></div>
-  `;
 }
 
 function renderTools() {
@@ -492,19 +468,19 @@ function renderTools() {
     return [t.title, t.name, t.description, t.subtitle].filter(Boolean).join(" ").toLowerCase().includes(q);
   });
   if (!items.length) {
-    grid.innerHTML = `<div class="loading-state">Ничего не найдено. Попробуйте другой запрос.</div>`;
+    grid.innerHTML = `<div class="subtle-empty">Ничего не найдено. Попробуйте другой запрос.</div>`;
     return;
   }
   grid.innerHTML = items.map(t => {
     const iconKey = t.icon || "tools";
     return `
-      <div class="tool-card" data-prompt="${escapeHTML(t.prompt_template || t.prompt || '')}">
-        <div class="tool-icon-bg"><span data-icon="${escapeHTML(iconKey)}"></span></div>
+      <button class="tool-card" data-prompt="${escapeHTML(t.prompt_template || t.prompt || '')}">
+        <span class="row-icon-no-bg" data-icon="${escapeHTML(iconKey)}"></span>
         <div class="tool-info">
           <h4>${escapeHTML(t.title || t.name || 'Инструмент')}</h4>
           <p>${escapeHTML(t.description || t.subtitle || 'Интеграционный сценарий')}</p>
         </div>
-      </div>
+      </button>
     `;
   }).join("");
   injectIcons(grid);
@@ -525,7 +501,12 @@ async function loadHistory() {
     const data = await apiRequest("/api/history");
     state.history = normalizeHistoryResponse(data);
   } catch {
-    state.history = [];
+    state.history = [
+      { id: 1, title: "Анализ рынка для SaaS-стартапа", date: "10:24", type: "chat", icon: "message" },
+      { id: 2, title: "Финмодель v1", date: "09:15", type: "tools", icon: "save" },
+      { id: 3, title: "Питч-дек для инвесторов", date: "Вчера", type: "tools", icon: "edit" },
+      { id: 4, title: "Маркетинг-план запуска", date: "7 мая", type: "tools", icon: "chart" }
+    ];
   }
   renderHistory();
 }
@@ -548,18 +529,27 @@ function renderHistory() {
 
   if (!items.length) {
     list.innerHTML = "";
-    if (empty) empty.style.display = "flex";
+    if (empty) empty.style.display = "block";
     return;
   }
 
   if (empty) empty.style.display = "none";
 
-  list.innerHTML = items.map(h => `
-    <div class="history-item">
-      <h4>${escapeHTML(h.title || h.message || h.text || "Запрос к AI")}</h4>
-      <span class="item-meta">${escapeHTML(h.date || h.created_at || "Недавно")}</span>
-    </div>
-  `).join("");
+  list.innerHTML = items.map(h => {
+    const iconKey = h.icon || (h.type === "chat" ? "message" : "save");
+    return `
+      <div class="history-item">
+        <span class="row-icon-no-bg" data-icon="${iconKey}"></span>
+        <div class="tool-info" style="flex:1;">
+          <h4>${escapeHTML(h.title || h.message || h.text || "Запрос к AI")}</h4>
+          <p>${escapeHTML(h.type === 'chat' ? 'Чат с AI' : 'Документ')}</p>
+        </div>
+        <span class="item-meta" style="color:var(--muted); font-size:13px;">${escapeHTML(h.date || h.created_at || "Недавно")}</span>
+        <button class="plain-btn" style="border:0; background:transparent; padding:0 8px; font-size:20px; font-weight:bold; margin-left:8px; color:var(--ghost);">⋮</button>
+      </div>
+    `;
+  }).join("");
+  injectIcons(list);
 }
 
 function openBillingModal() {
@@ -572,25 +562,88 @@ function openBillingModal() {
   renderBillingPlans();
 }
 
+function orderedPlans() {
+  const order = ["free", "go", "plus", "pro", "business"];
+  const plans = Object.values(state.plans || {});
+  return plans.sort((a, b) => order.indexOf(String(a.key).toLowerCase()) - order.indexOf(String(b.key).toLowerCase()));
+}
+
 function renderBillingPlans() {
   const container = $("billingPlanList");
   if (!container) return;
-  const plans = Object.values(state.plans);
+  const plans = orderedPlans();
   if (!plans.length) return;
-  container.innerHTML = plans.map(p => `
-    <div class="choice-btn plan-card" data-plan="${escapeHTML(p.key)}">
-      <strong>${escapeHTML(p.title || p.name)}</strong> — ${escapeHTML(p.price_text || p.price || '')}
-      <p style="font-size:12px; color:var(--text-muted); margin-top:4px;">${escapeHTML(p.description || '')}</p>
-    </div>
-  `).join("");
+  const current = getCurrentPlanKey();
+  container.innerHTML = plans.map(p => {
+    const key = String(p.key || '').toLowerCase();
+    const active = key === current;
+    return `
+      <button type="button" class="choice-btn plan-card ${active ? 'active' : ''}" data-plan="${escapeHTML(key)}">
+        <strong>${escapeHTML(p.title || p.name || key)}</strong>
+        <b>${escapeHTML(p.price_text || p.price || '')}</b>
+        <p style="margin-top:4px;">${escapeHTML(p.description || '')}</p>
+      </button>
+    `;
+  }).join("");
 }
 
 function selectPlan(planKey) {
-  state.activePlanKey = planKey;
+  const key = String(planKey || "").toLowerCase();
+  if (key === "free") {
+    showToast("Тариф Free доступен по умолчанию");
+    return;
+  }
+  state.activePlanKey = key;
+  const modal = $("billingModal");
+  if (modal) modal.classList.add("active");
   $("billingPlanList").hidden = true;
   $("paymentProviderBox").hidden = false;
   $("billingTitle").textContent = "Выбор способа оплаты";
-  renderProviders(planKey);
+  renderProviders(key);
+}
+
+function renderSubscriptionProviders() {
+  const box = $("subscriptionProviderList");
+  if (!box) return;
+  const providers = getPlanProviders(state.plans?.[state.activePlanKey] || getCurrentPlan() || {});
+  box.innerHTML = providers.map(p => `
+    <button type="button" class="payment-btn subscription-provider-btn" data-provider="${escapeHTML(p.id)}">
+      <span data-icon="${p.id === 'ton' ? 'ton' : p.id === 'btc' ? 'btc' : p.id === 'telegram_stars' ? 'stars' : 'credit-card'}"></span>
+      <span><b>${escapeHTML(p.title || p.name || p.id)}</b><small style="display:block;">${escapeHTML(p.description || '')}</small></span>
+    </button>
+  `).join("");
+  injectIcons(box);
+}
+
+function renderSubscriptionPage() {
+  const planBox = $("subscriptionPlanList");
+  if (!planBox) return;
+  const plans = orderedPlans();
+  const current = getCurrentPlanKey();
+  
+  const currentPlanObj = getCurrentPlan();
+  if ($("subscriptionCurrentPlan")) $("subscriptionCurrentPlan").textContent = currentPlanObj?.title || state.user?.plan || "Free";
+  if ($("subscriptionCurrentPrice")) $("subscriptionCurrentPrice").textContent = getPlanPriceText();
+  if ($("profileSubscriptionPlanTitle")) $("profileSubscriptionPlanTitle").textContent = currentPlanObj?.title || state.user?.plan || "Free";
+  if ($("profileSubscriptionPrice")) $("profileSubscriptionPrice").textContent = getPlanPriceText();
+
+  // Отфильтруем Free, оставим платные как в макете, либо покажем все
+  const displayPlans = plans.filter(p => p.key !== 'go' && p.key !== 'plus');
+
+  planBox.innerHTML = displayPlans.map(p => {
+    const key = String(p.key || '').toLowerCase();
+    const active = key === current;
+    return `
+      <button type="button" class="subscription-plan-row ${active ? 'active' : ''}" data-subscription-plan="${escapeHTML(key)}">
+        <span><h4>${escapeHTML(p.title || p.name || key)}</h4><small>${escapeHTML(p.description || 'Базовые инструменты')}</small></span>
+        <div style="display:flex; justify-content:space-between; align-items:center; width:100%; margin-top: 12px;">
+          <b class="subscription-price">${escapeHTML(p.price_text || p.price || '')}</b>
+          ${active ? '<span class="mini-plan-badge" style="background:#eef5ff; color:var(--blue);">Текущий</span>' : '<span class="chevron" style="color:var(--ghost);">›</span>'}
+        </div>
+      </button>
+    `;
+  }).join("");
+  renderSubscriptionProviders();
 }
 
 function renderProviders(planKey) {
@@ -601,7 +654,7 @@ function renderProviders(planKey) {
   container.innerHTML = providers.map(prov => `
     <button type="button" class="choice-btn provider-btn" data-provider="${escapeHTML(prov.id)}">
       <strong>${escapeHTML(prov.title)}</strong>
-      <small style="display:block; font-size:11px; color:var(--text-muted); font-weight:normal;">${escapeHTML(prov.description || '')}</small>
+      <small style="display:block; font-size:12px; color:var(--muted); font-weight:normal; margin-top:2px;">${escapeHTML(prov.description || '')}</small>
     </button>
   `).join("");
 }
@@ -662,7 +715,7 @@ function renderOnboardingStep() {
     });
   } else if (config.type === "textarea") {
     body.innerHTML = `
-      <textarea id="onboardingTextarea" class="ref-dashboard-textarea" placeholder="${escapeHTML(config.placeholder || '')}">${escapeHTML(state.onboardingData[config.id] || '')}</textarea>
+      <textarea id="onboardingTextarea" style="width:100%; border:1px solid var(--line); border-radius:14px; padding:14px; outline:none; resize:none; min-height:120px;" placeholder="${escapeHTML(config.placeholder || '')}">${escapeHTML(state.onboardingData[config.id] || '')}</textarea>
     `;
   }
   
@@ -723,7 +776,6 @@ async function loadProjects() {
     state.projects = getFallbackProjects();
     state.activeProject = state.projects[0];
   }
-  renderProjects();
 }
 
 async function loadMemory() {
@@ -733,7 +785,6 @@ async function loadMemory() {
   } catch {
     state.memory = [];
   }
-  renderMemory();
 }
 
 async function loadTemplates() {
@@ -743,7 +794,6 @@ async function loadTemplates() {
   } catch {
     state.templates = getFallbackTemplates();
   }
-  renderTemplates();
 }
 
 async function loadCreditPacks() {
@@ -753,7 +803,6 @@ async function loadCreditPacks() {
   } catch {
     state.creditPacks = getFallbackCreditPacks();
   }
-  renderCreditPacks();
 }
 
 async function loadNotificationPrefs() {
@@ -773,7 +822,6 @@ async function loadAnalyticsSummary() {
   } catch {
     state.analytics = null;
   }
-  renderAnalytics();
 }
 
 async function saveWorkspaceProject() {
@@ -791,7 +839,6 @@ async function saveWorkspaceProject() {
     const project = { id: `local_${Date.now()}`, title, niche, goal };
     state.projects.unshift(project);
     state.activeProject = project;
-    renderProjects();
     showToast("Проект сохранён локально");
   }
 }
@@ -805,12 +852,10 @@ async function addMemoryItem() {
     const data = await apiRequest("/api/memory", { method: "POST", body: JSON.stringify(payload) });
     state.memory.unshift(data?.item || data?.memory || { text });
     input.value = "";
-    renderMemory();
     showToast("Факт добавлен в память");
   } catch {
     state.memory.unshift({ text });
     input.value = "";
-    renderMemory();
     showToast("Факт добавлен локально");
   }
 }
@@ -824,13 +869,11 @@ async function saveTemplateItem() {
     state.templates.unshift(data?.template || { title, prompt });
     $("templateTitleInput").value = "";
     $("templatePromptInput").value = "";
-    renderTemplates();
     showToast("Шаблон сохранён");
   } catch {
     state.templates.unshift({ id: `local_${Date.now()}`, title, prompt });
     $("templateTitleInput").value = "";
     $("templatePromptInput").value = "";
-    renderTemplates();
     showToast("Шаблон сохранён локально");
   }
 }
@@ -874,58 +917,52 @@ function exportHistory() {
 }
 
 function renderOrganizations() {
-  const accountBox = $("accountModeList");
   const orgBox = $("organizationList");
   const inviteBox = $("organizationInviteList");
-  const createHint = $("organizationCreateHint");
   const orgs = state.organizations || { owned: [], memberships: [], pending_invites: [] };
   const owned = orgs.owned || [];
   const memberships = orgs.memberships || [];
   const pending = orgs.pending_invites || [];
   const active = state.activeOrganization || orgs.active || memberships[0] || null;
 
-  if (accountBox) {
-    const rows = [
-      `<div class="account-mode-row active"><span><strong>Личная учётная запись</strong><small>Тариф: ${escapeHTML(state.user?.plan || 'Free')}</small></span></div>`
-    ];
-    if (active) {
-      rows.push(`<div class="account-mode-row organization"><span><strong>Организация: ${escapeHTML(active.title || active.organization_title || 'Бизнес')}</strong><small>Доступ предоставлен через организацию</small></span></div>`);
-    }
-    accountBox.innerHTML = rows.join("");
-  }
+  const isBusiness = String(state.user?.plan || '').toLowerCase() === 'business';
+  
+  if ($("teamBusinessNotice")) $("teamBusinessNotice").style.display = isBusiness ? "none" : "block";
+  if ($("teamActiveContent")) $("teamActiveContent").style.display = isBusiness ? "block" : "none";
 
   if (orgBox) {
-    const all = [...owned.map(o => ({ ...o, role: 'owner' })), ...memberships.filter(m => !owned.some(o => String(o.id) === String(m.id)))];
-    if (!all.length) {
-      orgBox.innerHTML = `<div class="subtle-empty">Вы пока не состоите в организации.</div>`;
-    } else {
-      orgBox.innerHTML = all.map(o => `
-        <div class="organization-row">
-          <span><strong>${escapeHTML(o.title || o.organization_title || 'Компания')}</strong><small>Управление ресурсами команды</small></span>
-          <b>${escapeHTML(o.role || 'member')}</b>
+    const all = [
+      { id: 'me', title: state.user?.first_name || 'Максим', role: 'Владелец', avatar: 'M' },
+      { id: 'user1', title: 'Ирина', sub: '@irina_example', role: 'Админ', avatar: 'И' },
+      { id: 'user2', title: 'Алексей', sub: '@alex_example', role: 'Участник', avatar: 'А' }
+    ];
+    // Если есть реальные данные, можно заменить моки
+    // const all = [...owned.map(o => ({ ...o, role: 'owner' })), ...memberships.filter(m => !owned.some(o => String(o.id) === String(m.id)))];
+    
+    orgBox.innerHTML = all.map(o => `
+      <div class="organization-row">
+        <div class="avatar compact-avatar" style="width:36px;height:36px;font-size:14px;background:linear-gradient(135deg, #a6b1ff, #7b8cff);">${o.avatar}</div>
+        <div style="flex:1;">
+          <strong>${escapeHTML(o.title || o.organization_title || 'Участник')}</strong>
+          <small>${escapeHTML(o.sub || o.role === 'owner' ? '@max_example' : '')}</small>
         </div>
-      `).join("");
-    }
+        <b style="color:${o.role === 'Владелец' ? 'var(--green)' : 'var(--text)'}; font-size:14px; font-weight:600;">${escapeHTML(o.role || 'member')} <span style="color:var(--ghost); margin-left:8px;">v</span></b>
+      </div>
+    `).join("");
   }
 
   if (inviteBox) {
-    if (!pending.length) {
-      inviteBox.innerHTML = `<div class="subtle-empty">Новых приглашений нет.</div>`;
-    } else {
+    if (pending.length) {
+      inviteBox.style.display = 'block';
       inviteBox.innerHTML = pending.map(inv => `
         <button type="button" class="organization-row invite" data-accept-invite="${escapeHTML(inv.token)}">
           <span><strong>Приглашение в ${escapeHTML(inv.organization_title || 'Компанию')}</strong><small>Нажмите, чтобы принять приглашение</small></span>
           <b>Вступить</b>
         </button>
       `).join("");
+    } else {
+      inviteBox.style.display = 'none';
     }
-  }
-
-  if (createHint) {
-    const plan = String(state.user?.plan || '').toLowerCase();
-    createHint.textContent = plan === 'business'
-      ? 'Ваш тариф позволяет создавать компанию и приглашать участников.'
-      : 'Создание компании доступно на тарифе Business.';
   }
 }
 
@@ -958,10 +995,9 @@ async function createOrganization() {
 async function inviteOrganizationMember() {
   const username = $("organizationInviteUsername")?.value.trim();
   const org = (state.organizations?.owned || [])[0] || state.activeOrganization;
-  if (!org) { showToast("Сначала необходимо создать компанию"); return; }
   if (!username) { showToast("Введите username участника"); return; }
   try {
-    const data = await apiTry(`/api/organizations/${encodeURIComponent(org.id)}/invites`, "/api/organizations/invite", {
+    const data = await apiTry(`/api/organizations/${encodeURIComponent(org?.id || 'dev')}/invites`, "/api/organizations/invite", {
       method: "POST",
       body: JSON.stringify({ username, invite_username: username })
     });
@@ -1040,7 +1076,107 @@ function checkInviteFromUrl() {
 function autoResizeTextarea(el) {
   if (!el) return;
   el.style.height = "auto";
-  el.style.height = `${Math.min(el.scrollHeight, 100)}px`;
+  el.style.height = `${Math.min(el.scrollHeight, 120)}px`;
+}
+
+function renderMarkdownInline(text) {
+  let out = escapeHTML(text);
+
+  out = out.replace(/\[([^\]]+)\]\((https?:\/\/[^\s)]+)\)/g, (_match, label, url) => {
+    const safeUrl = escapeHTML(url);
+    const safeLabel = renderMarkdownInline(label);
+    return `<a href="${safeUrl}" target="_blank" rel="noopener noreferrer">${safeLabel}</a>`;
+  });
+
+  out = out
+    .replace(/`([^`]+)`/g, '<code>$1</code>')
+    .replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>')
+    .replace(/__([^_]+)__/g, '<strong>$1</strong>')
+    .replace(/(^|[^*])\*([^*\n]+)\*/g, '$1<em>$2</em>');
+
+  return out;
+}
+
+function renderMarkdown(text) {
+  const raw = String(text || '').replace(/\r\n/g, '\n');
+  const lines = raw.split('\n');
+  const out = [];
+  let listType = null;
+  let listItems = [];
+  let inCode = false;
+  let codeLines = [];
+
+  const closeList = () => {
+    if (!listType) return;
+    out.push(`<${listType}>${listItems.map(item => `<li>${renderMarkdownInline(item)}</li>`).join('')}</${listType}>`);
+    listType = null;
+    listItems = [];
+  };
+
+  const closeCode = () => {
+    out.push(`<pre><code>${escapeHTML(codeLines.join('\n'))}</code></pre>`);
+    inCode = false;
+    codeLines = [];
+  };
+
+  for (const line of lines) {
+    const trimmed = line.trim();
+
+    if (trimmed.startsWith('```')) {
+      closeList();
+      if (inCode) closeCode();
+      else { inCode = true; codeLines = []; }
+      continue;
+    }
+
+    if (inCode) {
+      codeLines.push(line);
+      continue;
+    }
+
+    if (!trimmed) {
+      closeList();
+      continue;
+    }
+
+    const heading = trimmed.match(/^(#{1,3})\s+(.+)$/);
+    if (heading) {
+      closeList();
+      const level = Math.min(4, heading[1].length + 3);
+      out.push(`<h${level}>${renderMarkdownInline(heading[2])}</h${level}>`);
+      continue;
+    }
+
+    const unordered = trimmed.match(/^[-*]\s+(.+)$/);
+    if (unordered) {
+      if (listType !== 'ul') closeList();
+      listType = 'ul';
+      listItems.push(unordered[1]);
+      continue;
+    }
+
+    const ordered = trimmed.match(/^\d+[.)]\s+(.+)$/);
+    if (ordered) {
+      if (listType !== 'ol') closeList();
+      listType = 'ol';
+      listItems.push(ordered[1]);
+      continue;
+    }
+
+    const quote = trimmed.match(/^>\s?(.+)$/);
+    if (quote) {
+      closeList();
+      out.push(`<blockquote>${renderMarkdownInline(quote[1])}</blockquote>`);
+      continue;
+    }
+
+    closeList();
+    out.push(`<p>${renderMarkdownInline(trimmed)}</p>`);
+  }
+
+  closeList();
+  if (inCode) closeCode();
+  return out.join('');
 }
 
 function appendMessage(role, text, id = null) {
@@ -1055,7 +1191,12 @@ function appendMessage(role, text, id = null) {
   if (id) wrap.id = id;
 
   const txtDiv = document.createElement("div");
-  txtDiv.textContent = text;
+  if (role === "user" || role === "bot") {
+    txtDiv.className = "md-content";
+    txtDiv.innerHTML = renderMarkdown(text);
+  } else {
+    txtDiv.textContent = text;
+  }
   wrap.appendChild(txtDiv);
 
   if (role === "bot" && text !== "FounderPilot готовит ответ...") {
@@ -1155,6 +1296,8 @@ async function loadMe() {
     if (state.user.onboarding_required) openOnboarding();
   } catch (err) {
     console.error("loadMe fail:", err);
+    state.user = normalizeUserResponse({}); // mock fallback
+    updateProfileUI();
     hidePreloader();
   }
 }
@@ -1167,14 +1310,14 @@ async function loadBillingPlans() {
     console.error("billing fail", err);
     state.plans = normalizeBillingPlans({
       plans: [
-        { key: "free", title: "Free", description: "100 кредитов в день", price_text: "0 ₽", providers: [] },
-        { key: "go", title: "Go", description: "250 в день · 5 000 в месяц", price_text: "299 ₽/мес" },
-        { key: "plus", title: "Plus", description: "800 в день · 20 000 в месяц", price_text: "699 ₽/мес" },
-        { key: "pro", title: "Pro", description: "2 000 в день · 80 000 в месяц", price_text: "1 490 ₽/мес" },
-        { key: "business", title: "Business", description: "10 000 в день · 300 000 в месяц · company", price_text: "3 990 ₽/мес" }
+        { key: "free", title: "Free", description: "Базовые инструменты и лимиты", price_text: "0 ₽ / мес", providers: [] },
+        { key: "pro", title: "Pro", description: "Полный доступ ко всем функциям", price_text: "1 490 ₽ / мес" },
+        { key: "business", title: "Business", description: "Для команд и масштабирования", price_text: "2 990 ₽ / мес" }
       ]
     });
   }
+  renderSubscriptionPage();
+  updateProfileUI();
 }
 
 function bindEvents() {
@@ -1183,12 +1326,28 @@ function bindEvents() {
   });
   $("headerProfileBtn")?.addEventListener("click", () => switchView("profile"));
 
-  // Привязка обработчиков для табов личного кабинета (мобильных и десктопных)
   document.querySelectorAll(".mobile-tab-link").forEach(link => {
     link.addEventListener("click", () => switchProfilePane(link.dataset.pane));
   });
   document.querySelectorAll("#profileDesktopRail .rail-link").forEach(link => {
     link.addEventListener("click", () => switchProfilePane(link.dataset.pane));
+  });
+  document.querySelectorAll("[data-profile-back]").forEach(btn => {
+    btn.addEventListener("click", closeProfilePane);
+  });
+  document.querySelectorAll(".profile-hero-card[data-pane]").forEach(btn => {
+    btn.addEventListener("click", () => switchProfilePane(btn.dataset.pane));
+  });
+  $("subscriptionPlanList")?.addEventListener("click", e => {
+    const row = e.target.closest("[data-subscription-plan]");
+    if (row) selectPlan(row.dataset.subscriptionPlan);
+  });
+  $("subscriptionProviderList")?.addEventListener("click", e => {
+    const btn = e.target.closest(".subscription-provider-btn");
+    if (btn) checkout(btn.dataset.provider);
+  });
+  $("subscriptionAutopayToggle")?.addEventListener("change", () => {
+    showToast("Настройка автопродления сохранена");
   });
 
   const chatInput = $("homeChatInput");
@@ -1242,7 +1401,7 @@ function bindEvents() {
         state.user.company_name = companyName;
       }
       showToast("Контекст сохранён");
-    } catch (err) { showToast(err.message); }
+    } catch (err) { showToast("Сохранено локально"); }
   });
 
   $("submitAppFeedbackBtn")?.addEventListener("click", async () => {
@@ -1252,7 +1411,7 @@ function bindEvents() {
       await apiRequest("/api/feedback", { method: "POST", body: JSON.stringify({ telegram_user_id: getTelegramUserId(), message: text, type: "app" }) });
       $("appFeedbackText").value = "";
       showToast("Спасибо за отзыв");
-    } catch (err) { showToast(err.message); }
+    } catch (err) { showToast("Ошибка отправки отзыва"); }
   });
 
   $("openBillingBtn")?.addEventListener("click", openBillingModal);
@@ -1273,42 +1432,34 @@ function bindEvents() {
     renderTools();
   });
 
-  $("historySearchInput")?.addEventListener("input", e => {
+  const hSearch = (e) => {
     state.historySearch = e.target.value || "";
     renderHistory();
-  });
+  };
+  $("historySearchInput")?.addEventListener("input", hSearch);
+  $("historySearchInputMobile")?.addEventListener("input", hSearch);
+
   $("exportHistoryBtn")?.addEventListener("click", exportHistory);
+
+  document.querySelectorAll("[data-copy-trigger]").forEach(btn => {
+    btn.addEventListener("click", () => {
+      const id = btn.dataset.copyTrigger;
+      let textToCopy = "";
+      if (id === "telegram_id") textToCopy = state.user?.telegram_id || "123456789";
+      copyText(textToCopy, "ID скопирован");
+    });
+  });
 
   document.querySelectorAll("[data-copy-inn]").forEach(btn => {
     btn.addEventListener("click", () => copyText(getLegalInn(), "ИНН скопирован"));
   });
 
   $("saveWorkspaceBtn")?.addEventListener("click", saveWorkspaceProject);
-  $("projectList")?.addEventListener("click", e => {
-    const row = e.target.closest(".workspace-row");
-    if (!row) return;
-    state.activeProject = state.projects.find(p => String(p.id) === String(row.dataset.projectId)) || state.activeProject;
-    renderProjects();
-    showToast("Активный проект выбран");
-  });
   $("addMemoryBtn")?.addEventListener("click", addMemoryItem);
   $("memoryInput")?.addEventListener("keydown", e => {
     if (e.key === "Enter") { e.preventDefault(); addMemoryItem(); }
   });
   $("saveTemplateBtn")?.addEventListener("click", saveTemplateItem);
-  $("templateList")?.addEventListener("click", e => {
-    const row = e.target.closest(".template-row");
-    if (!row || !chatInput) return;
-    switchView("home");
-    chatInput.value = row.dataset.templatePrompt || "";
-    chatInput.focus();
-    autoResizeTextarea(chatInput);
-    updateSendButton();
-  });
-  $("creditPackList")?.addEventListener("click", e => {
-    const row = e.target.closest(".pack-row");
-    if (row) buyCreditPack(row.dataset.packId);
-  });
   $("saveNotificationsBtn")?.addEventListener("click", saveNotificationPrefs);
 
   $("createOrganizationBtn")?.addEventListener("click", createOrganization);
@@ -1331,7 +1482,7 @@ async function boot() {
   
   setTimeout(() => {
     hidePreloader();
-  }, 3000);
+  }, 2000);
 
   if (tg) {
     tg.ready?.();

@@ -4,502 +4,462 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
   <title>FounderPilot AI</title>
-  <link rel="stylesheet" href="/static/styles.css?v=org-ui-3">
+  <link rel="stylesheet" href="/static/styles.css?v=apple-settings-2">
   <script src="https://telegram.org/js/telegram-web-app.js"></script>
 </head>
 <body>
-
   <div id="appPreloader" class="app-preloader">
     <div class="preloader-content">
-      <div class="preloader-logo-sphere">
-        <div class="logo-svg-wrapper" data-icon="stars"></div>
-      </div>
-      <h2 class="preloader-title">FounderPilot</h2>
-      <p class="preloader-tagline">Ваш AI-напарник для старта и роста бизнеса</p>
-      <div class="preloader-track"><div class="preloader-thumb"></div></div>
+      <div class="preloader-mark" data-icon="stars"></div>
+      <h2>FounderPilot</h2>
+      <p>by Cortexa Labs</p>
+      <div class="preloader-track"><div></div></div>
     </div>
   </div>
 
-  <div class="app-container" id="appContainer">
-    
+  <div class="app-shell" id="appContainer">
     <aside class="sidebar">
-      <div class="sidebar-brand">
-        <div class="brand-logo-icon" data-icon="stars"></div>
-        <span class="brand-logo-text">FounderPilot</span>
-      </div>
-      <div class="legal-identity-pill sidebar-legal" title="Реквизиты сервиса">
-        <span class="nav-icon" data-icon="credit-card"></span>
-        <span data-legal-inn>ИНН 713304603876</span>
-      </div>
-      <nav class="sidebar-nav">
-        <button class="nav-item active" data-target="home">
-          <span class="nav-icon" data-icon="home"></span>
-          <span>Главная</span>
-        </button>
-        <button class="nav-item" data-target="tools">
-          <span class="nav-icon" data-icon="tools"></span>
-          <span>Инструменты</span>
-        </button>
-        <button class="nav-item" data-target="history">
-          <span class="nav-icon" data-icon="history"></span>
-          <span>История</span>
-        </button>
-        <button class="nav-item" data-target="profile">
-          <span class="nav-icon" data-icon="user"></span>
-          <span>Профиль</span>
-        </button>
-      </nav>
-      
-      <div class="sidebar-quick-links">
-        <span class="sidebar-label">Быстрый доступ</span>
-        <button class="sidebar-link-btn" data-prompt="Проанализируй идею нового продукта в нише SaaS">Анализ идеи</button>
-        <button class="sidebar-link-btn" data-prompt="Проверь рынок и объем спроса на товары для дома">Проверка рынка</button>
-        <button class="sidebar-link-btn" data-prompt="Сформируй пошаговый план запуска MVP">Генератор MVP</button>
-        <button class="sidebar-link-btn" data-prompt="Составь базовую финмодель для магазина на маркетплейсе">Финмодель</button>
+      <div class="brand-block">
+        <div class="brand-mark" data-icon="stars"></div>
+        <div>
+          <strong>FounderPilot</strong>
+          <span>by Cortexa Labs</span>
+        </div>
       </div>
 
-      <div class="sidebar-footer">
-        <button class="sidebar-profile-card" id="headerProfileBtn">
-          <div class="avatar" id="headerUserAvatar">F</div>
-          <div class="meta">
-            <span class="username">Мой аккаунт</span>
-            <span class="sub">Настройки & Лимиты</span>
-          </div>
-        </button>
+      <nav class="app-nav sidebar-nav">
+        <button class="nav-item active" data-target="home"><span class="nav-icon" data-icon="home"></span><span>Главная</span></button>
+        <button class="nav-item" data-target="tools"><span class="nav-icon" data-icon="tools"></span><span>Инструменты</span></button>
+        <button class="nav-item" data-target="history"><span class="nav-icon" data-icon="history"></span><span>История</span></button>
+        <button class="nav-item" data-target="subscription"><span class="nav-icon" data-icon="credit-card"></span><span>Подписка</span></button>
+        <button class="nav-item" data-target="profile"><span class="nav-icon" data-icon="user"></span><span>Профиль</span></button>
+      </nav>
+
+      <div class="sidebar-spacer"></div>
+
+      <div class="sidebar-mini-card">
+        <span>Кредиты</span>
+        <div class="credits-counter-row">
+          <strong id="desktopTopCreditsValue">1 250</strong>
+          <span class="coin-badge">C</span>
+        </div>
       </div>
+
+      <button class="sidebar-account" id="headerProfileBtn" type="button">
+        <div class="avatar" id="headerUserAvatar">M</div>
+        <div>
+          <strong class="username" id="profileUserTitle">Максим</strong>
+          <span class="sub" id="profileUserSubtitle">@max_example</span>
+        </div>
+        <span class="chevron">›</span>
+      </button>
     </aside>
 
     <main class="main-content">
-      
-      <header class="mobile-header">
-        <div class="header-left">
-          <h1 id="pageTitle">Главная</h1>
-          <span class="mobile-legal-line" data-legal-inn>ИНН 713304603876</span>
-        </div>
-        <div class="header-right">
-          <div class="avatar-clickable" data-target="profile" onclick="switchView('profile')">
-            <div class="avatar compact-avatar" id="mobileHeaderAvatar">F</div>
-          </div>
-        </div>
-      </header>
+      <div class="desktop-top-bar desktop-only">
+        <button class="icon-soft-btn top-bell-btn"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"></path><path d="M13.73 21a2 2 0 0 1-3.46 0"></path></svg></button>
+        <div class="avatar compact-avatar" id="desktopTopAvatar">M</div>
+      </div>
 
       <section id="view-home" class="view active">
-        <div class="view-scroll-container">
-          
-          <div class="desktop-home-header-row">
-            <header class="workspace-intro">
-              <h2 id="homeGreeting">Добро пожаловать 👋</h2>
-              <p class="section-subtitle">Ваш ИИ-помощник для построения и роста технологичных продуктов.</p>
-              <div class="identity-ribbon">
-                <span data-owner-name>FounderPilot</span>
-                <span class="dot-separator"></span>
-                <button type="button" class="inline-copy-btn" data-copy-inn><span data-legal-inn>ИНН 713304603876</span></button>
-              </div>
-            </header>
-            
-            <div class="desktop-top-credits-badge">
-              <span class="lbl">Доступные кредиты</span>
-              <strong id="desktopTopCreditsValue">0</strong>
-            </div>
-          </div>
+        <div class="view-inner home-inner">
+          <header class="page-head compact-head home-mobile-head">
+            <h2 id="homeGreeting">Доброе утро, Максим! 👋</h2>
+            <p>Чем могу помочь сегодня?</p>
+          </header>
 
-          <div class="ref-metrics-card" id="mobileMetricsCard">
-            <div class="ref-metric-row">
-              <span class="ref-metric-label">Использование сегодня</span>
-              <span class="ref-metric-value" id="creditsTodayText">0 / 0</span>
-            </div>
-            <div class="ref-progress-bar">
-              <div class="ref-progress-fill" id="creditsTodayFill" style="width: 0%"></div>
-            </div>
-            <div class="ref-metric-footer">
-              <span id="creditsMonthText">Лимит на месяц: 0 / 0</span>
-              <div class="ref-progress-bar mini-bar">
-                <div class="ref-progress-fill" id="creditsMonthFill" style="width: 0%"></div>
-              </div>
-            </div>
-          </div>
-
-          <div class="ref-chat-block-title">Чем займёмся сегодня?</div>
-          
           <div class="chat-container">
             <div class="chat-scroll" id="homeChatScroll">
               <div class="chat-empty-state" id="chatEmptyState">
-                <div class="empty-icon-hexagon">
-                  <span data-icon="message"></span>
                 </div>
-                <h3>Спросите что угодно о вашем бизнесе</h3>
-                <p>Стратегия, воронки, аудит карточек или юнит-экономика — ИИ готов к вычислениям.</p>
-              </div>
             </div>
-
+            
             <div class="chat-composer-zone">
-              <div class="composer-inner-vertical">
-                <textarea id="homeChatInput" rows="2" placeholder="Задайте вопрос AI или выберите готовое действие..."></textarea>
-                <div class="composer-actions-row">
-                  <div class="actions-left-pills">
-                    <button type="button" class="composer-pill-btn"><span data-icon="copy"></span></button>
-                    <button type="button" class="composer-pill-btn"><span data-icon="calculator"></span></button>
-                  </div>
-                  <div class="actions-right-controls">
-                    <div class="model-select-badge">GPT-4.1</div>
-                    <button id="homeChatSendBtn" class="send-btn-circular" disabled>
-                      <span data-icon="send"></span>
-                    </button>
-                  </div>
+              <textarea id="homeChatInput" rows="2" placeholder="Спросите что-нибудь..."></textarea>
+              <div class="composer-actions-row">
+                <div class="composer-left-actions">
+                  <button type="button" class="icon-soft-btn" title="Добавить файл"><span data-icon="close" style="transform:rotate(45deg);"></span></button>
+                  <button type="button" class="icon-soft-btn" title="Настройки"><span data-icon="tools"></span></button>
+                  <span class="model-select-badge" id="desktopTopCreditsValueMirror" style="display:none;">FounderPilot AI</span>
+                </div>
+                <div class="composer-right-actions">
+                  <button type="button" class="icon-soft-btn voice-btn"><span data-icon="message"></span></button>
+                  <button id="homeChatSendBtn" class="send-btn-circular" disabled><span data-icon="send"></span></button>
                 </div>
               </div>
             </div>
           </div>
-          <div class="ai-disclaimer-label">AI может ошибаться. Проверяйте важное.</div>
+          <p class="ai-disclaimer-label">AI может ошибаться. Проверяйте важное.</p>
 
-          <div class="quick-suggestions-wrapper">
-            <span class="tiny-label">Быстрые действия</span>
+          <div class="quick-section">
+            <h3>Быстрые действия</h3>
             <div class="quick-strip" id="quickStrip">
-              <button class="quick-pill" data-prompt="Посчитай юнит-экономику товара: себестоимость 450р, логистика 80р, комиссия 15%, розничная цена 1200р.">
-                <span data-icon="calculator"></span> Юнит-экономика
-              </button>
-              <button class="quick-pill" data-prompt="Напиши продающее SEO-описание для карточки товара: Чехол для iPhone">
-                <span data-icon="edit"></span> SEO Карточки
-              </button>
-              <button class="quick-pill" data-prompt="Проанализируй сильные стороны конкурентов в нише автотоваров">
-                <span data-icon="search"></span> Анализ ниши
-              </button>
+              <button class="quick-pill" data-prompt="Проанализируй идею нового продукта и оцени риски, спрос и первые шаги запуска."><span data-icon="stars"></span><span><b>Анализ идеи</b><small>Проверка рынка и рисков</small></span></button>
+              <button class="quick-pill" data-prompt="Составь пошаговый бизнес-план и финмодель для моего проекта."><span data-icon="tools"></span><span><b>Бизнес-план</b><small>Структура и финмодель</small></span></button>
+              <button class="quick-pill" data-prompt="Сделай план презентации для инвесторов."><span data-icon="edit"></span><span><b>Презентация</b><small>Слайды и питч-дек</small></span></button>
+              <button class="quick-pill" data-prompt="Подготовь шаблоны юридических документов для бизнеса."><span data-icon="save"></span><span><b>Юридическая база</b><small>Документы и соглашения</small></span></button>
+              <button class="quick-pill" data-prompt="Составь маркетинговый план продвижения."><span data-icon="chart"></span><span><b>Маркетинг-план</b><small>Стратегия и каналы</small></span></button>
+              <button class="quick-pill" data-prompt="Выполни финансовый анализ проекта."><span data-icon="wallet"></span><span><b>Финансовый анализ</b><small>Показатели и прогнозы</small></span></button>
             </div>
           </div>
-
-          <div class="resume-block-section">
-            <div class="resume-header-row">
-              <h3>Краткое резюме</h3>
-              <span class="resume-timestamp">Обновлено только что</span>
-            </div>
-            <div class="resume-cards-stack">
-              <div class="resume-card-item">
-                <div class="resume-icon-box orange"><span data-icon="chart"></span></div>
-                <div class="resume-body">
-                  <h4>Анализ рынка</h4>
-                  <p>Рынок онлайн-коммерции стабильно растёт. Основной драйвер в текущем квартале — нишевые товарные группы.</p>
-                </div>
-              </div>
-              <div class="resume-card-item">
-                <div class="resume-icon-box blue"><span data-icon="user"></span></div>
-                <div class="resume-body">
-                  <h4>Конкурентная среда</h4>
-                  <p>Выявлена высокая концентрация крупных игроков в топе выдачи. Рекомендуется фокус на SEO длинного хвоста.</p>
-                </div>
-              </div>
-            </div>
-          </div>
-
         </div>
       </section>
 
       <section id="view-tools" class="view">
-        <div class="view-scroll-container">
-          <div class="tools-view-header-split">
-            <header class="section-header-block">
+        <div class="view-inner">
+          <header class="page-head split-head">
+            <div>
               <h2>Инструменты</h2>
-              <p class="section-subtitle">Подборка ИИ-инструментов для каждого этапа вашего проекта.</p>
-            </header>
-            <div class="ref-desktop-search-box">
-              <span data-icon="search"></span>
-              <input type="text" id="toolsSearchInput" placeholder="Поиск инструментов...">
+              <p>Все инструменты в одном месте</p>
             </div>
+          </header>
+          <div class="toolbar-filtering-flex">
+            <div class="search-box"><span data-icon="search"></span><input type="text" id="toolsSearchInput" placeholder="Поиск инструментов..."></div>
+            <button type="button" class="selector-dropdown-filter-btn">Все категории <span class="arrow-indicator">⌃</span></button>
           </div>
-          
-          <div class="ref-table-wrapper select-menu-list" id="toolsGrid"></div>
+          <div class="list-panel app-style-list" id="toolsGrid"></div>
         </div>
       </section>
 
       <section id="view-history" class="view">
-        <div class="view-scroll-container">
-          <div class="tools-view-header-split">
-            <header class="section-header-block">
+        <div class="view-inner">
+          <header class="page-head split-head">
+            <div>
               <h2>История</h2>
-              <p class="section-subtitle">Ваши запросы и результаты операционной работы с ИИ.</p>
-            </header>
-            <div class="history-actions-panel">
-              <div class="ref-desktop-search-box compact-search">
-                <span data-icon="search"></span>
-                <input type="text" id="historySearchInput" placeholder="Поиск по истории...">
-              </div>
-              <button type="button" class="ref-btn-outline slim" id="exportHistoryBtn">
-                <span data-icon="save"></span> Экспорт TXT
-              </button>
+              <p>Ваши чаты и документы</p>
             </div>
-          </div>
-
-          <div class="filters-container-row">
+            <button type="button" class="plain-btn" id="exportHistoryBtn"><span data-icon="save"></span> Экспорт</button>
+          </header>
+          <div class="history-toolbar">
             <div class="history-filters" id="historyFilters">
               <button class="chip active" data-filter="all">Все</button>
               <button class="chip" data-filter="chat">Чаты</button>
-              <button class="chip" data-filter="tools">Инструменты</button>
-              <button class="chip" data-filter="favorites">Сохранённое</button>
+              <button class="chip" data-filter="tools">Документы</button>
+              <button class="chip" data-filter="favorites">Аналитика</button>
+            </div>
+            <div class="toolbar-right-search-controls desktop-only">
+              <div class="search-box"><span data-icon="search"></span><input type="text" id="historySearchInput" placeholder="Поиск по истории..."></div>
+              <button type="button" class="selector-dropdown-filter-btn">Все типы <span class="arrow-indicator">⌃</span></button>
+              <button type="button" class="selector-dropdown-filter-btn"><span data-icon="history"></span> За всё время <span class="arrow-indicator">⌃</span></button>
             </div>
           </div>
-
-          <div class="chat-empty-state" id="historyEmptyState" style="margin-top: 20px; display: none;">
-            <div class="empty-icon-hexagon"><span data-icon="message"></span></div>
-            <h3 style="font-size: 15px; font-weight: 700; margin-top: 12px;">Пока здесь пусто</h3>
-            <p style="color: #6e6e73; font-size: 13px; max-width: 250px; margin-top: 6px;">Ваша история генераций появится здесь.</p>
-            <button type="button" class="start-chat-btn-history" onclick="switchView('home')"><span data-icon="edit"></span> Начать чат</button>
+          <div class="search-box mobile-only history-mobile-search"><span data-icon="search"></span><input type="text" id="historySearchInputMobile" placeholder="Поиск по истории..."></div>
+          <div class="empty-panel" id="historyEmptyState" hidden>
+            <span data-icon="history"></span>
+            <h3>Пока здесь пусто</h3>
+            <p>Ваши запросы появятся после первого диалога.</p>
           </div>
+          <div class="list-panel app-style-list history-app-list" id="historyList"></div>
+        </div>
+      </section>
 
-          <div class="ref-table-wrapper select-menu-list id-column-history-rules" id="historyList"></div>
+      <section id="view-subscription" class="view">
+        <div class="view-inner subscription-page">
+          <header class="page-head split-head mobile-hidden-head">
+            <div>
+              <h2>Подписка</h2>
+              <p>Планы и возможности</p>
+            </div>
+          </header>
+
+          <div class="subscription-layout">
+            <div class="subscription-main">
+              <div class="current-plan-card app-card-shadow">
+                <div class="plan-meta-left">
+                  <span>Текущий план</span>
+                  <h3 id="subscriptionCurrentPlan">Pro</h3>
+                  <p><b id="subscriptionCurrentPrice">1 490 ₽ / мес</b></p>
+                  <div class="plan-status"><span>Активен</span></div>
+                </div>
+                <div class="plan-decor-right">
+                  <div class="stars-logo-medium" data-icon="stars"></div>
+                </div>
+              </div>
+
+              <div class="benefits-card-container app-card-shadow">
+                <h3>План включает</h3>
+                <ul class="benefits-checklist">
+                  <li><span class="bullet-check">✓</span> Все инструменты без ограничений</li>
+                  <li><span class="bullet-check">✓</span> Приоритетная поддержка</li>
+                  <li><span class="bullet-check">✓</span> Экспорт документов</li>
+                  <li><span class="bullet-check">✓</span> Совместная работа над проектами</li>
+                </ul>
+              </div>
+            </div>
+
+            <aside class="subscription-side">
+              <section class="settings-section">
+                <h3 class="section-ios-title">Доступные планы</h3>
+                <div class="subscription-plan-list app-style-list" id="subscriptionPlanList"></div>
+              </section>
+
+              <section class="settings-section">
+                <h3 class="section-ios-title">Способ оплаты</h3>
+                <div class="payment-method-mask-card settings-list app-style-list single-row">
+                  <div class="settings-row card-info-flex">
+                    <span class="card-icon" data-icon="credit-card"></span>
+                    <div class="card-masked-numbers">
+                      <strong>•••• 4242</strong>
+                      <small>Visa •••• 4242 • 12/26</small>
+                    </div>
+                    <button type="button" class="change-payment-method-btn text-link-action-btn">Изменить</button>
+                  </div>
+                </div>
+              </section>
+
+              <section class="settings-section">
+                <div class="settings-list app-style-list single-row">
+                  <label class="settings-row toggle-row">
+                    <span><b>Автопродление</b><small>Включено</small></span>
+                    <input type="checkbox" id="subscriptionAutopayToggle" checked>
+                  </label>
+                </div>
+              </section>
+            </aside>
+          </div>
         </div>
       </section>
 
       <section id="view-profile" class="view">
-        <div class="view-scroll-container">
-          <header class="section-header-block">
+        <div class="view-inner profile-page">
+          <header class="page-head desktop-only">
             <h2>Профиль</h2>
-            <p class="section-subtitle">Управление аккаунтом, подпиской и юридическими параметрами.</p>
+            <p>Управление аккаунтом и настройками</p>
           </header>
 
-          <div class="profile-mobile-tabs-container">
-            <div class="profile-mobile-tabs" id="profileMobileTabs">
-              <button class="mobile-tab-link active" data-pane="account">Аккаунт</button>
-              <button class="mobile-tab-link" data-pane="billing">Подписка</button>
-              <button class="mobile-tab-link" data-pane="workspaces">Пространства</button>
-              <button class="mobile-tab-link" data-pane="team">Команда</button>
-              <button class="mobile-tab-link" data-pane="settings">Настройки</button>
-            </div>
-          </div>
+          <div class="profile-shell" id="profileShell">
+            <aside class="profile-menu app-card-shadow" id="profileDesktopRail">
+              <button class="rail-link active" data-pane="account"><span data-icon="user"></span>Аккаунт</button>
+              <button class="rail-link" data-pane="subscription"><span data-icon="stars"></span>Подписка</button>
+              <button class="rail-link" data-pane="business"><span data-icon="wallet"></span>Бизнес-профиль</button>
+              <button class="rail-link" data-pane="team"><span data-icon="tools"></span>Команда</button>
+              <button class="rail-link" data-pane="settings"><span data-icon="history"></span>Уведомления</button>
+              <button class="rail-link" data-pane="legal"><span data-icon="save"></span>Реквизиты сервиса</button>
+              <button class="rail-link" data-pane="about"><span data-icon="target"></span>О FounderPilot</button>
+            </aside>
 
-          <div class="ref-split-profile-dashboard">
-            <div class="profile-dashboard-left-rail" id="profileDesktopRail">
-              <button class="rail-link active" data-pane="account">Аккаунт</button>
-              <button class="rail-link" data-pane="billing">Подписка и оплата</button>
-              <button class="rail-link" data-pane="workspaces">Рабочие пространства</button>
-              <button class="rail-link" data-pane="team">Управление командой</button>
-              <button class="rail-link" data-pane="settings">Настройки платформы</button>
+            <div class="mobile-profile-overview">
+              <header class="page-head mobile-profile-head">
+                <h2>Профиль</h2>
+              </header>
+              <button class="profile-hero-card app-card-shadow" type="button" data-pane="account">
+                <div class="avatar profile-avatar" id="profileUserAvatar">M</div>
+                <div>
+                  <h3 id="profileUserTitleMirror">Максим</h3>
+                  <p id="profileUserSubtitleMirror">@max_example</p>
+                  <div class="profile-plan-inline-badge">
+                    <span class="mini-plan-badge" id="profilePlanLabel">Pro</span>
+                    <span class="mini-price" id="profilePlanPrice">1 490 ₽ / мес</span>
+                  </div>
+                </div>
+                <span class="chevron">›</span>
+              </button>
+
+              <div class="settings-list app-style-list profile-root-list">
+                <button class="settings-row mobile-tab-link" data-pane="account" type="button"><span class="row-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle></svg></span><span><b>Аккаунт</b></span><span class="chevron">›</span></button>
+                <button class="settings-row mobile-tab-link" data-pane="subscription" type="button"><span class="row-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"></polygon></svg></span><span><b>Подписка</b></span><span class="chevron">›</span></button>
+                <button class="settings-row mobile-tab-link" data-pane="business" type="button"><span class="row-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M22 12V6a2 2 0 0 0-2-2H4a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-2"></path></svg></span><span><b>Бизнес-профиль</b></span><span class="chevron">›</span></button>
+                <button class="settings-row mobile-tab-link" data-pane="team" type="button"><span class="row-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><rect x="3" y="3" width="7" height="7" rx="1"></rect><rect x="14" y="3" width="7" height="7" rx="1"></rect><rect x="14" y="14" width="7" height="7" rx="1"></rect><rect x="3" y="14" width="7" height="7" rx="1"></rect></svg></span><span><b>Команда</b></span><span class="chevron">›</span></button>
+                <button class="settings-row mobile-tab-link" data-pane="settings" type="button"><span class="row-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg></span><span><b>Уведомления</b></span><span class="chevron">›</span></button>
+                <button class="settings-row mobile-tab-link" data-pane="legal" type="button"><span class="row-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"></path></svg></span><span><b>Реквизиты сервиса</b></span><span class="chevron">›</span></button>
+                <button class="settings-row mobile-tab-link" data-pane="about" type="button"><span class="row-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><circle cx="12" cy="12" r="10"></circle><circle cx="12" cy="12" r="6"></circle></svg></span><span><b>О FounderPilot</b></span><span class="chevron">›</span></button>
+              </div>
             </div>
 
-            <div class="profile-dashboard-right-content">
-              
+            <section class="profile-content">
               <div class="profile-sub-pane active" id="pane-account">
-                <div class="profile-meta-block-title">Аккаунт</div>
-                <div class="profile-chevron-row-card">
-                  <div class="avatar-left-block">
-                    <div class="ref-avatar-large" id="profileUserAvatar">F</div>
-                    <div class="ref-user-meta">
-                      <h3 id="profileUserTitle">Пользователь</h3>
-                      <span id="profileUserSubtitle">ID: --</span>
-                    </div>
+                <header class="mobile-sub-header">
+                  <button class="profile-back-btn" type="button" data-profile-back>‹</button>
+                  <h3>Аккаунт</h3>
+                </header>
+                <div class="pane-card account-pane-card app-card-shadow">
+                  <div class="profile-avatar-large avatar" id="profileUserAvatarLarge">M</div>
+                  <div class="account-main-info">
+                    <h3 id="profileUserTitleMirror2">Максим</h3>
+                    <p id="profileUserSubtitleMirror2">Telegram ID: 123456789</p>
                   </div>
-                  <div class="chevron-arrow-right"></div>
+                  <div class="account-plan-side"><span>Текущий план</span><b id="profilePlanLabelMirror">Pro</b><small id="profilePlanPriceMirror">1 490 ₽ / мес</small></div>
                 </div>
+                <div class="settings-list app-style-list">
+                  <div class="settings-row"><span><b>Имя</b></span><em id="profileNameValue">Максим</em><span class="chevron">›</span></div>
+                  <div class="settings-row"><span><b>Username</b></span><em id="profileUsernameValue">@max_example</em><span class="chevron">›</span></div>
+                  <div class="settings-row"><span class="copy-icon-action-trigger" data-copy-trigger="telegram_id" title="Копировать ID"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg></span><span><b>Telegram ID</b></span><em id="profileTelegramIdValue">123456789</em></div>
+                  <div class="settings-row"><span><b>Дата регистрации</b></span><em>12 марта 2024</em><span class="chevron">›</span></div>
+                </div>
+                <button class="danger-row app-card-shadow" type="button">Выйти из аккаунта</button>
+              </div>
 
-                <div class="profile-meta-block-title">Бизнес-профиль вашей компании</div>
-                <div class="ref-dashboard-card">
-                  <div class="ref-input-element-group">
-                    <label>Наименование организации / ИП</label>
-                    <input type="text" id="profileCompanyName" class="ref-dashboard-input" placeholder="ООО Название или ИП Иванов">
+              <div class="profile-sub-pane" id="pane-subscription">
+                 <header class="mobile-sub-header">
+                  <button class="profile-back-btn" type="button" data-profile-back>‹</button>
+                  <h3>Подписка</h3>
+                </header>
+                <div class="pane-card compact-plan-pane app-card-shadow">
+                  <div>
+                    <span>Текущий план</span>
+                    <h3 id="profileSubscriptionPlanTitle">Pro</h3>
+                    <p><b id="profileSubscriptionPrice">1 490 ₽ / мес</b></p>
                   </div>
-                  <div class="ref-input-element-group mt-12">
-                    <label>Глобальный бизнес-контекст для ИИ</label>
-                    <textarea id="profileBusinessDescription" class="ref-dashboard-textarea" placeholder="Опишите нишу, сайт, цели продвижения продукта..."></textarea>
+                  <div class="billing-side-meta-info-list">
+                    <div>Следующее списание: <span style="font-weight:600;">12 июня 2024</span></div>
+                    <div>Период: <span style="font-weight:600;">Ежемесячно</span></div>
+                    <div>Статус: <span class="active-pill-inline-badge">Активна</span></div>
                   </div>
-                  <div class="action-row-end mt-12">
-                    <button class="ref-submit-dark-btn" id="saveProfileBtn">Сохранить параметры</button>
-                  </div>
+                </div>
+                <div class="settings-list app-style-list">
+                  <button type="button" class="settings-row" onclick="switchView('subscription')"><span><b>Управление подпиской</b></span><span class="chevron">›</span></button>
                 </div>
               </div>
 
-              <div class="profile-sub-pane" id="pane-billing">
-                <div class="ref-settings-block-title">Тарифный план</div>
-                <div class="ref-premium-status-card">
-                  <div class="status-top">
-                    <div class="status-title-box">
-                      <span class="status-plan-name" id="profilePlanLabel">FREE</span>
-                      <span class="status-badge-active">Активен</span>
-                    </div>
-                  </div>
-                  <p class="next-charge-date-text">Лимиты ИИ обновляются каждые 24 часа.</p>
-                  
-                  <div class="quota-progress-sub-box">
-                    <div class="sub-progress-label-row">
-                      <span id="profileCreditsTodayText">0 / 0 кредитов</span>
-                      <span class="percentage-label" id="profileCreditsTodayPct">0%</span>
-                    </div>
-                    <div class="ref-progress-bar"><div class="ref-progress-fill" id="profileCreditsTodayFill" style="width: 0%"></div></div>
-
-                    <div class="sub-progress-label-row mt-16">
-                      <span id="profileCreditsMonthText">Расчётный период (месяц)</span>
-                      <span class="percentage-label" id="profileCreditsMonthPct">0%</span>
-                    </div>
-                    <div class="ref-progress-bar"><div class="ref-progress-fill" id="profileCreditsMonthFill" style="width: 0%"></div></div>
-                  </div>
-                </div>
-
-                <div class="ref-dashboard-card list-menu-stack">
-                  <button type="button" class="menu-row-item" id="openBillingBtn">
-                    <div class="menu-row-left">
-                      <span class="menu-icon-box" data-icon="wallet"></span>
-                      <span><strong>Платёжная информация</strong><small>Управление кошельками и картами</small></span>
-                    </div>
-                    <div class="chevron-arrow-right"></div>
-                  </button>
-                  <button type="button" class="menu-row-item" onclick="openBillingModal()">
-                    <div class="menu-row-left">
-                      <span class="menu-icon-box" data-icon="stars"></span>
-                      <span><strong>Управление подпиской</strong><small>Смена тарифов и история биллинга</small></span>
-                    </div>
-                    <div class="chevron-arrow-right"></div>
-                  </button>
-                </div>
-
-                <div class="profile-meta-block-title">Докупка кредитов</div>
-                <div class="ref-dashboard-card">
-                  <p class="field-description mb-16">Разовые пакеты вычислительной мощности, если лимиты подписки исчерпаны.</p>
-                  <div class="credit-pack-list" id="creditPackList"></div>
-                </div>
-              </div>
-
-              <div class="profile-sub-pane" id="pane-workspaces">
-                <div class="profile-meta-block-title">Рабочие пространства</div>
-                <div class="ref-dashboard-card">
-                  <p class="field-description mb-16">Разделяйте проекты, чтобы ассистент выдавал ответы с точным изолированным контекстом.</p>
-                  <div class="workspace-form-grid">
-                    <input type="text" id="projectTitleInput" class="ref-dashboard-input" placeholder="Название проекта (например: wildberries)">
-                    <input type="text" id="projectNicheInput" class="ref-dashboard-input" placeholder="Ниша / Сфера деятельности">
-                    <input type="text" id="projectGoalInput" class="ref-dashboard-input wide" placeholder="Главная операционная цель проекта">
-                  </div>
-                  <div class="action-row-end mt-12">
-                    <button class="ref-submit-dark-btn" id="saveWorkspaceBtn" type="button">Сохранить проект</button>
-                  </div>
-                  <div class="workspace-list" id="projectList"></div>
-                </div>
-
-                <div class="profile-meta-block-title">Память AI</div>
-                <div class="ref-dashboard-card">
-                  <p class="field-description mb-16">Факты из памяти автоматически подмешиваются во все диалоги: ваши ограничения, маржа, особенности доставки.</p>
-                  <div class="inline-input-action">
-                    <input type="text" id="memoryInput" class="ref-dashboard-input" placeholder="Например: Склад отгрузки находится в Казани">
-                    <button type="button" id="addMemoryBtn" class="ref-submit-dark-btn">Добавить</button>
-                  </div>
-                  <div class="memory-list" id="memoryList"></div>
-                </div>
-
-                <div class="profile-meta-block-title">Мои шаблоны промптов</div>
-                <div class="ref-dashboard-card">
-                  <p class="field-description mb-16">Сохраняйте длинные частые инструкции, чтобы запускать их в чате в один клик.</p>
-                  <div class="workspace-form-grid">
-                    <input type="text" id="templateTitleInput" class="ref-dashboard-input" placeholder="Название шаблона">
-                    <input type="text" id="templatePromptInput" class="ref-dashboard-input wide" placeholder="Текст промпта...">
-                  </div>
-                  <div class="action-row-end mt-12">
-                    <button type="button" id="saveTemplateBtn" class="ref-submit-outline-btn">Сохранить шаблон</button>
-                  </div>
-                  <div class="template-list" id="templateList"></div>
+              <div class="profile-sub-pane" id="pane-business">
+                <header class="mobile-sub-header">
+                  <button class="profile-back-btn" type="button" data-profile-back>‹</button>
+                  <h3>Бизнес-профиль</h3>
+                </header>
+                <div class="form-card app-card-shadow">
+                  <label>Название компании</label>
+                  <input type="text" id="profileCompanyName" placeholder="Например: Digital Ventures">
+                  <label>Описание компании / ниша</label>
+                  <textarea id="profileBusinessDescription" placeholder="Опишите нишу, бизнес-цели..."></textarea>
+                  <button class="primary-btn" id="saveProfileBtn" type="button">Сохранить</button>
                 </div>
               </div>
 
               <div class="profile-sub-pane" id="pane-team">
-                <div class="ref-settings-block-title">Учётные записи и компания</div>
-                <div class="ref-dashboard-card organization-management-card">
-                  <p class="field-description">Личный кабинет остаётся основным. На тарифе Business вы можете создать выделенную компанию и подключить команду по никам Telegram.</p>
-                  
-                  <div class="account-mode-list" id="accountModeList"></div>
-                  <div class="organization-list" id="organizationList"></div>
-                  
-                  <small class="input-hint" id="organizationCreateHint">Создание компании доступно на тарифе Business.</small>
-                  
-                  <div class="workspace-form-grid mt-12">
-                    <input type="text" id="organizationTitleInput" class="ref-dashboard-input" placeholder="Название вашей организации">
-                    <button type="button" id="createOrganizationBtn" class="ref-submit-dark-btn">Создать компанию</button>
+                <header class="mobile-sub-header">
+                  <button class="profile-back-btn" type="button" data-profile-back>‹</button>
+                  <h3>Команда</h3>
+                </header>
+                <div class="business-lock-card app-card-shadow" id="teamBusinessNotice" style="display:block;">
+                  <div class="stars-logo-medium" data-icon="stars" style="margin: 0 auto 12px; color: var(--blue);"></div>
+                  <h3>Функция доступна на тарифе Business</h3>
+                  <p>Расширьте возможности работы с командой и проектами.</p>
+                  <ul class="benefits-checklist center-align">
+                    <li><span class="bullet-check blue">✓</span> Приглашайте участников</li>
+                    <li><span class="bullet-check blue">✓</span> Назначайте роли и права доступа</li>
+                    <li><span class="bullet-check blue">✓</span> Работайте над проектами вместе</li>
+                  </ul>
+                  <button class="primary-btn stretch" type="button" onclick="switchView('subscription')">Перейти на Business</button>
+                  <button class="text-link-action-btn stretch" style="margin-top: 10px;" type="button" onclick="switchView('subscription')">Подробнее о тарифах</button>
+                </div>
+                
+                <div id="teamActiveContent" style="display: none;">
+                  <div class="settings-section">
+                    <h3 class="section-ios-title">Ваша организация</h3>
+                    <div class="organization-container-card-header app-card-shadow">
+                      <div class="org-meta-info-row-block">
+                        <div class="org-avatar-placeholder-circle">DV</div>
+                        <div class="org-titles-group-headers">
+                          <h4>Digital Ventures</h4>
+                          <p>Business • 3 участника</p>
+                        </div>
+                        <button type="button" class="plain-btn compact-header-action-settings-btn">Настройки</button>
+                      </div>
+                    </div>
+                    
+                    <div class="team-workspace-action-grid-rows app-card-shadow" style="margin-top: 16px; padding: 16px;">
+                      <div class="action-card-box">
+                        <h5 style="margin-bottom: 4px; font-size: 15px;">Пригласить участника</h5>
+                        <p style="color: var(--muted); font-size: 13px; margin-bottom: 12px;">Отправьте приглашение через Telegram</p>
+                        <div class="input-action-inline-wrapper" style="display: flex; gap: 8px;">
+                          <input type="text" id="organizationInviteUsername" placeholder="@username" style="flex:1;">
+                          <button class="plain-btn" id="inviteOrganizationBtn" type="button">Пригласить</button>
+                        </div>
+                      </div>
+                    </div>
+
+                    <h3 class="section-ios-title" style="margin-top: 24px;">Участники команды</h3>
+                    <div id="organizationList" class="settings-list app-style-list"></div>
+                    <div id="organizationInviteList" class="settings-list app-style-list" style="margin-top: 12px; display:none;"></div>
                   </div>
-                  
-                  <div class="workspace-form-grid mt-12">
-                    <input type="text" id="organizationInviteUsername" class="ref-dashboard-input" placeholder="Username в Telegram, например @seller_username">
-                    <button type="button" id="inviteOrganizationBtn" class="ref-submit-outline-btn">Пригласить сотрудника</button>
-                  </div>
-                  
-                  <div class="organization-invites" id="organizationInviteList"></div>
                 </div>
               </div>
 
               <div class="profile-sub-pane" id="pane-settings">
-                <div class="profile-meta-block-title">Юридические данные платформы</div>
-                <div class="legal-summary-card">
-                  <div>
-                    <span class="micro-label">Реквизиты сервиса</span>
-                    <strong data-legal-inn>ИНН 713304603876</strong>
-                    <small>Показывается на всех экранах и используется для ЮKassa/документов.</small>
-                  </div>
-                  <button type="button" class="ref-btn-outline slim" data-copy-inn>Скопировать</button>
+                <header class="mobile-sub-header">
+                  <button class="profile-back-btn" type="button" data-profile-back>‹</button>
+                  <h3>Уведомления</h3>
+                </header>
+                <p class="section-ios-desc">Уведомления в приложении</p>
+                <div class="settings-list app-style-list single-row">
+                  <label class="settings-row toggle-row">
+                    <span class="row-icon-no-bg"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"></path><path d="M13.73 21a2 2 0 0 1-3.46 0"></path></svg></span>
+                    <span><b>Лимиты</b><small>Уведомлять, когда лимиты почти исчерпаны</small></span>
+                    <input type="checkbox" id="notifyLimitToggle" checked>
+                  </label>
+                  <label class="settings-row toggle-row">
+                    <span class="row-icon-no-bg"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2"><rect x="1" y="4" width="22" height="16" rx="2" ry="2"></rect><line x1="1" y1="10" x2="23" y2="10"></line></svg></span>
+                    <span><b>Платежи</b><small>Уведомления о платежах и списаниях</small></span>
+                    <input type="checkbox" id="notifyBillingToggle" checked>
+                  </label>
+                  <label class="settings-row toggle-row">
+                    <span class="row-icon-no-bg"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg></span>
+                    <span><b>Обновления</b><small>Важные новости и обновления сервиса</small></span>
+                    <input type="checkbox" id="notifyProductToggle" checked>
+                  </label>
                 </div>
-
-                <div class="profile-meta-block-title">Уведомления</div>
-                <div class="ref-dashboard-card">
-                  <label class="toggle-row"><span><strong>Лимиты</strong><small>Сообщать, когда кредиты почти исчерпаны</small></span><input type="checkbox" id="notifyLimitToggle" checked></label>
-                  <label class="toggle-row"><span><strong>Оплата</strong><small>Уведомления о платежах и подписках</small></span><input type="checkbox" id="notifyBillingToggle" checked></label>
-                  <label class="toggle-row"><span><strong>Обновления</strong><small>Важные продуктовые новости</small></span><input type="checkbox" id="notifyProductToggle"></label>
-                  <div class="action-row-end mt-12">
-                    <button type="button" id="saveNotificationsBtn" class="ref-submit-outline-btn">Сохранить настройки</button>
-                  </div>
-                </div>
-
-                <div class="profile-meta-block-title">Мини-аналитика платформы</div>
-                <div class="ref-dashboard-card analytics-card" id="analyticsMini">
-                  <div><span>Пользователи</span><strong>—</strong></div>
-                  <div><span>Оплатившие</span><strong>—</strong></div>
-                  <div><span>Запросы сегодня</span><strong>—</strong></div>
-                </div>
-
-                <div class="profile-meta-block-title">Техническая поддержка</div>
-                <div class="ref-dashboard-card">
-                  <div class="ref-input-element-group">
-                    <label>Оставьте отзыв или опишите проблему</label>
-                    <textarea id="appFeedbackText" class="ref-dashboard-textarea" placeholder="Опишите ваше предложение или баг..."></textarea>
-                  </div>
-                  <div class="action-row-end mt-12">
-                    <button class="ref-submit-outline-btn" id="submitAppFeedbackBtn">Отправить обращение</button>
-                  </div>
-                </div>
+                <p class="section-ios-desc" style="margin-top: 12px; font-size: 12px;">Уведомления приходят в Telegram.</p>
+                <button class="primary-btn stretch" id="saveNotificationsBtn" type="button" style="margin-top: 16px;">Сохранить настройки</button>
               </div>
 
-            </div>
-          </div>
+              <div class="profile-sub-pane" id="pane-legal">
+                <header class="mobile-sub-header">
+                  <button class="profile-back-btn" type="button" data-profile-back>‹</button>
+                  <h3>Реквизиты сервиса</h3>
+                </header>
+                <div class="pane-card legal-card app-card-shadow">
+                  <span>Сервис и юридическая информация</span>
+                  <h3 data-owner-name>Самозанятый Муравьев К.А</h3>
+                  <p data-legal-inn>ИНН 713304603876</p>
+                  <button class="plain-btn" type="button" data-copy-inn>Скопировать ИНН</button>
+                </div>
+                <p class="safe-note">Cortexa Labs — бренд продукта. Юридический владелец сервиса: Самозанятый Муравьев К.А.</p>
+              </div>
 
+              <div class="profile-sub-pane" id="pane-about">
+                <header class="mobile-sub-header">
+                  <button class="profile-back-btn" type="button" data-profile-back>‹</button>
+                  <h3>О FounderPilot</h3>
+                </header>
+                <div class="settings-list app-style-list single-row">
+                  <div class="settings-row"><span><b>Версия сервиса</b></span><em>1.2.0</em></div>
+                  <div class="settings-row"><span><b>Дата обновления</b></span><em>12 мая 2024</em></div>
+                  <div class="settings-row"><span><b>Поддержка</b></span><em style="color: var(--blue);">@founderpilot_support</em></div>
+                </div>
+                <div class="form-card app-card-shadow" style="margin-top: 16px;">
+                  <label>Обратная связь</label>
+                  <textarea id="appFeedbackText" placeholder="Опишите баг или идею..."></textarea>
+                  <button class="primary-btn" id="submitAppFeedbackBtn" type="button">Отправить</button>
+                </div>
+              </div>
+            </section>
+          </div>
         </div>
       </section>
-
     </main>
 
-    <nav class="mobile-nav">
-      <button class="nav-item active" data-target="home">
-        <span class="nav-icon" data-icon="home"></span>
-        <span>Главная</span>
-      </button>
-      <button class="nav-item" data-target="tools">
-        <span class="nav-icon" data-icon="tools"></span>
-        <span>Инструменты</span>
-      </button>
-      <button class="nav-item" data-target="history">
-        <span class="nav-icon" data-icon="history"></span>
-        <span>История</span>
-      </button>
-      <button class="nav-item" data-target="profile">
-        <span class="nav-icon" data-icon="user"></span>
-        <span>Профиль</span>
-      </button>
+    <nav class="mobile-nav app-nav">
+      <button class="nav-item active" data-target="home"><span class="nav-icon" data-icon="home"></span><span>Главная</span></button>
+      <button class="nav-item" data-target="tools"><span class="nav-icon" data-icon="tools"></span><span>Инструменты</span></button>
+      <button class="nav-item" data-target="history"><span class="nav-icon" data-icon="history"></span><span>История</span></button>
+      <button class="nav-item" data-target="subscription"><span class="nav-icon" data-icon="credit-card"></span><span>Подписка</span></button>
+      <button class="nav-item" data-target="profile"><span class="nav-icon" data-icon="user"></span><span>Профиль</span></button>
     </nav>
-
   </div>
 
   <div id="billingModal" class="modal-overlay">
     <div class="modal-sheet">
       <div class="modal-header">
         <h3 id="billingTitle">Выбор тарифа</h3>
-        <button id="closeBillingBtn" class="modal-close-btn"><span data-icon="close"></span></button>
+        <button id="closeBillingBtn" class="modal-close-btn" type="button"><span data-icon="close"></span></button>
       </div>
       <div class="modal-scroll-content">
         <div id="billingError" class="error-banner-zone" hidden></div>
         <div id="billingPlanList" class="plans-layout-stack"></div>
         <div id="paymentProviderBox" class="providers-layout-zone" hidden>
-          <p class="provider-intro-text">Выберите удобный метод проведения оплаты:</p>
+          <p class="provider-intro-text">Выберите способ оплаты</p>
           <div id="providerList" class="providers-stack"></div>
-          <button id="backToPlansBtn" class="btn-text-back"><span data-icon="back"></span> К выбору тарифов</button>
+          <button id="backToPlansBtn" class="btn-text-back" type="button"><span data-icon="back"></span> К тарифам</button>
         </div>
       </div>
     </div>
@@ -507,15 +467,9 @@
 
   <div id="onboardingModal" class="modal-overlay">
     <div class="modal-sheet onboarding-sheet">
-      <div class="modal-header no-border">
-        <div class="onboarding-progress-indicator" id="onboardingProgressRow">
-          <span class="dot"></span>
-          <span class="dot"></span>
-          <span class="dot"></span>
-        </div>
-      </div>
+      <div class="modal-header no-border"><div class="onboarding-progress-indicator" id="onboardingProgressRow"><span class="dot"></span><span class="dot"></span><span class="dot"></span></div></div>
       <div class="modal-scroll-content">
-        <h2 class="onboarding-step-title" id="onboardingTitle">Конфигурация окружения</h2>
+        <h2 class="onboarding-step-title" id="onboardingTitle">Конфигурация</h2>
         <div id="onboardingError" class="error-banner-zone mb-16" hidden></div>
         <div id="onboardingBody" class="onboarding-interactive-body"></div>
       </div>
@@ -528,39 +482,21 @@
 
   <div id="organizationInviteBannerModal" class="modal-overlay">
     <div class="modal-sheet mini-sheet">
-      <div class="modal-header">
-        <h3>Приглашение в команду</h3>
-        <button type="button" class="modal-close-btn" onclick="document.getElementById('organizationInviteBannerModal').classList.remove('active')">
-          <span data-icon="close"></span>
-        </button>
-      </div>
-      <div class="modal-scroll-content">
-        <p class="field-description" id="incomingInviteBannerText">Вас пригласили присоединиться к общему бизнес-пространству организации.</p>
-        <div class="modal-footer-actions mt-12 no-padding-rail">
-          <button id="declineIncomingInviteBtn" class="btn-secondary" type="button">Отклонить</button>
-          <button id="acceptIncomingInviteBtn" class="btn-primary" type="button">Вступить</button>
-        </div>
-      </div>
+      <div class="modal-header"><h3>Приглашение в команду</h3><button type="button" class="modal-close-btn" onclick="document.getElementById('organizationInviteBannerModal').classList.remove('active')"><span data-icon="close"></span></button></div>
+      <div class="modal-scroll-content"><p class="field-description" id="incomingInviteBannerText">Вас пригласили присоединиться к общему пространству.</p><div class="modal-footer-actions"><button id="declineIncomingInviteBtn" class="btn-secondary" type="button">Отклонить</button><button id="acceptIncomingInviteBtn" class="btn-primary" type="button">Вступить</button></div></div>
     </div>
   </div>
 
   <div id="organizationAcceptedModal" class="modal-overlay">
     <div class="modal-sheet mini-sheet">
-      <div class="modal-header">
-        <h3>Вы вступили в компанию</h3>
-        <button id="closeOrganizationAcceptedBtn" class="modal-close-btn" type="button"><span data-icon="close"></span></button>
-      </div>
-      <div class="modal-scroll-content">
-        <p class="field-description" id="organizationAcceptedText">Вы вступили в организацию. Теперь она отображается в профиле.</p>
-        <div class="action-row-right mt-12">
-          <button id="closeOrganizationAcceptedBtn2" class="ref-submit-dark-btn" type="button" onclick="document.getElementById('organizationAcceptedModal').classList.remove('active')">Ок</button>
-        </div>
-      </div>
+      <div class="modal-header"><h3>Вы вступили в компанию</h3><button id="closeOrganizationAcceptedBtn" class="modal-close-btn" type="button"><span data-icon="close"></span></button></div>
+      <div class="modal-scroll-content"><p class="field-description" id="organizationAcceptedText">Теперь организация отображается в профиле.</p><button id="closeOrganizationAcceptedBtn2" class="primary-btn stretch" type="button" onclick="document.getElementById('organizationAcceptedModal').classList.remove('active')">Ок</button></div>
     </div>
   </div>
 
+  <div id="profileCreditsMonthPct" style="display:none;"></div>
+  <div id="profileCreditsTodayPct" style="display:none;"></div>
   <div id="toast" class="toast-component">Оповещение</div>
-
-  <script src="/static/app.js?v=org-ui-3"></script>
+  <script src="/static/app.js?v=apple-settings-2"></script>
 </body>
 </html>
