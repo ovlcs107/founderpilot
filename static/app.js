@@ -517,6 +517,38 @@ function formatHistoryDate(value) {
   return date.toLocaleDateString("ru-RU", { day: "2-digit", month: "short" });
 }
 
+
+function planBenefitLines(plan) {
+  const key = String(plan?.key || plan?.id || "free").toLowerCase();
+  const f = plan?.features || {};
+  const monthly = Number(plan?.monthly_limit || plan?.credits_monthly_limit || 0);
+  const daily = Number(plan?.daily_limit || plan?.credits_daily_limit || 0);
+  const lines = [];
+  if (monthly) lines.push(`${monthly.toLocaleString('ru-RU')} кредитов в месяц`);
+  if (daily) lines.push(`${daily.toLocaleString('ru-RU')} кредитов в день`);
+  if (f.exports) lines.push('Экспорт документов');
+  if (Number(f.projects || 0) > 0) lines.push(`${Number(f.projects).toLocaleString('ru-RU')} проект${Number(f.projects) === 1 ? '' : 'ов'}`);
+  if (Number(f.team_members || 0) > 0) lines.push(`Команда до ${f.team_members} участников`);
+  if (f.priority_support) lines.push('Приоритетная поддержка');
+  if (key === 'free') lines.push('Стартовый доступ без оплаты');
+  return lines.slice(0, 5);
+}
+
+function renderCurrentPlanBenefits(plan) {
+  const list = $("subscriptionBenefitsList");
+  if (!list) return;
+  const lines = planBenefitLines(plan);
+  list.innerHTML = (lines.length ? lines : ['Серверные лимиты и история результатов']).map(line =>
+    `<li><span class="bullet-check">✓</span> ${escapeHTML(line)}</li>`
+  ).join('');
+  const note = $("subscriptionSafetyNote");
+  if (note) {
+    note.textContent = plan?.profit_guard_enabled === false
+      ? 'Profit Guard отключён в настройках сервера.'
+      : 'Profit Guard активен: дорогие AI-запросы автоматически стоят больше кредитов.';
+  }
+}
+
 function renderHistory() {
   const container = $("historyList");
   const empty = $("historyEmptyState");
@@ -566,14 +598,16 @@ function renderSubscription() {
     const cp = plans.find(p => String(p.key).toLowerCase() === currentPlan) || plans[0];
     $("subscriptionCurrentPlan").textContent = cp ? (cp.title || cp.name || "Free") : "Free";
     if ($("subscriptionCurrentPrice")) $("subscriptionCurrentPrice").textContent = cp ? getPlanPriceText(cp.key || cp.id || currentPlan) : "0 ₽";
+    renderCurrentPlanBenefits(cp);
   }
 
   planList.innerHTML = plans.map(p => {
     const key = String(p.key || p.id || p.slug || "free").toLowerCase();
     const active = key === currentPlan;
+    const benefits = planBenefitLines(p).slice(0, 3).map(item => `<span>${escapeHTML(item)}</span>`).join("");
     return `
       <button class="plan-card subscription-plan-row ${active ? 'active' : ''}" data-plan="${escapeHTML(key)}">
-        <div><h4>${escapeHTML(p.title || p.name || key)}</h4><small>${escapeHTML(p.description || p.subtitle || "")}</small></div>
+        <div class="plan-row-main"><h4>${escapeHTML(p.title || p.name || key)}</h4><small>${escapeHTML(p.description || p.subtitle || "")}</small><div class="plan-feature-chips">${benefits}</div></div>
         <div class="subscription-price">${escapeHTML(getPlanPriceText(key))}</div>
         <span class="check">✓</span>
       </button>
@@ -599,6 +633,7 @@ function selectPlan(key) {
 
   const plans = Array.isArray(state.plans) ? state.plans : Object.values(state.plans || {});
   const plan = plans.find(p => String(p.key || p.id || p.slug).toLowerCase() === key) || null;
+  renderCurrentPlanBenefits(plan);
   const enabled = enabledProviderIds(plan);
   const preferred = ["telegram_stars", "yookassa", "ton", "btcpay_btc"].map(providerInfo);
 
@@ -608,7 +643,7 @@ function selectPlan(key) {
       box.innerHTML = `
         <div class="provider-empty-note">
           <b>Способы оплаты не настроены</b>
-          <p>Подключите Telegram Stars или ЮKassa в .env — кнопки оплаты больше не будут вести в пустоту, как маленькие вредные гоблины.</p>
+          <p>Подключите ЮKassa или настройте безопасную RUB-ценность Stars в .env — кнопки оплаты больше не будут вести в пустоту, как маленькие вредные гоблины.</p>
         </div>`;
     } else {
       const autoProvider = chooseAutoProvider(enabled);

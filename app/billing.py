@@ -144,9 +144,17 @@ def public_plan_catalog(settings: Settings) -> dict[str, Plan]:
     return {key: catalog[key] for key in settings.public_plan_keys if key in catalog}
 
 
+def _positive_decimal(value: Any) -> bool:
+    try:
+        return Decimal(str(value or "0")) > 0
+    except Exception:
+        return False
+
+
 def enabled_providers(settings: Settings) -> list[dict[str, Any]]:
     providers: list[dict[str, Any]] = []
-    if settings.billing_enable_stars:
+    stars_economically_configured = bool(settings.billing_allow_unpriced_stars) or _positive_decimal(settings.telegram_stars_rub_value)
+    if settings.billing_enable_stars and stars_economically_configured:
         providers.append({"id": "telegram_stars", "title": "Telegram Stars", "description": "Оплата внутри Telegram", "currency": "XTR"})
 
     # YooKassa must never be shown as an enabled payment method without credentials.
@@ -189,7 +197,7 @@ def resolve_payment_provider(settings: Settings, requested_provider: str | None,
         candidate = normalize_provider_key(candidate)
         if candidate in enabled:
             return candidate
-    raise BillingError("Ни один способ оплаты пока не настроен. Подключите Telegram Stars или ЮKassa в .env.")
+    raise BillingError("Ни один способ оплаты пока не настроен. Подключите ЮKassa или задайте TELEGRAM_STARS_RUB_VALUE для Stars в .env.")
 
 
 def price_for_provider(plan: Plan, provider: str) -> tuple[Decimal, str]:

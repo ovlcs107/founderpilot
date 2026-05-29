@@ -44,7 +44,7 @@ class Settings(BaseSettings):
     host: str = Field(default="0.0.0.0", alias="HOST")
     port: int = Field(default=8000, alias="PORT")
 
-    billing_enable_stars: bool = Field(default=True, alias="BILLING_ENABLE_STARS")
+    billing_enable_stars: bool = Field(default=False, alias="BILLING_ENABLE_STARS")
     billing_enable_yookassa: bool = Field(default=False, alias="BILLING_ENABLE_YOOKASSA")
     billing_enable_ton: bool = Field(default=False, alias="BILLING_ENABLE_TON")
     billing_enable_btcpay: bool = Field(default=False, alias="BILLING_ENABLE_BTCPAY")
@@ -65,6 +65,32 @@ class Settings(BaseSettings):
     plus_price_btc: str = Field(default="0.00009", alias="PLUS_PRICE_BTC")
     pro_price_btc: str = Field(default="0.00023", alias="PRO_PRICE_BTC")
     business_price_btc: str = Field(default="0.00073", alias="BUSINESS_PRICE_BTC")
+
+    # Unit economics guard. All numbers are deliberately configurable because model
+    # prices, acquiring commissions, exchange rates and taxes can change. Defaults are
+    # conservative for an MVP: requests are charged in credits by estimated token cost,
+    # then credits are limited by each plan's monthly budget.
+    profit_guard_enabled: bool = Field(default=True, alias="PROFIT_GUARD_ENABLED")
+    yookassa_fee_rate: str = Field(default="0.035", alias="YOOKASSA_FEE_RATE")
+    telegram_stars_fee_rate: str = Field(default="0.30", alias="TELEGRAM_STARS_FEE_RATE")
+    ton_fee_rate: str = Field(default="0.02", alias="TON_FEE_RATE")
+    btcpay_fee_rate: str = Field(default="0.02", alias="BTCPAY_FEE_RATE")
+    tax_rate: str = Field(default="0.06", alias="TAX_RATE")
+    refund_risk_rate: str = Field(default="0.03", alias="REFUND_RISK_RATE")
+    max_ai_cost_share: str = Field(default="0.40", alias="MAX_AI_COST_SHARE")
+    max_ai_cost_share_by_plan_raw: str = Field(default="free:0,go:0.35,plus:0.38,pro:0.42,business:0.35,default:0.40", alias="MAX_AI_COST_SHARE_BY_PLAN")
+    free_ai_monthly_budget_rub: str = Field(default="0", alias="FREE_AI_MONTHLY_BUDGET_RUB")
+    minimum_credit_value_rub: str = Field(default="0.01", alias="MINIMUM_CREDIT_VALUE_RUB")
+    ai_input_cost_usd_per_m_tokens: str = Field(default="1.0", alias="AI_INPUT_COST_USD_PER_M_TOKENS")
+    ai_output_cost_usd_per_m_tokens: str = Field(default="4.0", alias="AI_OUTPUT_COST_USD_PER_M_TOKENS")
+    openrouter_fee_rate: str = Field(default="0.055", alias="OPENROUTER_FEE_RATE")
+    usd_rub_rate: str = Field(default="100", alias="USD_RUB_RATE")
+    ai_cost_safety_multiplier: str = Field(default="2.0", alias="AI_COST_SAFETY_MULTIPLIER")
+    estimate_free_model_cost: bool = Field(default=False, alias="ESTIMATE_FREE_MODEL_COST")
+    telegram_stars_rub_value: str = Field(default="0", alias="TELEGRAM_STARS_RUB_VALUE")
+    ton_rub_rate: str = Field(default="0", alias="TON_RUB_RATE")
+    btc_rub_rate: str = Field(default="0", alias="BTC_RUB_RATE")
+    billing_allow_unpriced_stars: bool = Field(default=False, alias="BILLING_ALLOW_UNPRICED_STARS")
 
     yookassa_shop_id: str = Field(default="", alias="YOOKASSA_SHOP_ID")
     yookassa_secret_key: str = Field(default="", alias="YOOKASSA_SECRET_KEY")
@@ -214,6 +240,13 @@ def require_runtime_settings(settings: Settings) -> None:
         unsafe.append("ADMIN_SECRET must be a unique random value of at least 24 characters")
     if settings.billing_enable_btcpay and not settings.btcpay_webhook_secret:
         unsafe.append("BTCPAY_WEBHOOK_SECRET is required when BILLING_ENABLE_BTCPAY=true")
+    if settings.billing_enable_stars and not settings.billing_allow_unpriced_stars:
+        try:
+            stars_value = float(settings.telegram_stars_rub_value or 0)
+        except ValueError:
+            stars_value = 0
+        if stars_value <= 0:
+            unsafe.append("TELEGRAM_STARS_RUB_VALUE must be set or BILLING_ALLOW_UNPRICED_STARS=true when BILLING_ENABLE_STARS=true")
     if unsafe:
         raise RuntimeError("Unsafe runtime settings: " + "; ".join(unsafe))
 

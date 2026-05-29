@@ -7,6 +7,7 @@ import logging
 import json
 import re
 from contextlib import suppress
+from dataclasses import replace
 from datetime import datetime, timedelta, timezone
 from typing import Any
 
@@ -47,6 +48,7 @@ from app.billing import (
 )
 from app.config import Settings, get_settings, require_runtime_settings
 from app.credits import estimate_credits, estimate_output_tokens
+from app.economics import credit_pack_margin, guard_credits_for_margin, plan_economics, plan_features
 from app.db import CreditLimitError, Database
 from app.openrouter_client import AIClientError, OpenRouterClient
 from app.prompts import MODES, get_mini_app_tools
@@ -611,6 +613,31 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         if not settings.admin_secret or not x_admin_secret or not hmac.compare_digest(x_admin_secret, settings.admin_secret):
             raise HTTPException(status_code=403, detail="Доступ запрещён.")
 
+    async def apply_profit_guard_to_estimate(telegram_id: int, estimate):
+        """Raise request price in credits when the configured model/provider gets expensive.
+
+        The guard is server-side only: the frontend may show any nice numbers it wants,
+        but the backend always calculates the safe credit charge before reserving limits.
+        """
+        if not settings.profit_guard_enabled:
+            return estimate
+        access = await db.get_access_state(
+            telegram_id,
+            free_limit_default=settings.free_trial_requests,
+            monthly_limit_default=settings.free_monthly_credits,
+        )
+        plans = plan_catalog(settings)
+        plan_key = str(access.get("raw_plan") or access.get("plan") or "free").lower()
+        plan = plans.get(plan_key) or plans.get("free")
+        guarded = guard_credits_for_margin(settings, plan, estimate)
+        if guarded.credits <= estimate.credits:
+            return estimate
+        return replace(
+            estimate,
+            credits=guarded.credits,
+            reason=f"{estimate.reason}; {guarded.reason}",
+        )
+
     async def read_json_dict(request: Request) -> dict[str, Any]:
         raw_body = await request.body()
         if len(raw_body) > settings.max_request_body_bytes:
@@ -782,6 +809,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     async def ask(payload: AskRequest, user: TelegramUser = Depends(current_user)) -> AskResponse:
         await db.upsert_user(user.id, user.username, user.first_name, user.last_name, photo_url=user.photo_url)
         estimate = estimate_credits(payload.mode, payload.text, model=settings.openrouter_model)
+        estimate = await apply_profit_guard_to_estimate(user.id, estimate)
 
         try:
             await rate_limiter.check(user.id, estimate.credits)
@@ -858,6 +886,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                 model=settings.openrouter_model,
                 optional_fields=optional_fields,
             )
+            estimate = await apply_profit_guard_to_estimate(telegram_id, estimate)
             await rate_limiter.check(telegram_id, estimate.credits)
             await db.reserve_credits(
                 telegram_id,
@@ -966,6 +995,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                 model=settings.openrouter_model,
                 optional_fields=optional_fields,
             )
+            estimate = await apply_profit_guard_to_estimate(telegram_id, estimate)
             await rate_limiter.check(telegram_id, estimate.credits)
             await db.reserve_credits(
                 telegram_id,
@@ -1050,6 +1080,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                 history_text=history_text,
                 model=settings.openrouter_model,
             )
+            estimate = await apply_profit_guard_to_estimate(telegram_id, estimate)
             await rate_limiter.check(telegram_id, estimate.credits)
             await db.reserve_credits(
                 telegram_id,
@@ -1203,9 +1234,32 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                     "price_btc": str(plan.price_btc),
                     "duration_days": 30 if plan.key != "free" else None,
                     "providers": payment_providers,
+                    "features": plan_features(plan.key),
+                    "profit_guard_enabled": settings.profit_guard_enabled,
                 }
             )
         return {"ok": True, "plans": plans, "providers": providers}
+
+    @app.get("/api/economics/plans")
+    async def economics_plans(x_admin_secret: str | None = Header(default=None)) -> dict[str, Any]:
+        require_admin(x_admin_secret)
+        plans = plan_catalog(settings)
+        return {
+            "ok": True,
+            "profit_guard_enabled": settings.profit_guard_enabled,
+            "plans": [plan_economics(settings, plan) for plan in plans.values()],
+            "notes": [
+                "gross -> net subtracts payment fee, tax and refund-risk reserve",
+                "max_ai_budget is the hard monthly AI budget behind each plan",
+                "credit charge is increased automatically when the model/token cost grows",
+            ],
+        }
+
+    @app.get("/api/economics/credit-packs")
+    async def economics_credit_packs(x_admin_secret: str | None = Header(default=None)) -> dict[str, Any]:
+        require_admin(x_admin_secret)
+        packs = features.credit_packs()
+        return {"ok": True, "packs": [credit_pack_margin(settings, pack) for pack in packs]}
 
     @app.get("/api/billing/status")
     async def billing_status(telegram_user_id: int | None = None, user: TelegramUser = Depends(current_user)) -> dict[str, Any]:
@@ -1676,7 +1730,10 @@ def create_app(settings: Settings | None = None) -> FastAPI:
 
     @app.get("/api/credits/packs")
     async def credit_packs() -> dict[str, Any]:
-        return {"ok": True, "packs": features.credit_packs()}
+        packs = []
+        for pack in features.credit_packs():
+            packs.append({**pack, "profit_guard": credit_pack_margin(settings, pack)})
+        return {"ok": True, "packs": packs}
 
     async def finalize_credit_pack_order(order: dict[str, Any], raw_event: dict[str, Any] | None = None) -> dict[str, Any]:
         if not order:
@@ -1729,8 +1786,13 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         if not pack_key:
             return {"ok": False, "error": "Пакет кредитов не выбран."}
         provider = (payload.provider or "yookassa").strip().lower()
+        pack = next((p for p in features.credit_packs() if p["key"] == pack_key or p["id"] == pack_key), None)
+        if not pack:
+            return {"ok": False, "error": "Пакет кредитов не найден."}
+        margin = credit_pack_margin(settings, pack, provider="yookassa")
+        if not margin.get("is_profitable"):
+            return {"ok": False, "error": "Пакет временно отключён: цена не покрывает безопасный лимит AI-расходов.", "economics": margin}
         order = await features.create_credit_pack_order(telegram_id, pack_key, provider)
-        pack = order.get("pack") or next((p for p in features.credit_packs() if p["key"] == pack_key or p["id"] == pack_key), None)
         if provider != "yookassa":
             return {**order, "disabled": True, "error": "Пакеты кредитов сейчас оплачиваются через ЮKassa."}
         if not provider_enabled(settings, "yookassa"):

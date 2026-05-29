@@ -1701,3 +1701,51 @@ input:focus, textarea:focus, button:focus-visible { outline: none; box-shadow: v
   .nav-item span:last-child { font-size: 9px; }
   .quick-pill small, .settings-row small, .provider-btn p { font-size: 11px; }
 }
+
+/* Economics guard polish */
+.plan-row-main { min-width: 0; }
+.plan-feature-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 8px;
+}
+.plan-feature-chips span {
+  display: inline-flex;
+  align-items: center;
+  min-height: 22px;
+  border-radius: 999px;
+  padding: 3px 8px;
+  background: rgba(37, 111, 244, .07);
+  color: #31527a;
+  font-size: 11px;
+  font-weight: 650;
+  line-height: 1.2;
+}
+.plan-safety-note {
+  margin-top: 12px;
+  border-radius: 14px;
+  padding: 10px 12px;
+  background: linear-gradient(180deg, rgba(37,111,244,.08), rgba(37,111,244,.04));
+  border: 1px solid rgba(37,111,244,.14);
+  color: #31527a;
+  font-size: 12px;
+  font-weight: 650;
+}
+.subscription-plan-row {
+  align-items: start !important;
+  transition: transform .16s ease, border-color .16s ease, background .16s ease, box-shadow .16s ease;
+}
+.subscription-plan-row:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 12px 30px rgba(20, 28, 45, .06);
+}
+.subscription-plan-row.active .plan-feature-chips span {
+  background: rgba(37, 111, 244, .12);
+  color: var(--blue);
+}
+@media (max-width: 899px) {
+  .plan-feature-chips { gap: 5px; margin-top: 7px; }
+  .plan-feature-chips span { font-size: 10px; padding: 3px 7px; }
+  .plan-safety-note { font-size: 11px; }
+}

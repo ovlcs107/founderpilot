@@ -101,14 +101,19 @@ def test_public_plans_match_mockup_prices_by_default():
 
 
 def test_auto_provider_never_picks_unconfigured_yookassa():
-    settings = make_settings(BILLING_ENABLE_STARS=True, BILLING_ENABLE_YOOKASSA=True)
+    settings = make_settings(BILLING_ENABLE_STARS=True, TELEGRAM_STARS_RUB_VALUE="0.8", BILLING_ENABLE_YOOKASSA=True)
 
     assert "yookassa" not in {provider["id"] for provider in enabled_providers(settings)}
     assert resolve_payment_provider(settings, "auto") == "telegram_stars"
 
 
 def test_payment_provider_aliases_are_normalized():
-    settings = make_settings(YOOKASSA_SHOP_ID="shop", YOOKASSA_SECRET_KEY="secret")
+    settings = make_settings(
+        YOOKASSA_SHOP_ID="shop",
+        YOOKASSA_SECRET_KEY="secret",
+        BILLING_ENABLE_STARS=True,
+        TELEGRAM_STARS_RUB_VALUE="0.8",
+    )
 
     assert resolve_payment_provider(settings, "card") == "yookassa"
     assert resolve_payment_provider(settings, "stars") == "telegram_stars"
