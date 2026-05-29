@@ -1750,7 +1750,7 @@ input:focus, textarea:focus, button:focus-visible { outline: none; box-shadow: v
   .plan-safety-note { font-size: 11px; }
 }
 
-/* === FounderPilot final mobile/YooKassa UX fix === */
+/* === FounderPilot final mobile billing UX fix === */
 .disabled-row {
   opacity: .62;
 }
@@ -2737,4 +2737,387 @@ button:focus-visible { outline: none !important; box-shadow: 0 0 0 3px rgba(37,1
   .tool-card-modern { grid-template-columns: 40px minmax(0,1fr) auto; }
   #view-tools .list-panel { display: grid; grid-template-columns: repeat(2, minmax(0,1fr)); gap: 12px; border: 0; background: transparent; box-shadow: none; }
   .tool-card-modern + .tool-card-modern { margin-top: 0; }
+}
+
+/* === FounderPilot UI polish v3: subscription credits + support, no mockup chaos === */
+:root {
+  --fp-card-shadow: 0 18px 48px rgba(20, 28, 45, .055);
+  --fp-card-shadow-soft: 0 10px 30px rgba(20, 28, 45, .04);
+}
+
+/* Small, calmer icons across the product */
+[data-icon] svg,
+.nav-icon svg,
+.row-icon svg,
+.icon-box svg,
+.tool-mini-icon svg,
+.support-ticket-icon svg,
+.card-icon svg {
+  width: 18px !important;
+  height: 18px !important;
+  stroke-width: 2 !important;
+}
+.nav-icon { width: 19px !important; height: 19px !important; }
+.row-icon,
+.icon-box,
+.card-icon,
+.tool-mini-icon,
+.support-ticket-icon {
+  width: 34px !important;
+  height: 34px !important;
+  border-radius: 12px !important;
+  background: linear-gradient(180deg, #f3f7ff 0%, #eaf2ff 100%) !important;
+  color: var(--blue) !important;
+}
+
+/* Clean focus without ugly blue rectangles */
+*:focus { outline: none !important; }
+input:focus-visible,
+textarea:focus-visible,
+select:focus-visible,
+button:focus-visible {
+  box-shadow: 0 0 0 3px rgba(37, 111, 244, .10) !important;
+  border-color: rgba(37, 111, 244, .35) !important;
+}
+#homeChatInput:focus-visible { box-shadow: none !important; border-color: transparent !important; }
+
+/* Better shared panels */
+.current-plan-card,
+.benefits-card-container,
+.settings-section,
+.form-card,
+.support-history-card,
+.support-chat-card,
+.notification-feed-card,
+.app-style-list {
+  box-shadow: var(--fp-card-shadow-soft) !important;
+}
+
+/* Subscription page */
+.subscription-page {
+  --subscription-content: 980px;
+}
+.subscription-tabs {
+  margin-bottom: 20px !important;
+}
+.subscription-layout {
+  align-items: start;
+}
+.subscription-page .section-ios-title {
+  padding-left: 2px;
+  margin-bottom: 12px;
+  color: #737b89;
+  font-size: 12px;
+  letter-spacing: .07em !important;
+}
+.subscription-plan-row,
+.plan-card {
+  min-width: 0 !important;
+}
+.plan-row-main {
+  min-width: 0;
+}
+.plan-feature-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 8px;
+}
+.plan-feature-chips span {
+  display: inline-flex;
+  max-width: 100%;
+  padding: 4px 8px;
+  border-radius: 999px;
+  background: #f4f7fc;
+  color: #667085;
+  font-size: 11.5px;
+  line-height: 1.15;
+}
+
+/* Credits tab: cards instead of stretched mutant rows */
+.subscription-page.tab-credits .subscription-layout {
+  display: block !important;
+  max-width: 920px;
+  margin: 0 auto;
+}
+.subscription-page.tab-credits .subscription-side {
+  display: block !important;
+  max-width: none !important;
+}
+.subscription-page.tab-credits .settings-section[data-subscription-panel="credits"] {
+  border: 0;
+  background: transparent;
+  box-shadow: none !important;
+  padding: 0;
+}
+.subscription-page.tab-credits .credit-pack-list {
+  display: grid !important;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px !important;
+}
+.credit-pack.polished-pack {
+  position: relative;
+  min-height: 148px;
+  border: 1px solid var(--line) !important;
+  border-radius: 22px !important;
+  padding: 16px !important;
+  background: rgba(255, 255, 255, .94) !important;
+  box-shadow: var(--fp-card-shadow-soft) !important;
+  display: grid !important;
+  grid-template-rows: 1fr auto;
+  gap: 14px;
+  overflow: hidden;
+}
+.credit-pack.polished-pack::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: radial-gradient(circle at 18px 10px, rgba(37,111,244,.10), transparent 34%);
+  opacity: .9;
+}
+.credit-pack .pack-head {
+  position: relative;
+  z-index: 1;
+  display: grid;
+  grid-template-columns: 38px minmax(0, 1fr);
+  gap: 12px;
+  align-items: start;
+}
+.credit-pack .pack-title { min-width: 0; }
+.credit-pack .pack-title h5 {
+  margin: 0;
+  font-size: 16px !important;
+  line-height: 1.2;
+  font-weight: 760 !important;
+}
+.credit-pack .pack-title p {
+  margin-top: 5px !important;
+  font-size: 13px !important;
+  line-height: 1.35;
+  color: var(--muted) !important;
+}
+.credit-pack .price-btn {
+  position: relative;
+  z-index: 1;
+  width: 100%;
+  min-height: 42px;
+  border: 1px solid rgba(37, 111, 244, .22) !important;
+  background: linear-gradient(180deg, #f2f7ff, #edf4ff) !important;
+  color: var(--blue) !important;
+  border-radius: 14px !important;
+  font-size: 15px;
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.8);
+}
+.credit-pack.polished-pack:hover {
+  transform: translateY(-2px);
+  border-color: rgba(37,111,244,.32) !important;
+  box-shadow: 0 18px 44px rgba(37,111,244,.08) !important;
+}
+
+/* Support page: product UI, not admin/debug UI */
+#pane-support .mobile-sub-header h3,
+#view-profile #pane-support .mobile-sub-header h3 {
+  font-size: 20px;
+  font-weight: 760;
+}
+.support-tabs {
+  margin: 0 0 18px !important;
+}
+.support-layout {
+  max-width: 820px;
+  margin: 0 auto;
+}
+.support-tab-panel.active {
+  animation: panelIn .26s cubic-bezier(.22,.61,.36,1) both;
+}
+@keyframes panelIn {
+  from { opacity: 0; transform: translateY(8px) scale(.995); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+.support-create-card,
+.support-history-card,
+.support-chat-card {
+  border: 1px solid var(--line) !important;
+  border-radius: 24px !important;
+  background: rgba(255,255,255,.96) !important;
+  box-shadow: var(--fp-card-shadow) !important;
+  padding: 18px !important;
+}
+.support-create-card h3,
+.support-history-card h3,
+.support-chat-card h3 {
+  font-size: 18px !important;
+  line-height: 1.2;
+  font-weight: 760 !important;
+}
+.support-create-card .field-description {
+  margin: -4px 0 8px !important;
+  color: #667085;
+  line-height: 1.45;
+}
+.support-create-card label {
+  margin-top: 3px;
+  color: #222b3a;
+  font-size: 13px;
+  font-weight: 720;
+}
+.field-select,
+.support-create-card input,
+.support-create-card textarea,
+.support-reply-box textarea {
+  background: #f8fafc !important;
+  border: 1px solid #e3e8f1 !important;
+  border-radius: 16px !important;
+  color: var(--text) !important;
+  transition: background .18s ease, border-color .18s ease, box-shadow .18s ease;
+}
+.field-select:focus,
+.support-create-card input:focus,
+.support-create-card textarea:focus,
+.support-reply-box textarea:focus {
+  background: #fff !important;
+}
+.support-card-head {
+  align-items: flex-start !important;
+}
+.support-card-head span {
+  max-width: 230px;
+  text-align: right;
+  color: #7a8493 !important;
+}
+.support-history-card .settings-list {
+  border: 0 !important;
+  background: transparent !important;
+  box-shadow: none !important;
+}
+.support-ticket-card {
+  border-radius: 18px !important;
+  padding: 14px !important;
+  grid-template-columns: 36px minmax(0, 1fr) !important;
+  background: #fff !important;
+}
+.support-ticket-card.active {
+  background: linear-gradient(180deg, #f8fbff, #f3f8ff) !important;
+}
+.support-empty.clean {
+  min-height: 230px;
+  border: 1px dashed #dbe2ee;
+  border-radius: 20px;
+  background: linear-gradient(180deg, #fbfcff, #f7f9fd);
+  display: grid;
+  align-content: center;
+  justify-items: center;
+  gap: 4px;
+}
+.support-empty.clean b {
+  font-size: 16px;
+}
+.support-chat-messages {
+  min-height: 360px !important;
+  max-height: min(58vh, 560px) !important;
+  padding: 10px !important;
+  border: 1px solid #edf1f7;
+  border-radius: 20px;
+  background: linear-gradient(180deg, #fbfcff, #f8fafc);
+}
+.support-msg {
+  box-shadow: 0 8px 22px rgba(20,28,45,.045);
+}
+.support-reply-box {
+  border: 1px solid #edf1f7;
+  border-radius: 20px;
+  padding: 10px;
+  background: #fff;
+}
+.support-reply-box textarea {
+  border: 0 !important;
+  background: transparent !important;
+  padding: 8px 6px !important;
+}
+.support-reply-box textarea:focus-visible { box-shadow: none !important; }
+
+/* Top right buttons on desktop: less random, more product */
+.desktop-top-bar .top-bell-btn,
+.desktop-top-bar .compact-avatar {
+  width: 36px !important;
+  height: 36px !important;
+  box-shadow: 0 10px 26px rgba(20,28,45,.08) !important;
+  border: 1px solid rgba(226,232,240,.9) !important;
+}
+
+@media (max-width: 1099px) {
+  .subscription-page .page-head.mobile-hidden-head {
+    text-align: center;
+    margin-bottom: 16px;
+  }
+  .subscription-tabs,
+  .support-tabs {
+    width: 100% !important;
+    position: sticky;
+    top: 0;
+    z-index: 8;
+    background: rgba(255,255,255,.78);
+  }
+  .subscription-page.tab-credits .credit-pack-list {
+    grid-template-columns: 1fr !important;
+    gap: 12px !important;
+  }
+  .credit-pack.polished-pack {
+    min-height: 128px;
+    border-radius: 20px !important;
+  }
+  .credit-pack .pack-title h5 { font-size: 15.5px !important; }
+  .credit-pack .price-btn { min-height: 40px; }
+  .support-layout {
+    max-width: none;
+  }
+  .support-create-card,
+  .support-history-card,
+  .support-chat-card {
+    border-radius: 22px !important;
+    padding: 16px !important;
+  }
+  .support-card-head {
+    display: block !important;
+  }
+  .support-card-head span {
+    display: block;
+    max-width: none;
+    text-align: left;
+    margin-top: 4px;
+  }
+  .support-chat-messages {
+    min-height: calc(100vh - 360px) !important;
+    max-height: calc(100vh - 300px) !important;
+  }
+  #pane-support .mobile-sub-header {
+    margin-bottom: 10px;
+  }
+}
+
+@media (min-width: 1100px) {
+  .subscription-tabs,
+  .support-tabs {
+    width: fit-content !important;
+  }
+  #view-subscription .view-inner {
+    max-width: 1040px !important;
+  }
+  .subscription-page.tab-credits .section-ios-title {
+    font-size: 13px;
+    margin-bottom: 14px;
+  }
+  .support-layout {
+    max-width: 900px;
+  }
+  .support-create-card.support-tab-panel.active {
+    max-width: 760px;
+    margin: 0 auto;
+  }
+  .support-history-card.support-tab-panel.active,
+  .support-chat-card.support-tab-panel.active {
+    max-width: 860px;
+    margin: 0 auto;
+  }
 }

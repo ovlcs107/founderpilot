@@ -25,7 +25,12 @@ const iconPaths = {
   copy: '<rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>',
   'credit-card': '<rect x="1" y="4" width="22" height="16" rx="2" ry="2"></rect><line x1="1" y1="10" x2="23" y2="10"></line>',
   ton: '<polygon points="12 2 3 9 12 22 21 9 12 2"></polygon><polyline points="3 9 12 13 21 9"></polyline><line x1="12" y1="22" x2="12" y2="13"></line>',
-  btc: '<path d="M12 22c5.523 0 10-4.477 10-10S17.523 2 12 2 2 6.477 2 12s4.477 10 10 10z"></path><path d="M10 8h2.5a1.5 1.5 0 0 1 0 3H10V8z"></path><path d="M10 13h3a1.5 1.5 0 0 1 0 3h-3v-3z"></path><path d="M12 5v2"></path><path d="M12 17v2"></path>'
+  btc: '<path d="M12 22c5.523 0 10-4.477 10-10S17.523 2 12 2 2 6.477 2 12s4.477 10 10 10z"></path><path d="M10 8h2.5a1.5 1.5 0 0 1 0 3H10V8z"></path><path d="M10 13h3a1.5 1.5 0 0 1 0 3h-3v-3z"></path><path d="M12 5v2"></path><path d="M12 17v2"></path>',
+  coin: '<circle cx="12" cy="12" r="9"></circle><path d="M8.8 12h6.4"></path><path d="M12 8.8v6.4"></path>',
+  plus: '<circle cx="12" cy="12" r="9"></circle><path d="M12 8v8"></path><path d="M8 12h8"></path>',
+  bug: '<path d="M8 2l1.8 3h4.4L16 2"></path><rect x="7" y="5" width="10" height="14" rx="5"></rect><path d="M3 13h4"></path><path d="M17 13h4"></path><path d="M4.5 19l3-2"></path><path d="M19.5 19l-3-2"></path>',
+  support: '<path d="M4 12a8 8 0 0 1 16 0"></path><path d="M4 12v4a2 2 0 0 0 2 2h1v-6H6a2 2 0 0 0-2 2"></path><path d="M20 12v4a2 2 0 0 1-2 2h-1v-6h1a2 2 0 0 1 2 2"></path><path d="M14 20h-4"></path>',
+  receipt: '<path d="M6 2h12v20l-3-2-3 2-3-2-3 2V2z"></path><path d="M9 8h6"></path><path d="M9 12h6"></path><path d="M9 16h4"></path>'
 };
 
 const $ = id => document.getElementById(id);
@@ -1081,7 +1086,7 @@ function renderSupportMessages() {
     return;
   }
   if (!messages.length) {
-    box.innerHTML = `<div class="support-empty"><b>Сообщений пока нет</b><small>Напишите уточнение ниже.</small></div>`;
+    box.innerHTML = `<div class="support-empty"><b>Сообщений пока нет</b><small>Мы уже получили обращение. Ответ появится в этом диалоге.</small></div>`;
     return;
   }
   box.innerHTML = messages.map(m => {
@@ -1137,7 +1142,7 @@ async function submitSupportTicket() {
     $("supportSubjectInput").value = "";
     $("supportMessageInput").value = "";
     state.activeSupportTicketId = data.ticket?.id || null;
-    showToast(data.group_sent ? "Обращение отправлено поддержке" : "Обращение сохранено. Настройте SUPPORT_GROUP_CHAT_ID для группы поддержки");
+    showToast(data.group_sent ? "Обращение отправлено поддержке" : "Обращение сохранено. Мы скоро ответим");
     await loadSupport();
   } catch (err) { showToast(friendlyError(err, "Не удалось отправить обращение")); }
 }
@@ -1633,11 +1638,13 @@ function renderCreditPacks() {
   const container = $('creditPackList');
   if (!container) return;
   const packs = state.creditPacks && state.creditPacks.length ? state.creditPacks : getFallbackCreditPacks();
-  container.innerHTML = packs.map((p, idx) => `<div class="credit-pack polished-pack" style="--i:${idx}">
-    <span class="tool-mini-icon"><span data-icon="coin"></span></span>
-    <div class="info"><h5>${escapeHTML(p.title)}</h5><p>${escapeHTML(p.description || 'Разовое пополнение баланса')}</p></div>
+  container.innerHTML = packs.map((p, idx) => `<article class="credit-pack polished-pack" style="--i:${idx}">
+    <div class="pack-head">
+      <span class="tool-mini-icon"><span data-icon="coin"></span></span>
+      <div class="pack-title"><h5>${escapeHTML(p.title)}</h5><p>${escapeHTML(p.description || 'Разовое пополнение баланса')}</p></div>
+    </div>
     <button class="price-btn" data-pack="${escapeHTML(p.id)}">${escapeHTML(p.price_text)}</button>
-  </div>`).join('');
+  </article>`).join('');
   injectIcons(container);
 }
 
@@ -1669,8 +1676,8 @@ function renderSupportMessages() {
   const box = $('supportChatMessages');
   if (!box) return;
   const messages = state.supportMessages || [];
-  if (!state.activeSupportTicketId) { box.innerHTML = `<div class="support-empty clean"><b>Выберите обращение</b><small>Во вкладке “История” откройте тикет, чтобы увидеть диалог.</small></div>`; return; }
-  if (!messages.length) { box.innerHTML = `<div class="support-empty clean"><b>Сообщений пока нет</b><small>Напишите уточнение ниже.</small></div>`; return; }
+  if (!state.activeSupportTicketId) { box.innerHTML = `<div class="support-empty clean"><b>Выберите обращение</b><small>Откройте обращение из истории, чтобы продолжить диалог.</small></div>`; return; }
+  if (!messages.length) { box.innerHTML = `<div class="support-empty clean"><b>Сообщений пока нет</b><small>Мы уже получили обращение. Ответ появится в этом диалоге.</small></div>`; return; }
   box.innerHTML = messages.map(m => {
     const isUser = String(m.author_type || '') === 'user';
     const author = isUser ? 'Вы' : (m.author_name || 'Поддержка');
@@ -1797,6 +1804,6 @@ boot = async function polishedBoot() {
   try { bindPolishEvents(); setSubscriptionTab(state.subscriptionTab || 'plans'); setSupportTab(state.supportTab || 'new'); } catch (e) {}
 };
 
-// Даже если backend/Telegram WebView зависнет, не держим пользователя на вечном прелоадере.
+// Safety timeout for loading state.
 window.setTimeout(revealApp, 4500);
 document.addEventListener("DOMContentLoaded", boot);
