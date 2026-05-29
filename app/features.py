@@ -6,7 +6,7 @@ from datetime import datetime, timezone, timedelta
 from typing import Any
 from uuid import uuid4
 
-import aiosqlite
+from . import db_adapter as aiosqlite
 
 
 def utc_now() -> str:
@@ -764,8 +764,15 @@ class FeatureStore:
             )
             await db.execute(
                 """
-                INSERT OR REPLACE INTO organization_members(organization_id, telegram_user_id, role, status, limited_access, invited_by, joined_at, created_at, updated_at)
+                INSERT INTO organization_members(organization_id, telegram_user_id, role, status, limited_access, invited_by, joined_at, created_at, updated_at)
                 VALUES (?, ?, 'owner', 'active', 0, ?, ?, ?, ?)
+                ON CONFLICT(organization_id, telegram_user_id) DO UPDATE SET
+                    role=excluded.role,
+                    status=excluded.status,
+                    limited_access=excluded.limited_access,
+                    invited_by=excluded.invited_by,
+                    joined_at=excluded.joined_at,
+                    updated_at=excluded.updated_at
                 """,
                 (org_id, str(telegram_id), str(telegram_id), now, now, now),
             )
@@ -919,8 +926,15 @@ class FeatureStore:
 
             await db.execute(
                 """
-                INSERT OR REPLACE INTO organization_members(organization_id, telegram_user_id, role, status, limited_access, invited_by, joined_at, created_at, updated_at)
+                INSERT INTO organization_members(organization_id, telegram_user_id, role, status, limited_access, invited_by, joined_at, created_at, updated_at)
                 VALUES (?, ?, 'member', 'active', 1, ?, ?, ?, ?)
+                ON CONFLICT(organization_id, telegram_user_id) DO UPDATE SET
+                    role=excluded.role,
+                    status=excluded.status,
+                    limited_access=excluded.limited_access,
+                    invited_by=excluded.invited_by,
+                    joined_at=excluded.joined_at,
+                    updated_at=excluded.updated_at
                 """,
                 (invite_dict["organization_id"], str(telegram_id), invite_dict["inviter_telegram_user_id"], now, now, now),
             )

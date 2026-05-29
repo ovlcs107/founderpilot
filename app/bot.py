@@ -77,7 +77,7 @@ def build_dispatcher(
     rate_limiter: RateLimiter,
 ) -> Dispatcher:
     router = Router()
-    support_store = FeatureStore(settings.database_path)
+    support_store = FeatureStore(settings.database_dsn)
 
     @router.pre_checkout_query()
     async def pre_checkout(query: PreCheckoutQuery) -> None:

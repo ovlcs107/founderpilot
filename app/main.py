@@ -355,10 +355,10 @@ def margin_markdown(calculation: dict[str, Any] | None) -> str:
 
 def create_app(settings: Settings | None = None) -> FastAPI:
     settings = settings or get_settings()
-    db = Database(settings.database_path)
+    db = Database(settings.database_dsn)
     ai_client = OpenRouterClient(settings)
     rate_limiter = RateLimiter(settings, db)
-    features = FeatureStore(settings.database_path)
+    features = FeatureStore(settings.database_dsn)
 
     app = FastAPI(
         title="FounderPilot AI",
@@ -779,9 +779,9 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         app.state.startup_error = None
         try:
             await db.init()
-            await init_features(settings.database_path)
+            await init_features(settings.database_dsn)
             app.state.db_ready = True
-            logger.info("Database initialized at %s", settings.database_path)
+            logger.info("Database initialized at %s", settings.database_dsn)
         except Exception as exc:  # noqa: BLE001
             app.state.startup_error = str(exc)
             logger.exception("Database/features initialization failed. /health will stay alive; app APIs may fail until this is fixed: %s", exc)
@@ -2278,9 +2278,9 @@ async def _run_bot_polling(settings: Settings) -> None:
     Long polling can fail when another deployment/local process already calls
     getUpdates for the same bot token. That should not kill the web app.
     """
-    db = Database(settings.database_path)
+    db = Database(settings.database_dsn)
     await db.init()
-    await init_features(settings.database_path)
+    await init_features(settings.database_dsn)
     ai_client = OpenRouterClient(settings)
     rate_limiter = RateLimiter(settings, db)
     bot = Bot(token=settings.bot_token)

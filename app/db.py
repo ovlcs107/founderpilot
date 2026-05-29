@@ -5,7 +5,7 @@ from datetime import datetime, timedelta, timezone
 from typing import Any
 from uuid import uuid4
 
-import aiosqlite
+from . import db_adapter as aiosqlite
 
 
 SCHEMA = """
@@ -943,9 +943,14 @@ class Database:
         async with aiosqlite.connect(self.path) as db:
             await db.execute(
                 """
-                INSERT OR REPLACE INTO active_ai_requests (
+                INSERT INTO active_ai_requests (
                     request_id, telegram_user_id, tool_id, reserved_credits, started_at
                 ) VALUES (?, ?, ?, ?, ?)
+                ON CONFLICT(request_id) DO UPDATE SET
+                    telegram_user_id=excluded.telegram_user_id,
+                    tool_id=excluded.tool_id,
+                    reserved_credits=excluded.reserved_credits,
+                    started_at=excluded.started_at
                 """,
                 (request_id, tg_text_id(telegram_id), tool_id, credits, now),
             )

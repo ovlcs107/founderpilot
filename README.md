@@ -341,3 +341,110 @@ GET /ready   -> строгая готовность базы
 ```
 
 Для работы команд укажи свой Telegram ID в переменной `ADMIN_TELEGRAM_IDS` и запусти отдельный worker с `RUN_BOT_POLLING=true`.
+
+---
+
+## PostgreSQL production mode
+
+Проект теперь умеет работать в двух режимах:
+
+```text
+Локально / тесты: SQLite через DATABASE_PATH
+Продакшен / Railway: PostgreSQL через DATABASE_URL
+```
+
+Для Railway больше не нужен общий Volume между web-сервисом и bot-worker. Оба сервиса должны смотреть в одну PostgreSQL-базу.
+
+### Railway: правильная схема сервисов
+
+```text
+founderpilot-web        HTTP backend + Mini App
+founderpilot-bot-worker Telegram polling + support/admin commands
+PostgreSQL             общая база для web и worker
+```
+
+### Переменные для web-сервиса
+
+```env
+DATABASE_URL=${{Postgres.DATABASE_URL}}
+RUN_BOT_POLLING=false
+BOT_POLLING_STRICT=false
+WEBAPP_PUBLIC_URL=https://your-app.up.railway.app
+APP_SECRET=your_unique_random_secret_24_chars_min
+ADMIN_SECRET=your_unique_admin_secret_24_chars_min
+```
+
+Healthcheck для web-сервиса:
+
+```text
+/health
+```
+
+Start command:
+
+```bash
+python run.py
+```
+
+### Переменные для bot-worker
+
+Создайте второй Railway-сервис из того же репозитория. Он должен иметь тот же `DATABASE_URL`, но другой режим запуска:
+
+```env
+DATABASE_URL=${{Postgres.DATABASE_URL}}
+RUN_BOT_POLLING=true
+BOT_POLLING_STRICT=true
+BOT_TOKEN=your_bot_token
+ADMIN_TELEGRAM_IDS=your_telegram_id
+SUPPORT_GROUP_CHAT_ID=-100xxxxxxxxxx
+```
+
+Для worker healthcheck не нужен.
+
+### Что удалить после перехода с SQLite
+
+Если перешли на PostgreSQL, не используйте в продакшене:
+
+```env
+DATABASE_PATH=/app/data/founderpilot.sqlite3
+DATABASE_PATH=${{MySQL.MYSQL_URL}}
+DATABASE_PATH=${{Postgres.DATABASE_URL}}
+```
+
+Правильно:
+
+```env
+DATABASE_URL=${{Postgres.DATABASE_URL}}
+```
+
+`DATABASE_PATH` оставлен только для локального SQLite и старых тестов.
+
+### Миграция старой SQLite-базы в PostgreSQL
+
+Если у вас уже были пользователи/подписки/история в `founderpilot.sqlite3`, скачайте файл и выполните:
+
+```bash
+python scripts/migrate_sqlite_to_postgres.py --sqlite founderpilot.sqlite3 --postgres "$DATABASE_URL"
+```
+
+Скрипт сначала создаёт PostgreSQL-схему, потом копирует совпадающие таблицы и колонки.
+
+После миграции запустите web и worker с одним и тем же `DATABASE_URL`.
+
+### Проверка после деплоя
+
+В логах должно быть примерно так:
+
+```text
+Database initialized at postgresql://...
+FounderPilot AI web service is running
+Telegram bot polling is disabled
+```
+
+У worker должно быть:
+
+```text
+Telegram bot polling started
+```
+
+Если Mini App работает, а бот молчит — почти всегда worker не запущен или у него `RUN_BOT_POLLING=false`.

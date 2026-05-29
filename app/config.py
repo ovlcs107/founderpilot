@@ -4,6 +4,8 @@ import os
 from functools import lru_cache
 from urllib.parse import urlparse
 
+from .db_adapter import normalize_database_url, is_postgres_dsn
+
 from pydantic import Field, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
@@ -32,6 +34,7 @@ class Settings(BaseSettings):
     app_secret: str = Field(default="change-this-super-secret-string", alias="APP_SECRET")
     admin_secret: str = Field(default="", alias="ADMIN_SECRET")
     database_path: str = Field(default="founderpilot.sqlite3", alias="DATABASE_PATH")
+    database_url: str = Field(default="", alias="DATABASE_URL")
     dev_mode: bool = Field(default=False, alias="DEV_MODE")
     dev_skip_telegram_auth: bool = Field(default=False, alias="DEV_SKIP_TELEGRAM_AUTH")
     cors_allowed_origins_raw: str = Field(default="", alias="CORS_ALLOWED_ORIGINS")
@@ -158,6 +161,17 @@ class Settings(BaseSettings):
             return None
         return value
 
+
+    @property
+    def database_dsn(self) -> str:
+        # Production should use DATABASE_URL=${{Postgres.DATABASE_URL}} on Railway.
+        # DATABASE_PATH is kept for local SQLite and backwards compatibility.
+        return normalize_database_url(self.database_url or self.database_path)
+
+    @property
+    def database_backend(self) -> str:
+        return "postgresql" if is_postgres_dsn(self.database_dsn) else "sqlite"
+
     @field_validator("webapp_public_url")
     @classmethod
     def strip_trailing_slash(cls, value: str) -> str:
@@ -282,6 +296,8 @@ def runtime_setting_issues(settings: Settings) -> list[str]:
         issues.append("OPENROUTER_API_KEY is empty: AI generation requests will be disabled")
     if settings.is_public_deployment and settings.allow_dev_auth:
         issues.append("DEV_MODE/DEV_SKIP_TELEGRAM_AUTH must be false for a public HTTPS deployment")
+    if settings.is_railway_runtime and settings.database_backend != "postgresql":
+        issues.append("DATABASE_URL is not PostgreSQL: use a Railway PostgreSQL service for production shared web/worker data")
     if settings.is_public_deployment and _is_default_or_weak_secret(
         settings.app_secret,
         {"change-this-super-secret-string", "change-this-secret"},
