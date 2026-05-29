@@ -22,6 +22,15 @@ logger = logging.getLogger(__name__)
 
 PLAN_DAYS = 30
 
+PLAN_DESCRIPTIONS = {
+    "free": "Базовый пробный доступ",
+    "go": "Для первых регулярных задач",
+    "plus": "Оптимум для активной работы",
+    "pro": "Для предпринимателей и селлеров",
+    "business": "Команды, организации и расширенные лимиты",
+}
+
+
 
 @dataclass(frozen=True)
 class Plan:
@@ -53,7 +62,7 @@ def plan_catalog(settings: Settings) -> dict[str, Plan]:
             key="free",
             title="Free",
             daily_limit=settings.free_daily_credits,
-            monthly_limit=0,
+            monthly_limit=settings.free_monthly_credits,
             price_rub=Decimal("0"),
             price_stars=0,
             price_ton=Decimal("0"),

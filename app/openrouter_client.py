@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 from typing import Any
+from datetime import datetime
+from zoneinfo import ZoneInfo
 
 import httpx
 
@@ -17,6 +19,22 @@ class OpenRouterClient:
         self.settings = settings
         self.base_url = "https://openrouter.ai/api/v1/chat/completions"
 
+    def _runtime_context(self) -> str:
+        now = datetime.now(ZoneInfo("Europe/Moscow"))
+        return (
+            "Актуальный runtime-контекст FounderPilot:\n"
+            f"- Текущая дата: {now:%Y-%m-%d} ({now:%d.%m.%Y}).\n"
+            f"- Текущее время: {now:%H:%M} МСК.\n"
+            "- Таймзона сервиса: Europe/Moscow.\n"
+            "- Не считай, что сейчас 2024 год или любая другая старая дата.\n"
+            "- Если пользователь спрашивает про срок, сегодня, завтра, месяц, квартал или год — используй дату из этого runtime-контекста.\n"
+            "- Если вопрос зависит от свежих внешних данных, цен, законов, API или условий платежных систем, прямо скажи, что без онлайн-поиска данные могут быть неполными.\n"
+            "- Ответ должен быть в безопасном Markdown: заголовки, списки, нумерованные шаги, таблицы только когда реально полезны, код в fenced code blocks, без HTML."
+        )
+
+    def _with_runtime_context(self, prompt: str) -> str:
+        return f"{prompt}\n\n{self._runtime_context()}"
+
     async def ask_business_ai(
         self,
         mode: str,
@@ -29,7 +47,7 @@ class OpenRouterClient:
         payload = {
             "model": self.settings.openrouter_model,
             "messages": [
-                {"role": "system", "content": SYSTEM_PROMPT},
+                {"role": "system", "content": self._with_runtime_context(SYSTEM_PROMPT)},
                 {"role": "user", "content": build_user_prompt(mode, user_text, optional_fields)},
             ],
             "temperature": 0.45,
@@ -75,7 +93,7 @@ class OpenRouterClient:
         if not user_message.strip():
             raise AIClientError("Пустое сообщение. Напишите бизнес-задачу или вопрос.")
 
-        system_prompt = CHAT_SYSTEM_PROMPT
+        system_prompt = self._with_runtime_context(CHAT_SYSTEM_PROMPT)
         if business_context:
             system_prompt = f"{system_prompt}\n\nБизнес-профиль пользователя:\n{business_context}"
         messages: list[dict[str, str]] = [{"role": "system", "content": system_prompt}]

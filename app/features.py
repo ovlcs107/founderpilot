@@ -426,9 +426,10 @@ class FeatureStore:
 
     def credit_packs(self) -> list[dict[str, Any]]:
         return [
-            {"key": "credits_1000", "title": "1 000 кредитов", "credits": 1000, "amount": 199, "currency": "RUB"},
-            {"key": "credits_5000", "title": "5 000 кредитов", "credits": 5000, "amount": 799, "currency": "RUB", "popular": True},
-            {"key": "credits_20000", "title": "20 000 кредитов", "credits": 20000, "amount": 2490, "currency": "RUB"},
+            {"key": "credits_1000", "id": "credits_1000", "title": "1 000 кредитов", "description": "Разовый запас для небольших задач", "credits": 1000, "amount": 199, "price_text": "199 ₽", "currency": "RUB"},
+            {"key": "credits_5000", "id": "credits_5000", "title": "5 000 кредитов", "description": "Для активной работы", "credits": 5000, "amount": 799, "price_text": "799 ₽", "currency": "RUB", "popular": True},
+            {"key": "credits_15000", "id": "credits_15000", "title": "15 000 кредитов", "description": "Для плотной рабочей недели", "credits": 15000, "amount": 1990, "price_text": "1 990 ₽", "currency": "RUB"},
+            {"key": "credits_50000", "id": "credits_50000", "title": "50 000 кредитов", "description": "Большой запас для Pro/Business", "credits": 50000, "amount": 5490, "price_text": "5 490 ₽", "currency": "RUB"},
         ]
 
     async def create_credit_pack_order(self, telegram_id: int, pack_key: str, provider: str | None = None) -> dict[str, Any]:

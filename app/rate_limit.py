@@ -34,7 +34,7 @@ class RateLimiter:
         access = await self.db.get_access_state(
             telegram_id,
             free_limit_default=self.settings.free_trial_requests,
-            monthly_limit_default=self.settings.subscriber_monthly_limit,
+            monthly_limit_default=self.settings.free_monthly_credits,
             now=datetime.now(timezone.utc),
         )
         if not access["can_request"]:

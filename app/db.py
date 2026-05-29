@@ -1238,16 +1238,18 @@ class Database:
         else:
             status = "expired" if subscription_until else "free_trial"
             status_label = "Free" if not subscription_until else "Подписка истекла"
-            current_limit = free_limit
-            used_for_limit = used_today
+            # Free has both a daily anti-abuse limit and a small monthly budget.
+            # Purchased credits are added to the monthly budget, but not to the daily anti-spam cap.
+            current_limit = monthly_limit
+            used_for_limit = used_period
             daily_remaining = max(free_limit - used_today - reserved_credits, 0)
-            monthly_remaining = None
-            remaining = daily_remaining
+            monthly_remaining = max(monthly_limit - used_period - reserved_credits, 0)
+            remaining = min(daily_remaining, monthly_remaining)
             can_request = remaining > 0
             if not can_request:
                 denial_reason = (
-                    f"Дневной лимит кредитов исчерпан: {free_limit}. "
-                    "Попробуйте завтра или перейдите на платный тариф."
+                    f"Лимит Free исчерпан: {free_limit} кредитов в день, {monthly_limit} кредитов в месяц. "
+                    "Попробуйте позже или перейдите на платный тариф."
                 )
 
         return {

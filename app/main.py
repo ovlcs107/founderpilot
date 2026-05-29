@@ -25,6 +25,7 @@ from app.billing import (
     best_effort_ton_verify,
     build_ton_transaction,
     create_btcpay_invoice,
+    PLAN_DESCRIPTIONS,
     create_telegram_stars_invoice,
     create_yookassa_payment,
     create_yookassa_autopayment,
@@ -452,6 +453,24 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         lines = [f"{label}: {profile.get(key)}" for key, label in labels.items() if profile.get(key)]
         return "\n".join(lines)
 
+    def ai_user_context(user: TelegramUser, profile: dict[str, Any] | None = None, organizations: dict[str, Any] | None = None) -> str:
+        lines: list[str] = []
+        if user.first_name:
+            lines.append(f"Имя пользователя в Telegram: {user.first_name}")
+        if user.username:
+            lines.append(f"Username Telegram: @{user.username}")
+        if profile and profile.get("plan"):
+            lines.append(f"Тариф пользователя: {profile.get('plan')}")
+        active_org = (organizations or {}).get("active") if isinstance(organizations, dict) else None
+        if active_org:
+            org_title = active_org.get("title") or active_org.get("organization_title") or active_org.get("name")
+            org_role = active_org.get("role") or active_org.get("member_role")
+            if org_title:
+                lines.append(f"Активная организация: {org_title}")
+            if org_role:
+                lines.append(f"Роль в организации: {org_role}")
+        return "\n".join(lines)
+
     def subscription_next_charge_at() -> str:
         return (datetime.now(timezone.utc) + timedelta(days=30)).isoformat()
 
@@ -579,7 +598,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         access = await db.get_access_state(
             user.id,
             free_limit_default=settings.free_trial_requests,
-            monthly_limit_default=settings.subscriber_monthly_limit,
+            monthly_limit_default=settings.free_monthly_credits,
         )
         profile_data = await db.get_business_profile(user.id)
         user_profile = await db.get_user_profile(user.id)
@@ -656,13 +675,18 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                 estimate.tool_id,
                 estimate.credits,
                 free_limit_default=settings.free_trial_requests,
-                monthly_limit_default=settings.subscriber_monthly_limit,
+                monthly_limit_default=settings.free_monthly_credits,
                 metadata={"endpoint": "/api/ask", "reason": estimate.reason},
             )
             ask_optional: dict[str, Any] = {}
             profile_data = await db.get_business_profile(user.id)
+            user_profile = await db.get_user_profile(user.id)
+            organizations = await features.list_organizations(user.id, user.username)
+            user_context = ai_user_context(user, user_profile, organizations)
             context = business_context(profile_data)
             project_context = await features.project_context_text(user.id)
+            if user_context:
+                ask_optional["telegram_user_context"] = user_context
             if context:
                 ask_optional["business_profile"] = context
             if project_context:
@@ -725,7 +749,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                 estimate.tool_id,
                 estimate.credits,
                 free_limit_default=settings.free_trial_requests,
-                monthly_limit_default=settings.subscriber_monthly_limit,
+                monthly_limit_default=settings.free_monthly_credits,
                 metadata={"endpoint": "/api/generate", "reason": estimate.reason},
             )
             ai_answer = await ai_client.ask_business_ai(payload.tool_id, input_text or payload.user_input, optional_fields)
@@ -757,13 +781,13 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             access = await db.get_access_state(
                 telegram_id,
                 free_limit_default=settings.free_trial_requests,
-                monthly_limit_default=settings.subscriber_monthly_limit,
+                monthly_limit_default=settings.free_monthly_credits,
             )
         except (RateLimitError, CreditLimitError) as exc:
             access = await db.get_access_state(
                 telegram_id,
                 free_limit_default=settings.free_trial_requests,
-                monthly_limit_default=settings.subscriber_monthly_limit,
+                monthly_limit_default=settings.free_monthly_credits,
             )
             return GenerateResponse(ok=False, error=str(exc), tool_id=payload.tool_id, usage=usage_payload(access))
         except AIClientError as exc:
@@ -833,7 +857,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                 estimate.tool_id,
                 estimate.credits,
                 free_limit_default=settings.free_trial_requests,
-                monthly_limit_default=settings.subscriber_monthly_limit,
+                monthly_limit_default=settings.free_monthly_credits,
                 metadata={"endpoint": "/api/tools/run", "reason": estimate.reason},
             )
             ai_answer = await ai_client.ask_business_ai(payload.tool_id, input_text, optional_fields)
@@ -860,14 +884,14 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             access = await db.get_access_state(
                 telegram_id,
                 free_limit_default=settings.free_trial_requests,
-                monthly_limit_default=settings.subscriber_monthly_limit,
+                monthly_limit_default=settings.free_monthly_credits,
             )
             return {"ok": True, "result": answer, "tool_run_id": str(tool_run_id), "usage": usage_payload(access)}
         except (RateLimitError, CreditLimitError) as exc:
             access = await db.get_access_state(
                 telegram_id,
                 free_limit_default=settings.free_trial_requests,
-                monthly_limit_default=settings.subscriber_monthly_limit,
+                monthly_limit_default=settings.free_monthly_credits,
             )
             return {"ok": False, "error": str(exc), "usage": usage_payload(access)}
         except AIClientError as exc:
@@ -917,11 +941,17 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                 estimate.tool_id,
                 estimate.credits,
                 free_limit_default=settings.free_trial_requests,
-                monthly_limit_default=settings.subscriber_monthly_limit,
+                monthly_limit_default=settings.free_monthly_credits,
                 metadata={"endpoint": "/api/chat", "conversation_id": str(conversation_id), "reason": estimate.reason},
             )
             profile_data = await db.get_business_profile(telegram_id)
-            context_parts = [business_context(profile_data), await features.project_context_text(telegram_id)]
+            user_profile = await db.get_user_profile(telegram_id)
+            organizations = await features.list_organizations(telegram_id, user.username)
+            context_parts = [
+                ai_user_context(user, user_profile, organizations),
+                business_context(profile_data),
+                await features.project_context_text(telegram_id),
+            ]
             answer = await ai_client.ask_chat(history, message, "\n\n".join(part for part in context_parts if part))
             await db.finalize_credit_charge(
                 telegram_id,
@@ -944,13 +974,13 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             access = await db.get_access_state(
                 telegram_id,
                 free_limit_default=settings.free_trial_requests,
-                monthly_limit_default=settings.subscriber_monthly_limit,
+                monthly_limit_default=settings.free_monthly_credits,
             )
         except (RateLimitError, CreditLimitError) as exc:
             access = await db.get_access_state(
                 telegram_id,
                 free_limit_default=settings.free_trial_requests,
-                monthly_limit_default=settings.subscriber_monthly_limit,
+                monthly_limit_default=settings.free_monthly_credits,
             )
             return ChatResponse(ok=False, error=str(exc), conversation_id=str(conversation_id) if conversation_id else payload.conversation_id, usage=usage_payload(access))
         except AIClientError as exc:
@@ -1038,12 +1068,17 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             plans.append(
                 {
                     "id": plan.key,
+                    "key": plan.key,
                     "title": plan.title,
+                    "name": plan.title,
+                    "description": PLAN_DESCRIPTIONS.get(plan.key, ""),
                     "daily_limit": plan.daily_limit,
                     "monthly_limit": plan.monthly_limit,
                     "credits_daily_limit": plan.daily_limit,
                     "credits_monthly_limit": plan.monthly_limit,
                     "unit_name": "кредиты",
+                    "price": "0 ₽" if plan.key == "free" else f"{int(plan.price_rub):,}".replace(",", " ") + " ₽ / мес",
+                    "price_text": "0 ₽" if plan.key == "free" else f"{int(plan.price_rub):,}".replace(",", " ") + " ₽ / мес",
                     "price_rub": float(plan.price_rub),
                     "price_stars": plan.price_stars,
                     "price_ton": str(plan.price_ton),
@@ -1059,7 +1094,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         status = await db.billing_status(
             telegram_id,
             free_limit_default=settings.free_trial_requests,
-            monthly_limit_default=settings.subscriber_monthly_limit,
+            monthly_limit_default=settings.free_monthly_credits,
         )
         return {"ok": True, **status}
 
@@ -1367,7 +1402,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         access = await db.get_access_state(
             user.id,
             free_limit_default=settings.free_trial_requests,
-            monthly_limit_default=settings.subscriber_monthly_limit,
+            monthly_limit_default=settings.free_monthly_credits,
         )
         return StatsResponse(
             used_today=access["used_today"],
@@ -1391,7 +1426,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         access = await db.get_access_state(
             user.id,
             free_limit_default=settings.free_trial_requests,
-            monthly_limit_default=settings.subscriber_monthly_limit,
+            monthly_limit_default=settings.free_monthly_credits,
         )
         return {
             "user": {

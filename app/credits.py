@@ -20,23 +20,28 @@ class CreditEstimate:
 
 
 BASE_CREDITS: dict[str, int] = {
-    "chat": 2,
-    "strategy": 8,
-    "seo": 6,
-    "marketing": 8,
-    "offer": 4,
-    "swot": 12,
-    "unit": 5,
-    "wb_ozon_card": 10,
-    "margin_calc": 5,
-    "product_idea": 12,
-    "product_description": 6,
-    "ad_offer": 6,
-    "review_reply": 4,
-    "competitor_analysis": 20,
-    "content_plan": 15,
-    "sales_plan": 18,
-    "idea_check": 15,
+    # Economic defaults: one normal AI action costs at least 10 credits.
+    # Smart/Deep modes are detected separately and have higher floors.
+    "chat": 10,
+    "fast": 10,
+    "strategy": 15,
+    "seo": 12,
+    "marketing": 15,
+    "offer": 10,
+    "swot": 18,
+    "unit": 12,
+    "wb_ozon_card": 18,
+    "margin_calc": 12,
+    "product_idea": 18,
+    "product_description": 15,
+    "ad_offer": 15,
+    "review_reply": 10,
+    "competitor_analysis": 25,
+    "content_plan": 20,
+    "sales_plan": 20,
+    "idea_check": 18,
+    "smart": 25,
+    "deep": 150,
 }
 
 OUTPUT_BUDGET_TOKENS: dict[str, int] = {
@@ -82,6 +87,34 @@ def history_surcharge(chars: int) -> int:
     return 7
 
 
+
+MODE_FLOOR_CREDITS = {
+    "fast": 10,
+    "chat": 10,
+    "smart": 25,
+    "deep": 150,
+}
+WEB_SEARCH_SURCHARGE_CREDITS = 30
+
+
+def mode_floor_credits(tool_id: str, model: str | None = None) -> int:
+    name = f"{tool_id or ''} {model or ''}".lower()
+    if any(key in name for key in ("deep", "gpt-5.5", "reason", "max")):
+        return MODE_FLOOR_CREDITS["deep"]
+    if any(key in name for key in ("smart", "pro", "gpt-5.4")):
+        return MODE_FLOOR_CREDITS["smart"]
+    return MODE_FLOOR_CREDITS["fast"]
+
+
+def has_web_search(optional_fields: dict[str, Any] | None) -> bool:
+    if not optional_fields:
+        return False
+    for key, value in optional_fields.items():
+        key_l = str(key).lower()
+        if key_l in {"web", "web_search", "search", "online", "internet"} and bool(value):
+            return True
+    return False
+
 def model_multiplier(model: str | None) -> float:
     name = (model or "").lower()
     # Keep MVP pricing simple. Premium/heavy models can be made more expensive.
@@ -112,9 +145,11 @@ def estimate_credits(
     total_tokens = input_tokens + output_budget
 
     base = BASE_CREDITS.get(clean_tool, BASE_CREDITS["chat"])
+    floor = mode_floor_credits(clean_tool, model)
     surcharge = length_surcharge(total_input_chars) + history_surcharge(history_chars)
+    web_surcharge = WEB_SEARCH_SURCHARGE_CREDITS if has_web_search(optional_fields) else 0
     token_component = ceil((total_tokens / 1000) * model_multiplier(model))
-    credits = max(1, base + surcharge + token_component)
+    credits = max(floor, base + surcharge + web_surcharge + token_component)
     return CreditEstimate(
         request_id=f"req_{uuid4().hex}",
         tool_id=clean_tool,
@@ -124,7 +159,7 @@ def estimate_credits(
         total_tokens_estimated=total_tokens,
         input_chars=total_input_chars,
         history_chars=history_chars,
-        reason=f"{clean_tool}: base={base}, surcharge={surcharge}, token_component={token_component}",
+        reason=f"{clean_tool}: floor={floor}, base={base}, surcharge={surcharge}, web={web_surcharge}, token_component={token_component}",
     )
 
 

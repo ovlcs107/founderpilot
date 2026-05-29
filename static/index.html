@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
   <title>FounderPilot AI</title>
-  <link rel="stylesheet" href="/static/styles.css?v=apple-settings-2">
+  <link rel="stylesheet" href="/static/styles.css?v=apple-settings-3">
   <script src="https://telegram.org/js/telegram-web-app.js"></script>
 </head>
 <body>
@@ -70,8 +70,7 @@
 
           <div class="chat-container">
             <div class="chat-scroll" id="homeChatScroll">
-              <div class="chat-empty-state" id="chatEmptyState">
-                </div>
+              <div class="chat-empty-state" id="chatEmptyState"></div>
             </div>
             
             <div class="chat-composer-zone">
@@ -94,12 +93,30 @@
           <div class="quick-section">
             <h3>Быстрые действия</h3>
             <div class="quick-strip" id="quickStrip">
-              <button class="quick-pill" data-prompt="Проанализируй идею нового продукта и оцени риски, спрос и первые шаги запуска."><span data-icon="stars"></span><span><b>Анализ идеи</b><small>Проверка рынка и рисков</small></span></button>
-              <button class="quick-pill" data-prompt="Составь пошаговый бизнес-план и финмодель для моего проекта."><span data-icon="tools"></span><span><b>Бизнес-план</b><small>Структура и финмодель</small></span></button>
-              <button class="quick-pill" data-prompt="Сделай план презентации для инвесторов."><span data-icon="edit"></span><span><b>Презентация</b><small>Слайды и питч-дек</small></span></button>
-              <button class="quick-pill" data-prompt="Подготовь шаблоны юридических документов для бизнеса."><span data-icon="save"></span><span><b>Юридическая база</b><small>Документы и соглашения</small></span></button>
-              <button class="quick-pill" data-prompt="Составь маркетинговый план продвижения."><span data-icon="chart"></span><span><b>Маркетинг-план</b><small>Стратегия и каналы</small></span></button>
-              <button class="quick-pill" data-prompt="Выполни финансовый анализ проекта."><span data-icon="wallet"></span><span><b>Финансовый анализ</b><small>Показатели и прогнозы</small></span></button>
+              <button class="quick-pill" data-prompt="Проанализируй идею нового продукта и оцени риски, спрос и первые шаги запуска.">
+                <div class="icon-box"><span data-icon="stars"></span></div>
+                <div class="text-box"><b>Анализ идеи</b><small>Проверка рынка</small></div>
+              </button>
+              <button class="quick-pill" data-prompt="Составь пошаговый бизнес-план и финмодель для моего проекта.">
+                <div class="icon-box"><span data-icon="tools"></span></div>
+                <div class="text-box"><b>Бизнес-план</b><small>Структура</small></div>
+              </button>
+              <button class="quick-pill" data-prompt="Сделай план презентации для инвесторов.">
+                <div class="icon-box"><span data-icon="edit"></span></div>
+                <div class="text-box"><b>Презентация</b><small>Слайды</small></div>
+              </button>
+              <button class="quick-pill" data-prompt="Подготовь шаблоны юридических документов для бизнеса.">
+                <div class="icon-box"><span data-icon="save"></span></div>
+                <div class="text-box"><b>Юридическая база</b><small>Документы</small></div>
+              </button>
+              <button class="quick-pill" data-prompt="Составь маркетинговый план продвижения.">
+                <div class="icon-box"><span data-icon="chart"></span></div>
+                <div class="text-box"><b>Маркетинг-план</b><small>Стратегия</small></div>
+              </button>
+              <button class="quick-pill" data-prompt="Выполни финансовый анализ проекта.">
+                <div class="icon-box"><span data-icon="wallet"></span></div>
+                <div class="text-box"><b>Фин. анализ</b><small>Показатели</small></div>
+              </button>
             </div>
           </div>
         </div>
@@ -497,6 +514,6 @@
   <div id="profileCreditsMonthPct" style="display:none;"></div>
   <div id="profileCreditsTodayPct" style="display:none;"></div>
   <div id="toast" class="toast-component">Оповещение</div>
-  <script src="/static/app.js?v=apple-settings-2"></script>
+  <script src="/static/app.js?v=apple-settings-3"></script>
 </body>
 </html>
