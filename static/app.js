@@ -298,7 +298,7 @@ function updateProfileUI() {
   const u = state.user;
   const initial = u.first_name.charAt(0).toUpperCase() || "F";
 
-  if ($("homeGreeting")) $("homeGreeting").textContent = `Добро утро, ${u.first_name}`;
+  if ($("homeGreeting")) $("homeGreeting").textContent = `Добро пожаловать, ${u.first_name} 👋`;
   if ($("headerUserAvatar")) $("headerUserAvatar").textContent = initial;
   if ($("mobileHeaderAvatar")) $("mobileHeaderAvatar").textContent = initial;
   if ($("profileUserAvatar")) $("profileUserAvatar").textContent = initial;
@@ -337,7 +337,6 @@ function normalizeArrayPayload(data, keys = []) {
   return [];
 }
 
-/* Base Normalizer */
 function normalizeObjectPayload(data, key) {
   if (data?.[key] && typeof data[key] === "object") return data[key];
   if (data && typeof data === "object") return data;
@@ -383,7 +382,7 @@ function getFallbackTemplates() {
 function getFallbackCreditPacks() {
   return [
     { id: "starter", title: "1 000 кредитов", description: "Для разовых задач", price_text: "149 ₽" },
-    { id: "growth", title: "5 000 кредитов", description: "Для активной работы", price_text: "499 ₽" },
+    { id: "growth", title: "5 000 кредитов", description: "Для active работы", price_text: "499 ₽" },
     { id: "scale", title: "20 000 кредитов", description: "Для плотного использования", price_text: "1 490 ₽" }
   ];
 }
@@ -489,6 +488,210 @@ function renderTools() {
     `;
   }).join("");
   injectIcons(grid);
+}
+
+async function loadTools() {
+  try {
+    const data = await apiRequest("/api/tools");
+    state.tools = normalizeToolsResponse(data);
+  } catch {
+    state.tools = getFallbackTools();
+  }
+  renderTools();
+}
+
+async function loadHistory() {
+  try {
+    const data = await apiRequest("/api/history");
+    state.history = normalizeHistoryResponse(data);
+  } catch {
+    state.history = [];
+  }
+  renderHistory();
+}
+
+function renderHistory() {
+  const list = $("historyList");
+  const empty = $("historyEmptyState");
+  if (!list) return;
+
+  let items = state.history || [];
+  const q = String(state.historySearch || "").trim().toLowerCase();
+
+  if (q) {
+    items = items.filter(h => [h.title, h.message, h.text, h.answer, h.response].filter(Boolean).join(" ").toLowerCase().includes(q));
+  }
+
+  if (state.historyFilter !== "all") {
+    items = items.filter(h => h.type === state.historyFilter || h.mode === state.historyFilter || (state.historyFilter === "favorites" && h.is_favorite));
+  }
+
+  if (!items.length) {
+    list.innerHTML = "";
+    if (empty) empty.style.display = "flex";
+    return;
+  }
+
+  if (empty) empty.style.display = "none";
+
+  list.innerHTML = items.map(h => `
+    <div class="history-item">
+      <h4>${escapeHTML(h.title || h.message || h.text || "Запрос к AI")}</h4>
+      <span class="item-meta">${escapeHTML(h.date || h.created_at || "Недавно")}</span>
+    </div>
+  `).join("");
+}
+
+function openBillingModal() {
+  const modal = $("billingModal");
+  if (!modal) return;
+  modal.classList.add("active");
+  $("billingPlanList").hidden = false;
+  $("paymentProviderBox").hidden = true;
+  $("billingTitle").textContent = "Выбор тарифа";
+  renderBillingPlans();
+}
+
+function renderBillingPlans() {
+  const container = $("billingPlanList");
+  if (!container) return;
+  const plans = Object.values(state.plans);
+  if (!plans.length) return;
+  container.innerHTML = plans.map(p => `
+    <div class="choice-btn plan-card" data-plan="${escapeHTML(p.key)}">
+      <strong>${escapeHTML(p.title || p.name)}</strong> — ${escapeHTML(p.price_text || p.price || '')}
+      <p style="font-size:12px; color:var(--text-muted); margin-top:4px;">${escapeHTML(p.description || '')}</p>
+    </div>
+  `).join("");
+}
+
+function selectPlan(planKey) {
+  state.activePlanKey = planKey;
+  $("billingPlanList").hidden = true;
+  $("paymentProviderBox").hidden = false;
+  $("billingTitle").textContent = "Выбор способа оплаты";
+  renderProviders(planKey);
+}
+
+function renderProviders(planKey) {
+  const container = $("providerList");
+  if (!container) return;
+  const plan = state.plans[planKey];
+  const providers = getPlanProviders(plan);
+  container.innerHTML = providers.map(prov => `
+    <button type="button" class="choice-btn provider-btn" data-provider="${escapeHTML(prov.id)}">
+      <strong>${escapeHTML(prov.title)}</strong>
+      <small style="display:block; font-size:11px; color:var(--text-muted); font-weight:normal;">${escapeHTML(prov.description || '')}</small>
+    </button>
+  `).join("");
+}
+
+async function checkout(providerId) {
+  showToast("Оформление подписки...");
+  try {
+    const res = await apiRequest("/api/billing/checkout", {
+      method: "POST",
+      body: JSON.stringify({
+        plan: state.activePlanKey,
+        provider: providerId,
+        telegram_user_id: getTelegramUserId()
+      })
+    });
+    const link = res.payment_url || res.invoice_url || res.invoice_link || res.url;
+    if (link) openExternal(link);
+    $("billingModal").classList.remove("active");
+  } catch (err) {
+    showToast(err.message || "Ошибка оплаты");
+  }
+}
+
+function openOnboarding() {
+  const modal = $("onboardingModal");
+  if (!modal) return;
+  modal.classList.add("active");
+  state.onboardingStep = 0;
+  state.onboardingData = {};
+  renderOnboardingStep();
+}
+
+function renderOnboardingStep() {
+  const config = state.onboardingConfig[state.onboardingStep];
+  if (!config) return;
+  
+  if ($("onboardingTitle")) $("onboardingTitle").textContent = config.title;
+  
+  const dots = document.querySelectorAll("#onboardingProgressRow .dot");
+  dots.forEach((dot, idx) => dot.classList.toggle("active", idx === state.onboardingStep));
+  
+  const body = $("onboardingBody");
+  if (!body) return;
+  
+  if (config.type === "choices") {
+    body.innerHTML = config.options.map(opt => `
+      <button type="button" class="choice-btn onboarding-choice ${state.onboardingData[config.id] === opt.key ? 'active' : ''}" data-key="${escapeHTML(opt.key)}">
+        ${escapeHTML(opt.label)}
+      </button>
+    `).join("");
+    
+    body.querySelectorAll(".onboarding-choice").forEach(btn => {
+      btn.addEventListener("click", () => {
+        body.querySelectorAll(".onboarding-choice").forEach(b => b.classList.remove("active"));
+        btn.classList.add("active");
+        state.onboardingData[config.id] = btn.dataset.key;
+      });
+    });
+  } else if (config.type === "textarea") {
+    body.innerHTML = `
+      <textarea id="onboardingTextarea" class="ref-dashboard-textarea" placeholder="${escapeHTML(config.placeholder || '')}">${escapeHTML(state.onboardingData[config.id] || '')}</textarea>
+    `;
+  }
+  
+  if ($("onboardingBackBtn")) $("onboardingBackBtn").disabled = state.onboardingStep === 0;
+  if ($("onboardingNextBtn")) $("onboardingNextBtn").textContent = state.onboardingStep === state.onboardingConfig.length - 1 ? "Завершить" : "Продолжить";
+}
+
+async function nextOnboarding() {
+  const config = state.onboardingConfig[state.onboardingStep];
+  if (config.type === "textarea") {
+    state.onboardingData[config.id] = $("onboardingTextarea")?.value.trim() || "";
+  }
+  
+  if (state.onboardingStep < state.onboardingConfig.length - 1) {
+    state.onboardingStep++;
+    renderOnboardingStep();
+  } else {
+    showToast("Сохранение...");
+    try {
+      await apiRequest("/api/onboarding", {
+        method: "POST",
+        body: JSON.stringify({
+          telegram_user_id: getTelegramUserId(),
+          ...state.onboardingData
+        })
+      });
+      $("onboardingModal").classList.remove("active");
+      await loadMe();
+    } catch (err) {
+      showToast(err.message || "Ошибка сохранения онбординга");
+    }
+  }
+}
+
+function pollOrderStatus(orderId) {
+  clearTimeout(state.orderPollTimer);
+  state.orderPollTimer = setTimeout(async () => {
+    try {
+      const res = await apiRequest(`/api/credits/packs/order/${orderId}`);
+      if (res.status === "paid" || res.success || res.paid) {
+        showToast("Оплата успешно получена!");
+        loadMe();
+      } else {
+        pollOrderStatus(orderId);
+      }
+    } catch {
+      pollOrderStatus(orderId);
+    }
+  }, 3000);
 }
 
 async function loadProjects() {
@@ -650,7 +853,6 @@ function exportHistory() {
   openExternal("/api/export/history.txt");
 }
 
-/* ORGANIZATION DOM BUILDERS */
 function renderOrganizations() {
   const accountBox = $("accountModeList");
   const orgBox = $("organizationList");
@@ -914,7 +1116,6 @@ async function handleChatSend() {
   }
 }
 
-// STABLE HIDING TRIGGERS
 function hidePreloader() {
   const preloader = $("appPreloader");
   const container = $("appContainer");
@@ -1082,7 +1283,6 @@ function bindEvents() {
   });
   $("saveNotificationsBtn")?.addEventListener("click", saveNotificationPrefs);
 
-  /* New Organization Form Handlers Binding Loop */
   $("createOrganizationBtn")?.addEventListener("click", createOrganization);
   $("inviteOrganizationBtn")?.addEventListener("click", inviteOrganizationMember);
   $("organizationInviteList")?.addEventListener("click", e => {
@@ -1091,7 +1291,6 @@ function bindEvents() {
   });
   $("closeOrganizationAcceptedBtn")?.addEventListener("click", () => $("organizationAcceptedModal")?.classList.remove("active"));
   
-  /* Banner Actions */
   $("acceptIncomingInviteBtn")?.addEventListener("click", () => acceptOrganizationInvite(null));
   $("declineIncomingInviteBtn")?.addEventListener("click", declineOrganizationInvite);
 
@@ -1102,7 +1301,6 @@ function bindEvents() {
 async function boot() {
   injectIcons();
   
-  // IRONCLAD BREAKOUT FUSE TIMER: Anti-freeze preloader safety system
   setTimeout(() => {
     hidePreloader();
   }, 3000);

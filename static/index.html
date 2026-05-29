@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
   <title>FounderPilot AI</title>
-  <link rel="stylesheet" href="/static/styles.css?v=org-ui-2">
+  <link rel="stylesheet" href="/static/styles.css?v=org-ui-3">
   <script src="https://telegram.org/js/telegram-web-app.js"></script>
 </head>
 <body>
@@ -28,7 +28,7 @@
         <span class="brand-logo-text">FounderPilot</span>
       </div>
       <div class="legal-identity-pill sidebar-legal" title="Реквизиты сервиса">
-        <span data-icon="credit-card"></span>
+        <span class="nav-icon" data-icon="credit-card"></span>
         <span data-legal-inn>ИНН 713304603876</span>
       </div>
       <nav class="sidebar-nav">
@@ -88,7 +88,7 @@
           
           <div class="desktop-home-header-row">
             <header class="workspace-intro">
-              <h2 id="homeGreeting">Добро пожаловать, Алексей 👋</h2>
+              <h2 id="homeGreeting">Добро пожаловать 👋</h2>
               <p class="section-subtitle">Ваш ИИ-помощник для построения и роста технологичных продуктов.</p>
               <div class="identity-ribbon">
                 <span data-owner-name>FounderPilot</span>
@@ -137,8 +137,8 @@
                 <textarea id="homeChatInput" rows="2" placeholder="Задайте вопрос AI или выберите готовое действие..."></textarea>
                 <div class="composer-actions-row">
                   <div class="actions-left-pills">
-                    <button type="button" class="composer-action-circle-btn"><span data-icon="copy"></span></button>
-                    <button type="button" class="composer-action-circle-btn"><span data-icon="calculator"></span></button>
+                    <button type="button" class="composer-pill-btn"><span data-icon="copy"></span></button>
+                    <button type="button" class="composer-pill-btn"><span data-icon="calculator"></span></button>
                   </div>
                   <div class="actions-right-controls">
                     <div class="model-select-badge">GPT-4.1</div>
@@ -244,7 +244,7 @@
             <button type="button" class="start-chat-btn-history" onclick="switchView('home')"><span data-icon="edit"></span> Начать чат</button>
           </div>
 
-          <div class="ref-table-wrapper select-menu-list" id="historyList"></div>
+          <div class="ref-table-wrapper select-menu-list id-column-history-rules" id="historyList"></div>
         </div>
       </section>
 
@@ -336,7 +336,7 @@
               </div>
 
               <div class="ref-dashboard-card list-menu-stack">
-                <button type="button" class="menu-row-item" onclick="openBillingModal()">
+                <button type="button" class="menu-row-item" id="openBillingBtn">
                   <div class="menu-row-left">
                     <span class="menu-icon-box" data-icon="wallet"></span>
                     <span><strong>Платёжная информация</strong><small>Управление кошельками и картами</small></span>
@@ -541,6 +541,6 @@
 
   <div id="toast" class="toast-component">Оповещение</div>
 
-  <script src="/static/app.js?v=org-ui-2"></script>
+  <script src="/static/app.js?v=org-ui-3"></script>
 </body>
 </html>
