@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
   <title>FounderPilot AI</title>
-  <link rel="stylesheet" href="/static/styles.css?v=pg-bigint-tools-scroll-1">
+  <link rel="stylesheet" href="/static/styles.css?v=chat-balance-history-v2">
   <script src="https://telegram.org/js/telegram-web-app.js"></script>
 </head>
 <body>
@@ -57,25 +57,27 @@
 
     <main class="main-content">
       <div class="desktop-top-bar desktop-only">
+        <button type="button" class="desktop-new-chat-btn" id="newChatBtnDesktop"><span data-icon="plus"></span> Новый чат</button>
+        <div class="top-credit-pill desktop-credit-pill" aria-label="Баланс кредитов"><span data-icon="coin"></span><b class="js-credit-balance-value" id="desktopHeaderCreditsValue">20</b></div>
         <button class="icon-soft-btn top-bell-btn"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"></path><path d="M13.73 21a2 2 0 0 1-3.46 0"></path></svg></button>
         <div class="avatar compact-avatar" id="desktopTopAvatar">M</div>
       </div>
 
       <section id="view-home" class="view active">
         <div class="view-inner home-inner">
-          <header class="page-head compact-head home-mobile-head">
-            <h2 id="homeGreeting">Доброе утро, Пользователь! 👋</h2>
-            <p>Чем могу помочь сегодня?</p>
-          </header>
-
-          <div class="mobile-credits-card" id="mobileCreditsCard">
-            <div class="mobile-credits-icon" data-icon="coin"></div>
-            <div>
-              <span>Доступные кредиты</span>
-              <b id="mobileCreditsValue">20</b>
+          <header class="page-head compact-head home-mobile-head chat-home-head">
+            <div class="home-title-block">
+              <h2 id="homeGreeting">Доброе утро, Пользователь! 👋</h2>
+              <p>Чем могу помочь сегодня?</p>
             </div>
-            <small id="mobileCreditsMeta">Free · сегодня</small>
-          </div>
+            <div class="home-head-actions">
+              <button type="button" class="home-round-action" id="newChatBtn" title="Новый чат" aria-label="Новый чат"><span data-icon="plus"></span></button>
+              <div class="top-credit-pill" id="mobileCreditsCard" aria-label="Баланс кредитов">
+                <span data-icon="coin"></span>
+                <b id="mobileCreditsValue" class="js-credit-balance-value">20</b>
+              </div>
+            </div>
+          </header>
 
           <div class="chat-container">
             <div class="chat-scroll" id="homeChatScroll">
@@ -126,7 +128,10 @@
               <h2>История</h2>
               <p>Ваши чаты и документы</p>
             </div>
-            <button type="button" class="plain-btn" id="exportHistoryBtn"><span data-icon="save"></span> Экспорт</button>
+            <div class="head-actions-group">
+              <button type="button" class="plain-btn" id="historyNewChatBtn"><span data-icon="plus"></span> Новый чат</button>
+              <button type="button" class="plain-btn" id="exportHistoryBtn"><span data-icon="save"></span> Экспорт</button>
+            </div>
           </header>
           <div class="history-toolbar">
             <div class="history-filters" id="historyFilters">
@@ -587,6 +592,6 @@
   <div id="profileCreditsMonthPct" style="display:none;"></div>
   <div id="profileCreditsTodayPct" style="display:none;"></div>
   <div id="toast" class="toast-component">Оповещение</div>
-  <script src="/static/app.js?v=pg-bigint-tools-scroll-1"></script>
+  <script src="/static/app.js?v=chat-balance-history-v2"></script>
 </body>
 </html>

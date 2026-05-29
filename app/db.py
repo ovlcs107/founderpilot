@@ -1412,6 +1412,19 @@ class Database:
                 """,
                 (now, str(conversation_id)),
             )
+            if role == "user":
+                auto_title = " ".join(str(content or "").replace("\n", " ").split()).strip()
+                if auto_title:
+                    auto_title = auto_title[:57].rstrip() + ("…" if len(auto_title) > 57 else "")
+                    await db.execute(
+                        """
+                        UPDATE conversations
+                        SET title = ?, updated_at = ?
+                        WHERE id = ?
+                          AND (title IS NULL OR title = '' OR title = 'Новый диалог' OR title = 'Новый чат' OR title = 'Диалог')
+                        """,
+                        (auto_title, now, str(conversation_id)),
+                    )
             if role == "assistant":
                 cursor_user = await db.execute(
                     "SELECT telegram_user_id FROM conversations WHERE id = ?",

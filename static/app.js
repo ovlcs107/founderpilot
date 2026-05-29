@@ -2094,3 +2094,233 @@ boot = async function polishedBoot() {
 // Safety timeout for loading state.
 window.setTimeout(revealApp, 4500);
 document.addEventListener("DOMContentLoaded", boot);
+
+/* === Chat balance, history management and Markdown polish v2 === */
+function fpTitleFromText(text) {
+  const cleaned = String(text || '')
+    .replace(/[#*_`>\[\]()]/g, ' ')
+    .replace(/https?:\/\/\S+/g, '')
+    .replace(/\s+/g, ' ')
+    .trim();
+  if (!cleaned) return 'Новый чат';
+  return cleaned.length > 48 ? `${cleaned.slice(0, 48).trim()}…` : cleaned;
+}
+
+function fpFormatInlineMarkdown(raw) {
+  const parts = String(raw || '').split(/(`[^`]*`)/g);
+  return parts.map(part => {
+    if (part.startsWith('`') && part.endsWith('`') && part.length >= 2) {
+      return `<code>${escapeHTML(part.slice(1, -1))}</code>`;
+    }
+    let out = escapeHTML(part);
+    out = out.replace(/\[([^\]]+)]\((https?:\/\/[^\s)]+|\/[^\s)]*)\)/g, (_, label, url) => {
+      return `<a href="${escapeAttr(url)}" target="_blank" rel="noopener noreferrer">${label}</a>`;
+    });
+    out = out.replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>');
+    out = out.replace(/__([^_]+)__/g, '<strong>$1</strong>');
+    out = out.replace(/~~([^~]+)~~/g, '<del>$1</del>');
+    out = out.replace(/(^|\s)\*([^*\n]+)\*/g, '$1<em>$2</em>');
+    out = out.replace(/(^|\s)_([^_\n]+)_/g, '$1<em>$2</em>');
+    return out;
+  }).join('');
+}
+
+function renderMarkdown(text) {
+  const source = String(text || '').replace(/\r\n/g, '\n').trim();
+  if (!source) return '';
+  const lines = source.split('\n');
+  const result = [];
+  let i = 0;
+  while (i < lines.length) {
+    const raw = lines[i] || '';
+    const line = raw.trim();
+    if (!line) { i += 1; continue; }
+
+    if (/^---+$/.test(line)) { result.push('<hr>'); i += 1; continue; }
+
+    if (line.startsWith('```')) {
+      const lang = line.slice(3).trim().replace(/[^a-z0-9_+-]/gi, '').toLowerCase();
+      const buf = [];
+      i += 1;
+      while (i < lines.length && !String(lines[i]).trim().startsWith('```')) { buf.push(lines[i]); i += 1; }
+      if (i < lines.length) i += 1;
+      const label = lang ? `<div class="code-label">${escapeHTML(lang)}</div>` : '';
+      const cls = lang ? ` class="language-${escapeAttr(lang)}"` : '';
+      result.push(`<div class="code-block">${label}<pre><code${cls}>${escapeHTML(buf.join('\n'))}</code></pre></div>`);
+      continue;
+    }
+
+    const heading = line.match(/^(#{1,6})\s+(.+)$/);
+    if (heading) { const level = Math.min(4, heading[1].length); result.push(`<h${level}>${fpFormatInlineMarkdown(heading[2])}</h${level}>`); i += 1; continue; }
+
+    if (line.includes('|') && i + 1 < lines.length && isMarkdownTableSeparator(lines[i + 1])) {
+      const headers = splitMarkdownTableRow(line);
+      const body = [];
+      i += 2;
+      while (i < lines.length && String(lines[i]).trim().includes('|')) { body.push(splitMarkdownTableRow(lines[i])); i += 1; }
+      result.push(`<div class="md-table-wrap"><table><thead><tr>${headers.map(h => `<th>${fpFormatInlineMarkdown(h)}</th>`).join('')}</tr></thead><tbody>${body.map(row => `<tr>${headers.map((_, idx) => `<td>${fpFormatInlineMarkdown(row[idx] || '')}</td>`).join('')}</tr>`).join('')}</tbody></table></div>`);
+      continue;
+    }
+
+    if (/^[-*+]\s+/.test(line) || /^[-*+]\s+\[[ xX]\]\s+/.test(line)) {
+      const items = [];
+      while (i < lines.length && /^\s*[-*+]\s+/.test(lines[i] || '')) {
+        let item = String(lines[i]).replace(/^\s*[-*+]\s+/, '');
+        const task = item.match(/^\[([ xX])]\s+(.+)$/);
+        if (task) item = `<span class="md-check ${task[1].trim() ? 'done' : ''}">${task[1].trim() ? '✓' : ''}</span>${fpFormatInlineMarkdown(task[2])}`;
+        else item = fpFormatInlineMarkdown(item);
+        items.push(item);
+        i += 1;
+      }
+      result.push(`<ul>${items.map(item => `<li>${item}</li>`).join('')}</ul>`);
+      continue;
+    }
+
+    if (/^\d+[.)]\s+/.test(line)) {
+      const items = [];
+      while (i < lines.length && /^\s*\d+[.)]\s+/.test(lines[i] || '')) { items.push(String(lines[i]).replace(/^\s*\d+[.)]\s+/, '')); i += 1; }
+      result.push(`<ol>${items.map(item => `<li>${fpFormatInlineMarkdown(item)}</li>`).join('')}</ol>`);
+      continue;
+    }
+
+    if (/^>\s+/.test(line)) {
+      const quotes = [];
+      while (i < lines.length && /^\s*>\s+/.test(lines[i] || '')) { quotes.push(String(lines[i]).replace(/^\s*>\s+/, '')); i += 1; }
+      result.push(`<blockquote>${quotes.map(fpFormatInlineMarkdown).join('<br>')}</blockquote>`);
+      continue;
+    }
+
+    const paragraph = [line];
+    i += 1;
+    while (i < lines.length) {
+      const next = String(lines[i] || '');
+      const t = next.trim();
+      if (!t || t.startsWith('```') || /^---+$/.test(t) || /^(#{1,6})\s+/.test(t) || /^\s*[-*+]\s+/.test(next) || /^\s*\d+[.)]\s+/.test(next) || /^\s*>\s+/.test(next)) break;
+      if (t.includes('|') && i + 1 < lines.length && isMarkdownTableSeparator(lines[i + 1])) break;
+      paragraph.push(t); i += 1;
+    }
+    result.push(`<p>${fpFormatInlineMarkdown(paragraph.join(' '))}</p>`);
+  }
+  return result.join('');
+}
+
+function appendMessage(role, text, id = null) {
+  const scroll = $('homeChatScroll');
+  if (!scroll) return;
+  activateHomeChatMode();
+  const empty = $('chatEmptyState');
+  if (empty) empty.style.display = 'none';
+  const wrap = document.createElement('div');
+  wrap.className = `msg ${role}`;
+  if (id) wrap.id = id;
+  const body = document.createElement('div');
+  if (role === 'user' || role === 'bot') { body.className = 'md-content'; body.innerHTML = renderMarkdown(text); }
+  else { body.textContent = text; }
+  wrap.appendChild(body);
+  if (role === 'bot' && String(text || '').trim()) {
+    const act = document.createElement('div');
+    act.className = 'message-actions compact';
+    const copyBtn = document.createElement('button');
+    copyBtn.className = 'message-action-btn';
+    copyBtn.type = 'button';
+    copyBtn.title = 'Скопировать';
+    copyBtn.setAttribute('aria-label', 'Скопировать ответ');
+    copyBtn.innerHTML = '<span data-icon="copy"></span><span class="action-label">Копировать</span>';
+    copyBtn.onclick = () => navigator.clipboard?.writeText(String(text || '')).then(() => showToast('Скопировано')).catch(() => showToast('Не удалось скопировать'));
+    act.appendChild(copyBtn);
+    wrap.appendChild(act);
+  }
+  scroll.appendChild(wrap);
+  scroll.scrollTop = scroll.scrollHeight;
+  injectIcons(wrap);
+}
+
+function updateMobileCreditsUI(user = state.user || {}) {
+  const value = getRemainingCredits(user);
+  const formatted = value.toLocaleString('ru-RU');
+  document.querySelectorAll('.js-credit-balance-value').forEach(el => { el.textContent = formatted; });
+  if ($('mobileCreditsValue')) $('mobileCreditsValue').textContent = formatted;
+  if ($('desktopTopCreditsValue')) $('desktopTopCreditsValue').textContent = formatted;
+  if ($('desktopHeaderCreditsValue')) $('desktopHeaderCreditsValue').textContent = formatted;
+  const metaEl = $('mobileCreditsMeta');
+  if (metaEl) metaEl.textContent = '';
+}
+
+function startNewChat(options = {}) {
+  clearActiveConversationId();
+  const scroll = $('homeChatScroll');
+  if (scroll) scroll.innerHTML = '<div class="chat-empty-state" id="chatEmptyState"></div>';
+  const input = $('homeChatInput');
+  if (input) { input.value = ''; input.focus(); }
+  $('view-home')?.classList.remove('chat-active');
+  autoResizeTextarea();
+  if (!options.silent) showToast('Новый чат');
+}
+
+async function deleteConversationFromHistory(conversationId) {
+  if (!conversationId) return;
+  try {
+    await apiRequest(`/api/conversations/${encodeURIComponent(conversationId)}`, { method: 'DELETE' });
+    state.history = (state.history || []).filter(item => String(item.id || item.conversation_id || '') !== String(conversationId));
+    if (String(state.activeConversationId || '') === String(conversationId)) startNewChat({ silent: true });
+    renderHistory();
+    showToast('Диалог удалён');
+  } catch (err) {
+    showToast(friendlyError(err, 'Не удалось удалить диалог'));
+  }
+}
+
+function renderHistory() {
+  const container = $('historyList');
+  const empty = $('historyEmptyState');
+  if (!container || !empty) return;
+  let items = state.history || [];
+  const q = ($('historySearchInput')?.value || $('historySearchInputMobile')?.value || '').toLowerCase().trim();
+  if (q) items = items.filter(i => `${i.title || ''} ${i.message || ''}`.toLowerCase().includes(q));
+  if (state.historyFilter !== 'all') items = items.filter(i => i.type === state.historyFilter || i.mode === state.historyFilter);
+  if (!items.length) { container.innerHTML = ''; empty.hidden = false; empty.style.display = 'block'; return; }
+  empty.hidden = true; empty.style.display = 'none';
+  container.innerHTML = items.map((h, idx) => {
+    const isChat = h.type === 'chat';
+    const isTool = h.type === 'tools';
+    const id = h.id || h.conversation_id || '';
+    const icon = isChat ? 'message' : isTool ? 'receipt' : 'save';
+    const label = isChat ? 'AI-чат' : isTool ? 'Документ' : 'Сохранено';
+    const title = h.title && h.title !== 'Новый диалог' ? h.title : (h.message ? fpTitleFromText(h.message) : 'Новый чат');
+    return `<button type="button" class="history-row-clean list-row" data-history-type="${escapeAttr(h.type)}" data-history-id="${escapeAttr(id)}" style="--i:${idx}">
+      <span class="icon-box"><span data-icon="${icon}"></span></span>
+      <span class="info"><h4>${escapeHTML(title)}</h4><p>${escapeHTML(String(h.message || label).slice(0, 110))}</p></span>
+      <span class="meta">${escapeHTML(h.date || h.created_at || 'Недавно')}</span>
+      ${isChat ? `<span type="button" role="button" tabindex="0" class="history-delete-btn" data-delete-history-id="${escapeAttr(id)}" title="Удалить диалог" aria-label="Удалить диалог"><span data-icon="close"></span></span>` : ''}
+    </button>`;
+  }).join('');
+  injectIcons(container);
+}
+
+function bindChatHistoryControls() {
+  ['newChatBtn', 'newChatBtnDesktop', 'historyNewChatBtn'].forEach(id => {
+    const btn = $(id);
+    if (btn && !btn.dataset.boundNewChat) {
+      btn.dataset.boundNewChat = '1';
+      btn.addEventListener('click', e => { e.preventDefault(); switchView('home'); startNewChat(); });
+    }
+  });
+  const list = $('historyList');
+  if (list && !list.dataset.boundDeleteChat) {
+    list.dataset.boundDeleteChat = '1';
+    list.addEventListener('click', e => {
+      const del = e.target.closest('[data-delete-history-id]');
+      if (del) { e.preventDefault(); e.stopPropagation(); deleteConversationFromHistory(del.dataset.deleteHistoryId); }
+    }, true);
+    list.addEventListener('keydown', e => {
+      const del = e.target.closest('[data-delete-history-id]');
+      if (del && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); e.stopPropagation(); deleteConversationFromHistory(del.dataset.deleteHistoryId); }
+    }, true);
+  }
+}
+
+document.addEventListener('DOMContentLoaded', () => {
+  bindChatHistoryControls();
+  window.setTimeout(bindChatHistoryControls, 600);
+  window.setTimeout(bindChatHistoryControls, 1600);
+});
