@@ -38,6 +38,7 @@ const state = {
   history: [],
   historyFilter: "all",
   activeView: "home",
+  activeProfilePane: "account",
   activePlanKey: null,
   isSending: false,
   onboardingStep: 0,
@@ -262,6 +263,25 @@ function switchView(target) {
   if (target === "history" && !state.history.length) loadHistory();
 }
 
+function switchProfilePane(paneId) {
+  state.activeProfilePane = paneId;
+  
+  // Обновляем состояние кнопок мобильных табов
+  document.querySelectorAll(".mobile-tab-link").forEach(btn => {
+    btn.classList.toggle("active", btn.dataset.pane === paneId);
+  });
+  
+  // Обновляем состояние кнопок десктопного рельса
+  document.querySelectorAll("#profileDesktopRail .rail-link").forEach(btn => {
+    btn.classList.toggle("active", btn.dataset.pane === paneId);
+  });
+  
+  // Переключаем видимость самих подпанелей контента
+  document.querySelectorAll(".profile-sub-pane").forEach(pane => {
+    pane.classList.toggle("active", pane.id === `pane-${paneId}`);
+  });
+}
+
 function updateCreditsUI() {
   if (!state.user) return;
   const u = state.user;
@@ -279,7 +299,6 @@ function updateCreditsUI() {
   const mTxt = format(u.monthly_used, u.monthly_limit);
   const mPct = calcPct(u.monthly_used, u.monthly_limit);
 
-  /* Фикс дублирования текста: убираем лишнюю приставку, так как лейбл уже есть в HTML */
   if ($("creditsTodayText")) $("creditsTodayText").textContent = tTxt;
   if ($("creditsTodayFill")) $("creditsTodayFill").style.width = `${tPct}%`;
   if ($("profileCreditsTodayPct")) $("profileCreditsTodayPct").textContent = `${tPct}%`;
@@ -1163,6 +1182,14 @@ function bindEvents() {
     b.addEventListener("click", () => switchView(b.dataset.target));
   });
   $("headerProfileBtn")?.addEventListener("click", () => switchView("profile"));
+
+  // Привязка обработчиков для табов личного кабинета (мобильных и десктопных)
+  document.querySelectorAll(".mobile-tab-link").forEach(link => {
+    link.addEventListener("click", () => switchProfilePane(link.dataset.pane));
+  });
+  document.querySelectorAll("#profileDesktopRail .rail-link").forEach(link => {
+    link.addEventListener("click", () => switchProfilePane(link.dataset.pane));
+  });
 
   const chatInput = $("homeChatInput");
   const chatBtn = $("homeChatSendBtn");
