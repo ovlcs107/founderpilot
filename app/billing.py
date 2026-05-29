@@ -9,6 +9,7 @@ from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 from decimal import Decimal, ROUND_HALF_UP
 from typing import Any
+from urllib.parse import quote
 from uuid import uuid4
 
 import httpx
@@ -23,11 +24,11 @@ logger = logging.getLogger(__name__)
 PLAN_DAYS = 30
 
 PLAN_DESCRIPTIONS = {
-    "free": "Базовый пробный доступ",
+    "free": "Базовые инструменты и лимиты",
     "go": "Для первых регулярных задач",
     "plus": "Оптимум для активной работы",
-    "pro": "Для предпринимателей и селлеров",
-    "business": "Команды, организации и расширенные лимиты",
+    "pro": "Полный доступ ко всем функциям",
+    "business": "Команды, роли и совместная работа",
 }
 
 
@@ -54,6 +55,34 @@ def utc_now() -> datetime:
 
 def utc_now_iso() -> str:
     return utc_now().isoformat()
+
+
+def normalize_plan_key(value: str | None) -> str:
+    return str(value or "").strip().lower().replace(" ", "_")
+
+
+def normalize_provider_key(value: str | None) -> str:
+    provider = str(value or "").strip().lower().replace("-", "_").replace(" ", "_")
+    aliases = {
+        "": "auto",
+        "default": "auto",
+        "auto_detect": "auto",
+        "autodetect": "auto",
+        "automatic": "auto",
+        "stars": "telegram_stars",
+        "xtr": "telegram_stars",
+        "card": "yookassa",
+        "cards": "yookassa",
+        "bank_card": "yookassa",
+        "bank_cards": "yookassa",
+        "sbp": "yookassa",
+        "yoomoney": "yookassa",
+        "youkassa": "yookassa",
+        "btc": "btcpay_btc",
+        "bitcoin": "btcpay_btc",
+        "btcpay": "btcpay_btc",
+    }
+    return aliases.get(provider, provider)
 
 
 def plan_catalog(settings: Settings) -> dict[str, Plan]:
@@ -110,31 +139,61 @@ def plan_catalog(settings: Settings) -> dict[str, Plan]:
         ),
     }
 
+def public_plan_catalog(settings: Settings) -> dict[str, Plan]:
+    catalog = plan_catalog(settings)
+    return {key: catalog[key] for key in settings.public_plan_keys if key in catalog}
+
+
 def enabled_providers(settings: Settings) -> list[dict[str, Any]]:
     providers: list[dict[str, Any]] = []
     if settings.billing_enable_stars:
         providers.append({"id": "telegram_stars", "title": "Telegram Stars", "description": "Оплата внутри Telegram", "currency": "XTR"})
 
-    # Safety for production: once real YooKassa credentials are present, the provider is
-    # considered enabled even if BILLING_ENABLE_YOOKASSA was accidentally left false.
-    # This avoids the classic launch bug: keys are configured, but users still see
-    # “payment method disabled”.
+    # YooKassa must never be shown as an enabled payment method without credentials.
+    # Otherwise the UI lets the user click a dead provider and gets “Not found”/setup errors.
     yookassa_ready = bool(settings.yookassa_shop_id and settings.yookassa_secret_key)
-    if settings.billing_enable_yookassa or yookassa_ready:
+    if yookassa_ready:
         providers.append({"id": "yookassa", "title": "Карта / СБП", "description": "Безопасная оплата через ЮKassa", "currency": "RUB"})
 
     if settings.billing_enable_ton and settings.ton_receiver_address:
         providers.append({"id": "ton", "title": "TON", "description": "Tonkeeper / TON", "currency": "TON"})
-    if settings.billing_enable_btcpay and settings.btcpay_url and settings.btcpay_store_id and settings.btcpay_api_key:
+    if (
+        settings.billing_enable_btcpay
+        and settings.btcpay_url
+        and settings.btcpay_store_id
+        and settings.btcpay_api_key
+        and settings.btcpay_webhook_secret
+    ):
         providers.append({"id": "btcpay_btc", "title": "BTC", "description": "Bitcoin invoice", "currency": "BTC"})
     return providers
 
 
 def provider_enabled(settings: Settings, provider: str) -> bool:
+    provider = normalize_provider_key(provider)
     return provider in {item["id"] for item in enabled_providers(settings)}
 
 
+def resolve_payment_provider(settings: Settings, requested_provider: str | None, *, telegram_webapp: bool = False) -> str:
+    provider = normalize_provider_key(requested_provider)
+    enabled = {item["id"] for item in enabled_providers(settings)}
+    if provider != "auto":
+        if provider in enabled:
+            return provider
+        raise BillingError("Этот способ оплаты сейчас отключён или не настроен.")
+
+    order = list(settings.payment_auto_provider_order)
+    if telegram_webapp and "telegram_stars" in order:
+        order.remove("telegram_stars")
+        order.insert(0, "telegram_stars")
+    for candidate in order:
+        candidate = normalize_provider_key(candidate)
+        if candidate in enabled:
+            return candidate
+    raise BillingError("Ни один способ оплаты пока не настроен. Подключите Telegram Stars или ЮKassa в .env.")
+
+
 def price_for_provider(plan: Plan, provider: str) -> tuple[Decimal, str]:
+    provider = normalize_provider_key(provider)
     if provider == "telegram_stars":
         return Decimal(plan.price_stars), "XTR"
     if provider == "yookassa":
@@ -377,9 +436,19 @@ def build_ton_transaction(settings: Settings, order: dict[str, Any]) -> dict[str
     }
 
 
+def build_ton_payment_link(settings: Settings, order: dict[str, Any]) -> str:
+    transaction = build_ton_transaction(settings, order)
+    message = transaction["messages"][0]
+    address = quote(str(message["address"]), safe="")
+    amount = quote(str(message["amount"]), safe="")
+    text = quote(str(order["id"]), safe="")
+    exp = quote(str(transaction["validUntil"]), safe="")
+    return f"https://app.tonkeeper.com/transfer/{address}?amount={amount}&text={text}&exp={exp}"
+
+
 def verify_btcpay_signature(settings: Settings, raw_body: bytes, signature_header: str | None) -> bool:
     if not settings.btcpay_webhook_secret:
-        return True
+        return False
     if not signature_header:
         return False
     expected = hmac.new(settings.btcpay_webhook_secret.encode(), raw_body, hashlib.sha256).hexdigest()

@@ -2,19 +2,20 @@ from app.bot import build_main_keyboard
 from app.config import Settings
 
 
-def test_main_keyboard_shows_only_telegram_channel_button():
-    keyboard = build_main_keyboard(Settings(TELEGRAM_CHANNEL_URL="https://t.me/founderpilot_news"))
+def test_main_keyboard_skips_webapp_button_for_local_http_url():
+    keyboard = build_main_keyboard(Settings(WEBAPP_PUBLIC_URL="http://127.0.0.1:8000"))
 
     buttons = [button for row in keyboard.inline_keyboard for button in row]
 
     assert len(buttons) == 1
-    assert buttons[0].text == "📣 Telegram канал"
-    assert buttons[0].url == "https://t.me/founderpilot_news"
-    assert buttons[0].callback_data is None
+    assert buttons[0].callback_data == "help"
     assert buttons[0].web_app is None
 
 
-def test_main_keyboard_skips_invalid_channel_url():
-    keyboard = build_main_keyboard(Settings(TELEGRAM_CHANNEL_URL=""))
+def test_main_keyboard_uses_webapp_button_for_https_url():
+    keyboard = build_main_keyboard(Settings(WEBAPP_PUBLIC_URL="https://example.com"))
 
-    assert keyboard.inline_keyboard == []
+    first_button = keyboard.inline_keyboard[0][0]
+
+    assert first_button.web_app is not None
+    assert first_button.web_app.url == "https://example.com/app"

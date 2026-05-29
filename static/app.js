@@ -19,6 +19,7 @@ const iconPaths = {
   stars: '<polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"></polygon>',
   target: '<circle cx="12" cy="12" r="10"></circle><circle cx="12" cy="12" r="6"></circle><circle cx="12" cy="12" r="2"></circle>',
   message: '<path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"></path>',
+  mic: '<path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3z"></path><path d="M19 10v2a7 7 0 0 1-14 0v-2"></path><line x1="12" y1="19" x2="12" y2="22"></line>',
   save: '<path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"></path><polyline points="17 21 17 13 7 13 7 21"></polyline><polyline points="7 3 7 8 15 8"></polyline>',
   back: '<line x1="19" y1="12" x2="5" y2="12"></line><polyline points="12 19 5 12 12 5"></polyline>',
   copy: '<rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>',
@@ -70,13 +71,35 @@ function showToast(msg) {
 }
 
 function getTelegramUserId() {
-  return String(tg?.initDataUnsafe?.user?.id || state.user?.telegram_id || "dev");
+  const raw = tg?.initDataUnsafe?.user?.id || state.user?.telegram_id || state.user?.id || null;
+  const numeric = Number(raw);
+  return Number.isFinite(numeric) && numeric > 0 ? numeric : null;
+}
+
+function withTelegramUser(payload = {}) {
+  const telegramId = getTelegramUserId();
+  return telegramId ? { ...payload, telegram_user_id: telegramId } : { ...payload };
 }
 
 function openExternal(url) {
   if (!url) return;
   if (tg?.openLink) tg.openLink(url);
   else window.open(url, "_blank", "noopener,noreferrer");
+}
+
+function openPaymentLink(url, provider) {
+  if (!url) return;
+  if (provider === "telegram_stars" && tg?.openInvoice) {
+    try {
+      tg.openInvoice(url, status => {
+        if (status === "paid") showToast("Оплата получена");
+      });
+      return;
+    } catch (err) {
+      console.warn("Telegram invoice open failed, fallback to link", err);
+    }
+  }
+  openExternal(url);
 }
 
 // API
@@ -115,11 +138,11 @@ function getFallbackTools() {
 
 function getFallbackPlans() {
   return [
-    { key: "free", title: "Free", description: "Для ознакомления", price_text: "0 ₽", providers: [] },
-    { key: "go", title: "Go", description: "Базовые задачи", price_text: "399 ₽ / мес", providers: [{ id: 'telegram_stars', title: 'Telegram Stars' }, { id: 'yookassa', title: 'Карта / СБП' }, { id: 'ton', title: 'TON' }, { id: 'btcpay_btc', title: 'BTC' }] },
-    { key: "plus", title: "Plus", description: "Активная работа", price_text: "990 ₽ / мес", providers: [{ id: 'telegram_stars', title: 'Telegram Stars' }, { id: 'yookassa', title: 'Карта / СБП' }, { id: 'ton', title: 'TON' }, { id: 'btcpay_btc', title: 'BTC' }] },
-    { key: "pro", title: "Pro", description: "Полный безлимит", price_text: "2 490 ₽ / мес", providers: [{ id: 'telegram_stars', title: 'Telegram Stars' }, { id: 'yookassa', title: 'Карта / СБП' }, { id: 'ton', title: 'TON' }, { id: 'btcpay_btc', title: 'BTC' }] },
-    { key: "business", title: "Business", description: "Для команд", price_text: "7 990 ₽ / мес", providers: [{ id: 'telegram_stars', title: 'Telegram Stars' }, { id: 'yookassa', title: 'Карта / СБП' }, { id: 'ton', title: 'TON' }, { id: 'btcpay_btc', title: 'BTC' }] }
+    { key: "free", title: "Free", description: "Базовые инструменты и лимиты", price_text: "0 ₽", providers: [] },
+    { key: "go", title: "Go", description: "Для первых регулярных задач", price_text: "399 ₽ / мес", providers: [] },
+    { key: "plus", title: "Plus", description: "Оптимум для активной работы", price_text: "990 ₽ / мес", providers: [] },
+    { key: "pro", title: "Pro", description: "Для серьёзного запуска и роста", price_text: "2 490 ₽ / мес", providers: [] },
+    { key: "business", title: "Business", description: "Команды, роли и совместная работа", price_text: "7 990 ₽ / мес", providers: [] }
   ];
 }
 
@@ -132,8 +155,41 @@ function getFallbackCreditPacks() {
   ];
 }
 
+function normalizeProviderId(id) {
+  const value = String(id || "").toLowerCase();
+  if (value === "stars") return "telegram_stars";
+  if (value === "card" || value === "sbp") return "yookassa";
+  if (value === "btc") return "btcpay_btc";
+  return value;
+}
+
+function providerInfo(id) {
+  const key = normalizeProviderId(id);
+  const map = {
+    telegram_stars: { id: "telegram_stars", title: "Telegram Stars", description: "Внутри Telegram", icon: "stars" },
+    yookassa: { id: "yookassa", title: "Карта / СБП", description: "Банковские карты РФ", icon: "credit-card" },
+    ton: { id: "ton", title: "TON", description: "Tonkeeper / TON", icon: "ton" },
+    btcpay_btc: { id: "btcpay_btc", title: "BTC", description: "Bitcoin invoice", icon: "btc" }
+  };
+  return map[key] || { id: key, title: key, description: "Оплата онлайн", icon: "credit-card" };
+}
+
+function enabledProviderIds(plan = null) {
+  const source = Array.isArray(plan?.providers) && plan.providers.length ? plan.providers : state.providers;
+  return new Set((source || []).map(p => normalizeProviderId(p.id || p.key || p.provider || p)));
+}
+
+function friendlyError(err, fallback = "Что-то пошло не так") {
+  const raw = String(err?.message || err || fallback);
+  if (/not\s*found|404/i.test(raw)) return "Функция пока недоступна";
+  if (/failed to fetch|network/i.test(raw)) return "Сервер временно недоступен";
+  if (/undefined|null|\[object Object\]/i.test(raw)) return fallback;
+  return raw;
+}
+
 // Navigation & UI
 function switchView(target) {
+  if (target !== "profile") closeProfilePane();
   document.querySelectorAll(".view").forEach(v => v.classList.remove("active"));
   document.querySelectorAll(".nav-item").forEach(b => b.classList.toggle("active", b.dataset.target === target));
 
@@ -144,7 +200,7 @@ function switchView(target) {
 
 function switchProfilePane(paneId) {
   if (window.innerWidth < 1100) {
-    $("profileShell").classList.add("detail-open");
+    $("profileShell")?.classList.add("detail-open");
   }
   document.querySelectorAll(".mobile-tab-link").forEach(b => b.classList.toggle("active", b.dataset.pane === paneId));
   document.querySelectorAll(".profile-sub-pane").forEach(p => {
@@ -153,7 +209,7 @@ function switchProfilePane(paneId) {
 }
 
 function closeProfilePane() {
-  $("profileShell").classList.remove("detail-open");
+  $("profileShell")?.classList.remove("detail-open");
 }
 
 function applyAvatar(el, user) {
@@ -359,7 +415,7 @@ async function handleChatSend() {
   appendMessage("system", "FounderPilot готовит ответ...", sysId);
 
   try {
-    const payload = { telegram_user_id: getTelegramUserId(), message: text, text: text, mode: "chat" };
+    const payload = withTelegramUser({ message: text, text: text, mode: "chat" });
     const res = await apiTry("/api/chat", "/api/ask", { method: "POST", body: JSON.stringify(payload) });
 
     $(sysId)?.remove();
@@ -395,6 +451,17 @@ function renderTools() {
 
   const filtered = state.tools.filter(t => (t.title + " " + t.description).toLowerCase().includes(q));
 
+  if (!filtered.length) {
+    container.innerHTML = `
+      <div class="empty-panel embedded-empty">
+        <span data-icon="search"></span>
+        <h3>&#1053;&#1080;&#1095;&#1077;&#1075;&#1086; &#1085;&#1077; &#1085;&#1072;&#1081;&#1076;&#1077;&#1085;&#1086;</h3>
+        <p>&#1055;&#1086;&#1087;&#1088;&#1086;&#1073;&#1091;&#1081;&#1090;&#1077; &#1076;&#1088;&#1091;&#1075;&#1086;&#1081; &#1079;&#1072;&#1087;&#1088;&#1086;&#1089; &#1080;&#1083;&#1080; &#1082;&#1072;&#1090;&#1077;&#1075;&#1086;&#1088;&#1080;&#1102;.</p>
+      </div>`;
+    injectIcons(container);
+    return;
+  }
+
   container.innerHTML = filtered.map(t => `
     <button class="list-row tool-card" data-prompt="${escapeHTML(t.prompt_template)}">
       <div class="icon-box"><span data-icon="tools"></span></div>
@@ -408,13 +475,55 @@ function renderTools() {
   injectIcons(container);
 }
 
+function normalizeHistoryData(data) {
+  if (Array.isArray(data)) return data;
+
+  const result = [];
+  const pushItems = (items, type, fallbackTitle) => {
+    (items || []).forEach(item => {
+      if (!item || typeof item !== "object") return;
+      const created = item.created_at || item.updated_at || item.date || item.started_at || "";
+      result.push({
+        ...item,
+        type: item.type || type,
+        title: item.title || item.tool_title || item.mode_title || item.message || item.prompt || fallbackTitle,
+        message: item.message || item.content || item.result || item.prompt || "",
+        date: item.date || formatHistoryDate(created),
+        created_at: created
+      });
+    });
+  };
+
+  pushItems(data?.items || data?.history, "tools", "Документ");
+  pushItems(data?.conversations, "chat", "Диалог");
+  pushItems(data?.tool_runs, "tools", "Документ");
+  pushItems(data?.saved, "favorites", "Сохранено");
+
+  const seen = new Set();
+  return result
+    .filter(item => {
+      const key = `${item.type}:${item.id || item.conversation_id || item.source_id || item.title}:${item.created_at || item.date}`;
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    })
+    .sort((a, b) => Date.parse(b.created_at || b.date || 0) - Date.parse(a.created_at || a.date || 0));
+}
+
+function formatHistoryDate(value) {
+  if (!value) return "Недавно";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return String(value);
+  return date.toLocaleDateString("ru-RU", { day: "2-digit", month: "short" });
+}
+
 function renderHistory() {
   const container = $("historyList");
   const empty = $("historyEmptyState");
   if (!container || !empty) return;
 
   let items = state.history || [];
-  const q = $("historySearchInput")?.value.toLowerCase().trim() || "";
+  const q = ($("historySearchInput")?.value || $("historySearchInputMobile")?.value || "").toLowerCase().trim();
 
   if (q) {
     items = items.filter(i => (i.title || i.message || "").toLowerCase().includes(q));
@@ -425,9 +534,11 @@ function renderHistory() {
 
   if (items.length === 0) {
     container.innerHTML = "";
+    empty.hidden = false;
     empty.style.display = "block";
     return;
   }
+  empty.hidden = true;
   empty.style.display = "none";
 
   container.innerHTML = items.map(h => `
@@ -471,7 +582,13 @@ function renderSubscription() {
   updateProfileUI();
 }
 
+function chooseAutoProvider(enabled) {
+  const order = tg?.initData ? ["telegram_stars", "yookassa", "ton", "btcpay_btc"] : ["yookassa", "telegram_stars", "ton", "btcpay_btc"];
+  return order.find(id => enabled.has(id)) || Array.from(enabled)[0] || "auto";
+}
+
 function selectPlan(key) {
+  key = String(key || "").toLowerCase();
   if (key === 'free') {
     showToast("Тариф Free доступен по умолчанию");
     if ($("paymentSection")) $("paymentSection").style.display = "none";
@@ -481,25 +598,42 @@ function selectPlan(key) {
   document.querySelectorAll(".plan-card").forEach(c => c.classList.toggle("active", c.dataset.plan === key));
 
   const plans = Array.isArray(state.plans) ? state.plans : Object.values(state.plans || {});
-  const plan = plans.find(p => String(p.key).toLowerCase() === String(key).toLowerCase());
-  const providers = (plan?.providers && plan.providers.length ? plan.providers : [
-    { id: 'telegram_stars', title: 'Telegram Stars', description: 'Внутри Telegram' },
-    { id: 'yookassa', title: 'Карта / СБП', description: 'Банковские карты РФ' },
-    { id: 'ton', title: 'TON', description: 'Tonkeeper / TON' },
-    { id: 'btcpay_btc', title: 'BTC', description: 'Bitcoin invoice' }
-  ]);
+  const plan = plans.find(p => String(p.key || p.id || p.slug).toLowerCase() === key) || null;
+  const enabled = enabledProviderIds(plan);
+  const preferred = ["telegram_stars", "yookassa", "ton", "btcpay_btc"].map(providerInfo);
 
   const box = $("subscriptionPaymentProviders");
   if (box) {
-    box.innerHTML = providers.map(prov => `
-      <button class="provider-btn" data-provider="${escapeHTML(prov.id)}" data-plan="${escapeHTML(key)}">
-        <span class="icon" data-icon="${prov.id === 'ton' ? 'ton' : prov.id === 'telegram_stars' ? 'stars' : (String(prov.id).includes('btc') ? 'btc' : 'credit-card')}"></span>
-        <div class="info">
-          <h5>${escapeHTML(prov.title)}</h5>
-          <p>${escapeHTML(prov.description || 'Оплата онлайн')}</p>
-        </div>
-      </button>
-    `).join("");
+    if (!enabled.size) {
+      box.innerHTML = `
+        <div class="provider-empty-note">
+          <b>Способы оплаты не настроены</b>
+          <p>Подключите Telegram Stars или ЮKassa в .env — кнопки оплаты больше не будут вести в пустоту, как маленькие вредные гоблины.</p>
+        </div>`;
+    } else {
+      const autoProvider = chooseAutoProvider(enabled);
+      const autoCard = `
+        <button class="provider-btn provider-primary" data-provider="${escapeHTML(autoProvider)}" data-plan="${escapeHTML(key)}">
+          <span class="icon" data-icon="credit-card"></span>
+          <div class="info">
+            <h5>Оплатить автоматически</h5>
+            <p>Выберем лучший доступный способ</p>
+          </div>
+        </button>`;
+      const providerCards = preferred.map(prov => {
+        const isEnabled = enabled.has(prov.id);
+        const badge = isEnabled ? "" : `<span class="provider-soon">Скоро</span>`;
+        return `
+          <button class="provider-btn ${isEnabled ? '' : 'disabled'}" ${isEnabled ? '' : 'disabled'} data-provider="${escapeHTML(prov.id)}" data-plan="${escapeHTML(key)}" aria-disabled="${isEnabled ? 'false' : 'true'}">
+            <span class="icon" data-icon="${escapeHTML(prov.icon)}"></span>
+            <div class="info">
+              <h5>${escapeHTML(prov.title)} ${badge}</h5>
+              <p>${escapeHTML(isEnabled ? prov.description : 'Скоро подключим')}</p>
+            </div>
+          </button>`;
+      }).join("");
+      box.innerHTML = autoCard + providerCards;
+    }
     injectIcons(box);
   }
   if ($("paymentSection")) {
@@ -534,27 +668,57 @@ function pollOrderStatus(orderId) {
 }
 
 async function checkout(planKey, providerId) {
+  providerId = normalizeProviderId(providerId);
+  if (!providerId || providerId === "undefined") return showToast("Способ оплаты не выбран");
   showToast("Создание заказа...");
   try {
+    const payload = withTelegramUser({
+      plan: planKey,
+      provider: providerId || "auto",
+      auto_renew: Boolean($("subscriptionAutopayToggle")?.checked)
+    });
     const res = await apiRequest("/api/billing/create-order", {
       method: "POST",
-      body: JSON.stringify({ plan: planKey, provider: providerId, telegram_user_id: getTelegramUserId(), auto_renew: Boolean($("subscriptionAutopayToggle")?.checked) })
+      body: JSON.stringify(payload)
     }).catch(async () => {
-      // Fallback endpoint
       return await apiRequest("/api/billing/checkout", {
         method: "POST",
-        body: JSON.stringify({ plan: planKey, provider: providerId, telegram_user_id: getTelegramUserId(), auto_renew: Boolean($("subscriptionAutopayToggle")?.checked) })
+        body: JSON.stringify(payload)
       });
     });
 
     const link = res.payment_url || res.invoice_url || res.invoice_link || res.url;
     const orderId = res.order_id || res.id;
-    if (link) openExternal(link);
+    if (link) openPaymentLink(link, res.provider || providerId);
     if (orderId) pollOrderStatus(orderId);
     if (!link && !orderId) showToast("Заказ создан");
   } catch (err) {
-    showToast(err.message || "Ошибка оплаты");
+    showToast(friendlyError(err, "Не удалось создать оплату"));
   }
+}
+
+function pollCreditPackOrder(orderId) {
+  if (!orderId) return;
+  let tries = 0;
+  const timer = setInterval(async () => {
+    tries += 1;
+    try {
+      const data = await apiRequest(`/api/credits/packs/order/${encodeURIComponent(orderId)}`);
+      const order = data.order || data;
+      const status = String(order.status || data.status || "").toLowerCase();
+      if (["paid", "success", "succeeded"].includes(status)) {
+        clearInterval(timer);
+        showToast("Кредиты начислены");
+        await loadData();
+      } else if (["failed", "cancelled", "canceled", "expired"].includes(status)) {
+        clearInterval(timer);
+        showToast("Оплата пакета не прошла");
+      }
+    } catch (err) {
+      if (tries >= 20) clearInterval(timer);
+    }
+    if (tries >= 30) clearInterval(timer);
+  }, 3000);
 }
 
 function renderCreditPacks() {
@@ -564,7 +728,7 @@ function renderCreditPacks() {
     <div class="credit-pack">
       <div class="info">
         <h5>${escapeHTML(p.title)}</h5>
-        <p>Разовое пополнение</p>
+        <p>${escapeHTML(p.description || "Разовое пополнение")}</p>
       </div>
       <button class="price-btn" data-pack="${escapeHTML(p.id)}">${escapeHTML(p.price_text)}</button>
     </div>
@@ -579,8 +743,23 @@ function renderOrganizations() {
   const org = state.organizations?.active || state.organizations?.current || state.organizations?.owned?.[0] || state.organizations?.memberships?.[0] || null;
   const members = Array.isArray(state.organizationMembers) ? state.organizationMembers : [];
 
+  if (!org) {
+    setText("organizationNameLabel", "Организация не создана");
+    setText("organizationMetaLabel", "Создайте компанию и пригласите участников");
+    list.innerHTML = `
+      <div class="settings-row org-create-row">
+        <span><b>Создать организацию</b><small>Название можно изменить позже.</small></span>
+      </div>
+      <div class="settings-row org-create-form">
+        <input id="organizationCreateTitle" type="text" placeholder="Название организации" value="Моя организация">
+        <button id="createOrganizationBtn" class="plain-btn" type="button">Создать</button>
+      </div>`;
+    if (invites) { invites.style.display = "none"; invites.innerHTML = ""; }
+    return;
+  }
+
   const orgName = org?.name || org?.title || "Организация";
-  const orgRole = org?.role || "owner";
+  const orgRole = org?.role || (String(org.owner_telegram_user_id || "") === String(state.user?.telegram_id || state.user?.id || "") ? "owner" : "member");
   setText("organizationNameLabel", orgName);
   setText("organizationMetaLabel", `${orgRole} • ${members.length || 1} участник`);
 
@@ -589,7 +768,7 @@ function renderOrganizations() {
   } else {
     list.innerHTML = members.map(m => {
       const name = m.first_name || m.name || m.username || "Участник";
-      const username = m.username ? `@${m.username}` : `ID: ${m.telegram_id || "—"}`;
+      const username = m.username ? `@${m.username}` : `ID: ${m.telegram_id || m.telegram_user_id || "—"}`;
       const role = m.role || "member";
       return `<div class="settings-row"><span><b>${escapeHTML(name)}</b><small>${escapeHTML(username)}</small></span><em>${escapeHTML(role)}</em></div>`;
     }).join("");
@@ -598,9 +777,10 @@ function renderOrganizations() {
   const pending = state.organizations?.pending_invites || [];
   if (invites) {
     invites.style.display = pending.length ? "block" : "none";
-    invites.innerHTML = pending.map(inv => `<div class="settings-row"><span><b>${escapeHTML(inv.username || inv.invitee_username || "Приглашение")}</b><small>Ожидает подтверждения</small></span></div>`).join("");
+    invites.innerHTML = pending.map(inv => `<div class="settings-row"><span><b>${escapeHTML(inv.username || inv.invited_username || "Приглашение")}</b><small>Ожидает подтверждения</small></span></div>`).join("");
   }
 }
+
 
 async function loadOrganizations() {
   try {
@@ -629,7 +809,7 @@ async function inviteOrganizationMember() {
   try {
     await apiRequest("/api/organizations/invite", {
       method: "POST",
-      body: JSON.stringify({ username, telegram_user_id: getTelegramUserId() })
+      body: JSON.stringify(withTelegramUser({ username }))
     });
     input.value = "";
     showToast("Приглашение отправлено");
@@ -637,12 +817,58 @@ async function inviteOrganizationMember() {
   } catch (err) { showToast(err.message || "Не удалось отправить приглашение"); }
 }
 
+async function loadNotificationPrefs() {
+  try {
+    const data = await apiRequest("/api/notifications/preferences");
+    const prefs = data.preferences || data || {};
+    const setChecked = (id, value) => { const el = $(id); if (el) el.checked = Boolean(value); };
+    setChecked("notifyLimitToggle", prefs.low_credits ?? true);
+    setChecked("notifyBillingToggle", prefs.subscription_reminders ?? true);
+    setChecked("notifyProductToggle", prefs.product_updates ?? false);
+  } catch (err) { }
+}
+
+async function saveNotificationPrefs() {
+  try {
+    await apiRequest("/api/notifications/preferences", {
+      method: "POST",
+      body: JSON.stringify({
+        low_credits: Boolean($("notifyLimitToggle")?.checked),
+        subscription_reminders: Boolean($("notifyBillingToggle")?.checked),
+        product_updates: Boolean($("notifyProductToggle")?.checked)
+      })
+    });
+    showToast("Уведомления сохранены");
+  } catch (err) { showToast(friendlyError(err, "Не удалось сохранить уведомления")); }
+}
+
+async function saveAutopaySettings() {
+  const enabled = Boolean($("subscriptionAutopayToggle")?.checked);
+  const activePlan = document.querySelector(".plan-card.active")?.dataset.plan || state.user?.plan || "go";
+  try {
+    await apiRequest("/api/billing/autopay", {
+      method: "POST",
+      body: JSON.stringify({ enabled, plan: activePlan === "free" ? "go" : activePlan, provider: "yookassa" })
+    });
+    showToast(enabled ? "Автопродление включено" : "Автопродление выключено");
+  } catch (err) { showToast(friendlyError(err, "Не удалось изменить автопродление")); }
+}
+
+async function createOrganizationFromUI() {
+  const title = ($("organizationCreateTitle")?.value || "Моя организация").trim();
+  try {
+    await apiRequest("/api/organizations", { method: "POST", body: JSON.stringify({ title }) });
+    showToast("Организация создана");
+    await loadOrganizations();
+  } catch (err) { showToast(friendlyError(err, "Не удалось создать организацию")); }
+}
+
 // Data Loaders
 async function loadData() {
   try {
     const userData = await apiRequest("/api/me");
     state.user = userData.user || userData || {};
-  } catch { state.user = { first_name: "Пользователь", telegram_id: "—", plan: "Free" }; }
+  } catch { state.user = { first_name: "Пользователь", telegram_id: null, plan: "Free" }; }
 
   updateProfileUI();
 
@@ -655,7 +881,7 @@ async function loadData() {
 
   try {
     const hData = await apiRequest("/api/history");
-    state.history = Array.isArray(hData) ? hData : (hData.history || []);
+    state.history = normalizeHistoryData(hData);
   } catch { state.history = []; }
   renderHistory();
 
@@ -668,7 +894,7 @@ async function loadData() {
     const globalProviders = Array.isArray(pData?.providers) ? pData.providers : [];
     const fallbackByKey = Object.fromEntries(getFallbackPlans().map(p => [p.key, p]));
     state.providers = globalProviders;
-    state.plans = (backendPlans.length >= 5 ? backendPlans : getFallbackPlans()).map(plan => {
+    state.plans = (backendPlans.length ? backendPlans : getFallbackPlans()).map(plan => {
       const key = String(plan.key || plan.id || plan.slug || plan.title || "").toLowerCase();
       const fallback = fallbackByKey[key] || {};
       return {
@@ -682,7 +908,7 @@ async function loadData() {
         providers: key === "free" ? [] : (Array.isArray(plan.providers) && plan.providers.length ? plan.providers : globalProviders)
       };
     });
-  } catch { state.plans = getFallbackPlans(); }
+  } catch { state.providers = []; state.plans = getFallbackPlans(); }
   renderSubscription();
 
   try {
@@ -692,6 +918,7 @@ async function loadData() {
   renderCreditPacks();
 
   await loadOrganizations();
+  await loadNotificationPrefs();
 }
 
 // Event Bindings
@@ -746,6 +973,7 @@ function bindEvents() {
 
   // History Search & Filters
   $("historySearchInput")?.addEventListener("input", renderHistory);
+  $("historySearchInputMobile")?.addEventListener("input", renderHistory);
   $("historyFilters")?.addEventListener("click", e => {
     const chip = e.target.closest(".chip");
     if (chip) {
@@ -763,15 +991,26 @@ function bindEvents() {
   });
   $("subscriptionPaymentProviders")?.addEventListener("click", e => {
     const btn = e.target.closest(".provider-btn");
-    if (btn) checkout(btn.dataset.plan, btn.dataset.provider);
+    if (!btn) return;
+    if (btn.disabled || btn.classList.contains("disabled")) return showToast("Этот способ оплаты скоро появится");
+    checkout(btn.dataset.plan, btn.dataset.provider);
   });
   $("creditPackList")?.addEventListener("click", e => {
     const btn = e.target.closest(".price-btn");
     if (btn) {
-      showToast("Создание заказа...");
-      apiRequest("/api/credits/packs/order", { method: "POST", body: JSON.stringify({ pack_id: btn.dataset.pack, telegram_user_id: getTelegramUserId() }) })
-        .then(res => { if (res.url) openExternal(res.url); else showToast("Успешно"); })
-        .catch(err => showToast(err.message));
+      showToast("Создание оплаты...");
+      apiRequest("/api/credits/packs/order", {
+        method: "POST",
+        body: JSON.stringify(withTelegramUser({ pack_id: btn.dataset.pack, provider: "yookassa" }))
+      })
+        .then(res => {
+          const link = res.payment_url || res.invoice_url || res.invoice_link || res.url;
+          const orderId = res.order_id || res.id || res.order?.id;
+          if (link) openExternal(link);
+          if (orderId) pollCreditPackOrder(orderId);
+          if (!link && !orderId) showToast("Заказ создан");
+        })
+        .catch(err => showToast(friendlyError(err, "Не удалось создать оплату")));
     }
   });
 
@@ -788,18 +1027,31 @@ function bindEvents() {
     try {
       await apiRequest("/api/profile", {
         method: "POST",
-        body: JSON.stringify({ telegram_user_id: getTelegramUserId(), business_profile: profileText, company_name: company })
+        body: JSON.stringify(withTelegramUser({ business_profile: profileText, company_name: company }))
       });
       showToast("Контекст сохранён");
     } catch { showToast("Сохранено локально"); }
   });
 
-  $("submitAppFeedbackBtn")?.addEventListener("click", () => {
-    const val = $("appFeedbackText").value;
-    if (val) {
+  $("submitAppFeedbackBtn")?.addEventListener("click", async () => {
+    const val = $("appFeedbackText")?.value.trim();
+    if (!val) return showToast("Введите текст отзыва");
+    try {
+      await apiRequest("/api/feedback", { method: "POST", body: JSON.stringify({ source_type: "mini_app", source_id: "profile_about", rating: 0, message: val }) });
       $("appFeedbackText").value = "";
       showToast("Спасибо за отзыв!");
-    }
+    } catch (err) { showToast(friendlyError(err, "Не удалось отправить отзыв")); }
+  });
+
+  $("saveNotificationsBtn")?.addEventListener("click", saveNotificationPrefs);
+  $("subscriptionAutopayToggle")?.addEventListener("change", saveAutopaySettings);
+  $("exportHistoryBtn")?.addEventListener("click", () => openExternal("/api/export/history.txt"));
+  document.querySelector("[data-copy-inn]")?.addEventListener("click", () => {
+    navigator.clipboard.writeText("713304603876").then(() => showToast("ИНН скопирован"));
+  });
+  document.addEventListener("click", e => {
+    const btn = e.target.closest("#createOrganizationBtn");
+    if (btn) createOrganizationFromUI();
   });
 }
 
@@ -828,13 +1080,17 @@ async function boot() {
 
     const params = new URLSearchParams(window.location.search || "");
     const returnedOrderId = params.get("order_id");
-    if (params.get("payment_return") && returnedOrderId) {
+    const returnedCreditPackOrderId = params.get("credit_pack_order_id");
+    if (params.get("credit_pack_return") && returnedCreditPackOrderId) {
+      showToast("Проверяем оплату пакета...");
+      pollCreditPackOrder(returnedCreditPackOrderId);
+    } else if (params.get("payment_return") && returnedOrderId) {
       showToast("Проверяем оплату...");
       pollOrderStatus(returnedOrderId);
     }
   } catch (err) {
     console.error("FounderPilot boot error", err);
-    state.user = state.user || { first_name: "Пользователь", telegram_id: "—", plan: "Free" };
+    state.user = state.user || { first_name: "Пользователь", telegram_id: null, plan: "Free" };
     state.tools = state.tools.length ? state.tools : getFallbackTools();
     state.plans = Array.isArray(state.plans) && state.plans.length ? state.plans : getFallbackPlans();
     state.creditPacks = state.creditPacks.length ? state.creditPacks : getFallbackCreditPacks();

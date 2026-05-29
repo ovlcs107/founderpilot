@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import asyncio
+import hashlib
+import hmac
 import logging
 import json
 import re
@@ -24,16 +26,22 @@ from app.billing import (
     activate_subscription,
     best_effort_ton_verify,
     build_ton_transaction,
+    build_ton_payment_link,
     create_btcpay_invoice,
     PLAN_DESCRIPTIONS,
     create_telegram_stars_invoice,
     create_yookassa_payment,
+    create_yookassa_credit_pack_payment,
     create_yookassa_autopayment,
     enabled_providers,
+    fetch_yookassa_payment,
     make_order_id,
+    normalize_plan_key,
     plan_catalog,
     price_for_provider,
     provider_enabled,
+    public_plan_catalog,
+    resolve_payment_provider,
     verify_btcpay_signature,
     verify_yookassa_payment,
 )
@@ -120,7 +128,7 @@ class FeedbackRequest(BaseModel):
 
 class BillingOrderRequest(BaseModel):
     plan: str = Field(min_length=2, max_length=40)
-    provider: str = Field(min_length=2, max_length=40)
+    provider: str | None = Field(default="auto", max_length=40)
     telegram_user_id: int | None = None
     auto_renew: bool = False
 
@@ -339,24 +347,71 @@ def create_app(settings: Settings | None = None) -> FastAPI:
 
     app.add_middleware(
         CORSMiddleware,
-        allow_origins=["*"],
+        allow_origins=settings.cors_allowed_origins,
         allow_credentials=False,
         allow_methods=["GET", "POST", "OPTIONS"],
         allow_headers=["*"],
     )
 
+    def client_ip(request: Request) -> str:
+        if settings.trust_proxy_headers:
+            forwarded = request.headers.get("x-forwarded-for")
+            if forwarded:
+                return forwarded.split(",", 1)[0].strip()[:64] or "unknown"
+            real_ip = request.headers.get("x-real-ip")
+            if real_ip:
+                return real_ip.strip()[:64] or "unknown"
+        return request.client.host if request.client else "unknown"
+
+    def fingerprint_hash(value: str | None) -> str | None:
+        clean = str(value or "").strip()
+        if not clean:
+            return None
+        return hashlib.sha256(f"{settings.app_secret}:fingerprint:{clean}".encode("utf-8")).hexdigest()
+
+    def add_security_headers(response):
+        response.headers.setdefault("X-Content-Type-Options", "nosniff")
+        response.headers.setdefault("Referrer-Policy", "strict-origin-when-cross-origin")
+        response.headers.setdefault("Permissions-Policy", "camera=(), microphone=(), geolocation=()")
+        response.headers.setdefault("X-Frame-Options", "SAMEORIGIN")
+        response.headers.setdefault("Cross-Origin-Resource-Policy", "same-origin")
+        if settings.is_public_deployment:
+            response.headers.setdefault("Strict-Transport-Security", "max-age=31536000; includeSubDomains")
+        return response
+
     @app.middleware("http")
     async def anti_abuse_middleware(request: Request, call_next):
-        protected = request.url.path in {"/api/chat", "/api/ask", "/api/generate", "/api/tools/run"}
+        content_length = request.headers.get("content-length")
+        if content_length:
+            try:
+                if int(content_length) > settings.max_request_body_bytes:
+                    return add_security_headers(
+                        JSONResponse(status_code=413, content={"ok": False, "error": "Request body is too large."})
+                    )
+            except ValueError:
+                return add_security_headers(
+                    JSONResponse(status_code=400, content={"ok": False, "error": "Invalid Content-Length header."})
+                )
+
+        protected = request.url.path in {
+            "/api/chat",
+            "/api/ask",
+            "/api/generate",
+            "/api/tools/run",
+            "/api/billing/create-order",
+            "/api/billing/ton/verify",
+            "/api/credits/packs/order",
+            "/api/organizations/invite",
+        } or request.url.path.endswith("/invites")
         if protected:
-            ip = request.headers.get("x-forwarded-for") or request.client.host if request.client else "unknown"
+            ip = client_ip(request)
             fingerprint = request.headers.get("x-device-fingerprint") or request.headers.get("x-fingerprint")
             recent = await features.ip_event_count(ip, settings.app_secret, minutes=10)
             risk = 25 if recent > 30 else 10 if recent > 12 else 0
             await features.record_abuse_event(
                 telegram_id=None,
                 ip=ip,
-                fingerprint_hash=fingerprint,
+                fingerprint_hash=fingerprint_hash(fingerprint),
                 path=request.url.path,
                 event_type="api_request",
                 risk_score=risk,
@@ -364,8 +419,9 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                 secret=settings.app_secret,
             )
             if recent > 120:
-                return JSONResponse(status_code=429, content={"ok": False, "error": "Слишком много запросов с этого подключения. Попробуйте позже."})
-        return await call_next(request)
+                response = JSONResponse(status_code=429, content={"ok": False, "error": "Too many requests from this connection. Try again later."})
+                return add_security_headers(response)
+        return add_security_headers(await call_next(request))
 
     app.mount("/static", StaticFiles(directory="static"), name="static")
 
@@ -495,6 +551,54 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             return {}
         return data if isinstance(data, dict) else {}
 
+    async def finalize_yookassa_order(order: dict[str, Any], raw_event: dict[str, Any] | None = None) -> dict[str, Any]:
+        """Verify YooKassa payment and activate the subscription exactly once.
+
+        This makes sales reliable even if the user returns to the Mini App before
+        the webhook arrives. Polling /api/billing/order can finish activation too.
+        """
+        if not order:
+            raise BillingError("Заказ не найден.")
+        if str(order.get("status") or "").lower() == "paid":
+            return order
+        external_id = str(order.get("external_payment_id") or "")
+        if not external_id:
+            raise BillingError("У заказа нет ID платежа ЮKassa.")
+        plans = plan_catalog(settings)
+        plan = plans.get(str(order.get("plan") or "").lower())
+        if not plan or plan.key == "free":
+            raise BillingError("Некорректный тариф в заказе.")
+
+        verified_payment = await verify_yookassa_payment(settings, order, external_id)
+        await activate_subscription(db, order["telegram_user_id"], plan.key, "yookassa", order["id"], plan.daily_limit, plan.monthly_limit)
+
+        method = verified_payment.get("payment_method") or {}
+        method_id = method.get("id")
+        saved_meta = metadata_from_order(order)
+        payment_meta = verified_payment.get("metadata") or {}
+        if method_id and (saved_meta.get("auto_renew") or str(payment_meta.get("auto_renew")) == "1"):
+            await db.save_autopay_payment_method(
+                int(order["telegram_user_id"]),
+                plan=plan.key,
+                payment_method_id_encrypted=encrypt_text(str(method_id), settings.app_secret) or "",
+                payment_method_mask=mask_token(str(method_id)),
+                next_charge_at=subscription_next_charge_at(),
+            )
+
+        await db.record_payment(
+            order_id=order["id"],
+            telegram_id=int(order["telegram_user_id"]),
+            provider="yookassa",
+            plan=plan.key,
+            amount=float(order["amount"]),
+            currency=order["currency"],
+            status="succeeded",
+            external_payment_id=external_id,
+            raw_event=raw_event or verified_payment,
+        )
+        updated = await db.get_billing_order(order["id"])
+        return updated or order
+
     async def current_user(x_telegram_init_data: str | None = Header(default=None)) -> TelegramUser:
         if settings.allow_dev_auth:
             return dev_user()
@@ -504,8 +608,20 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             raise HTTPException(status_code=401, detail=str(exc)) from exc
 
     def require_admin(x_admin_secret: str | None) -> None:
-        if not settings.admin_secret or x_admin_secret != settings.admin_secret:
+        if not settings.admin_secret or not x_admin_secret or not hmac.compare_digest(x_admin_secret, settings.admin_secret):
             raise HTTPException(status_code=403, detail="Доступ запрещён.")
+
+    async def read_json_dict(request: Request) -> dict[str, Any]:
+        raw_body = await request.body()
+        if len(raw_body) > settings.max_request_body_bytes:
+            raise HTTPException(status_code=413, detail="Request body is too large.")
+        try:
+            value = json.loads(raw_body.decode("utf-8"))
+        except (UnicodeDecodeError, json.JSONDecodeError) as exc:
+            raise HTTPException(status_code=400, detail="Invalid JSON body.") from exc
+        if not isinstance(value, dict):
+            raise HTTPException(status_code=400, detail="JSON body must be an object.")
+        return value
 
     async def send_organization_invite(invite: dict[str, Any]) -> bool:
         invited_id = invite.get("invited_telegram_user_id")
@@ -649,7 +765,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
 
     @app.post("/api/profile/save")
     async def profile_save(request: Request, user: TelegramUser = Depends(current_user)) -> dict[str, Any]:
-        raw = await request.json()
+        raw = await read_json_dict(request)
         description = raw.get("business_profile") or raw.get("description") or raw.get("text")
         company_name = raw.get("company_name") or raw.get("company") or raw.get("business_name")
         inn = raw.get("inn")
@@ -1062,9 +1178,11 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         return {"ok": True, "id": feedback_id}
 
     @app.get("/api/billing/plans")
-    async def billing_plans(user: TelegramUser = Depends(current_user)) -> dict[str, Any]:
+    async def billing_plans() -> dict[str, Any]:
+        providers = enabled_providers(settings)
         plans = []
-        for plan in plan_catalog(settings).values():
+        for plan in public_plan_catalog(settings).values():
+            payment_providers = [] if plan.key == "free" else providers
             plans.append(
                 {
                     "id": plan.key,
@@ -1084,9 +1202,10 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                     "price_ton": str(plan.price_ton),
                     "price_btc": str(plan.price_btc),
                     "duration_days": 30 if plan.key != "free" else None,
+                    "providers": payment_providers,
                 }
             )
-        return {"ok": True, "plans": plans, "providers": enabled_providers(settings)}
+        return {"ok": True, "plans": plans, "providers": providers}
 
     @app.get("/api/billing/status")
     async def billing_status(telegram_user_id: int | None = None, user: TelegramUser = Depends(current_user)) -> dict[str, Any]:
@@ -1200,36 +1319,47 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         return {"ok": True, "results": results}
 
     @app.post("/api/billing/create-order")
-    async def billing_create_order(payload: BillingOrderRequest, user: TelegramUser = Depends(current_user)) -> dict[str, Any]:
+    @app.post("/api/billing/checkout")
+    @app.post("/api/billing/orders")
+    @app.post("/api/subscription/checkout")
+    async def billing_create_order(request: Request, payload: BillingOrderRequest, user: TelegramUser = Depends(current_user)) -> dict[str, Any]:
         telegram_id = resolve_telegram_id(user, payload.telegram_user_id)
         await db.upsert_user(telegram_id, user.username, user.first_name, user.last_name, photo_url=user.photo_url)
         plans = plan_catalog(settings)
-        plan = plans.get(payload.plan)
+        plan = plans.get(normalize_plan_key(payload.plan))
         if not plan or plan.key == "free":
             return {"ok": False, "error": "Выберите платный тариф."}
-        if not provider_enabled(settings, payload.provider):
-            return {"ok": False, "error": "Этот способ оплаты сейчас отключён."}
+        try:
+            provider = resolve_payment_provider(
+                settings,
+                payload.provider,
+                telegram_webapp=bool(request.headers.get("x-telegram-init-data")),
+            )
+            amount, currency = price_for_provider(plan, provider)
+        except BillingError as exc:
+            return {"ok": False, "error": str(exc)}
+        if amount <= 0:
+            return {"ok": False, "error": "Для выбранного способа оплаты не указана цена тарифа."}
 
-        amount, currency = price_for_provider(plan, payload.provider)
         order_id = make_order_id()
         order = await db.create_billing_order(
             order_id,
             telegram_id,
             plan.key,
-            payload.provider,
+            provider,
             float(amount),
             currency,
-            metadata={"plan_title": plan.title, "auto_renew": bool(payload.auto_renew)},
+            metadata={"plan_title": plan.title, "auto_renew": bool(payload.auto_renew), "requested_provider": payload.provider or "auto"},
         )
 
         try:
-            if payload.provider == "telegram_stars":
+            if provider == "telegram_stars":
                 bot = Bot(token=settings.bot_token)
                 invoice_link = await create_telegram_stars_invoice(settings, bot, order, plan)
                 await bot.session.close()
                 await db.update_billing_order(order_id, payment_url=invoice_link, payload=order_id)
-                return {"ok": True, "order_id": order_id, "provider": payload.provider, "payment_url": invoice_link}
-            if payload.provider == "yookassa":
+                return {"ok": True, "order_id": order_id, "provider": provider, "payment_url": invoice_link}
+            if provider == "yookassa":
                 external_id, payment_url = await create_yookassa_payment(settings, order, plan, save_payment_method=payload.auto_renew)
                 await db.update_billing_order(order_id, external_payment_id=external_id, payment_url=payment_url)
                 await db.record_payment(
@@ -1242,18 +1372,19 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                     status="pending",
                     external_payment_id=external_id,
                 )
-                return {"ok": True, "order_id": order_id, "provider": payload.provider, "payment_url": payment_url}
-            if payload.provider == "ton":
+                return {"ok": True, "order_id": order_id, "provider": provider, "payment_url": payment_url}
+            if provider == "ton":
                 ton_transaction = build_ton_transaction(settings, order)
+                ton_payment_url = build_ton_payment_link(settings, order)
                 await db.update_billing_order(order_id, payload=order_id, metadata={"ton_transaction": ton_transaction})
                 return {
                     "ok": True,
                     "order_id": order_id,
-                    "provider": payload.provider,
+                    "provider": provider,
                     "ton_transaction": ton_transaction,
-                    "payment_url": None,
+                    "payment_url": ton_payment_url,
                 }
-            if payload.provider == "btcpay_btc":
+            if provider == "btcpay_btc":
                 external_id, payment_url = await create_btcpay_invoice(settings, order, plan)
                 await db.update_billing_order(order_id, external_payment_id=external_id, payment_url=payment_url)
                 await db.record_payment(
@@ -1266,7 +1397,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                     status="pending",
                     external_payment_id=external_id,
                 )
-                return {"ok": True, "order_id": order_id, "provider": payload.provider, "payment_url": payment_url}
+                return {"ok": True, "order_id": order_id, "provider": provider, "payment_url": payment_url}
         except BillingError as exc:
             await db.update_billing_order(order_id, status="failed")
             await db.log_error("billing_create_order", str(exc), telegram_id)
@@ -1283,9 +1414,21 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         order = await db.get_billing_order(order_id)
         if not order:
             raise HTTPException(status_code=404, detail="Заказ не найден.")
-        if not settings.allow_dev_auth and order.get("telegram_user_id") != str(user.id):
+        if not settings.allow_dev_auth and str(order.get("telegram_user_id")) != str(user.id):
             raise HTTPException(status_code=403, detail="Этот заказ принадлежит другому пользователю.")
-        return {"ok": True, "order": order}
+
+        # Reliable post-payment flow: if YooKassa already accepted the money but
+        # the webhook has not reached us yet, polling this endpoint finishes activation.
+        if order.get("provider") == "yookassa" and str(order.get("status") or "").lower() == "pending" and order.get("external_payment_id"):
+            try:
+                order = await finalize_yookassa_order(order)
+            except BillingError:
+                # Payment may still be waiting for user confirmation. Keep order pending.
+                order = await db.get_billing_order(order_id) or order
+            except Exception as exc:  # noqa: BLE001
+                await db.log_error("billing_order_yookassa_verify", str(exc), user.id)
+                order = await db.get_billing_order(order_id) or order
+        return {"ok": True, "order": order, "status": order.get("status")}
 
     @app.post("/api/billing/ton/verify")
     async def ton_verify(payload: TonVerifyRequest, user: TelegramUser = Depends(current_user)) -> dict[str, Any]:
@@ -1316,14 +1459,38 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         return {"ok": True, "status": "paid", "subscription": result}
 
     @app.post("/api/billing/webhooks/yookassa")
+    @app.post("/api/billing/yookassa/webhook")
     async def yookassa_webhook(request: Request) -> dict[str, Any]:
-        raw = await request.json()
+        raw = await read_json_dict(request)
         obj = raw.get("object", {}) if isinstance(raw, dict) else {}
         metadata = obj.get("metadata", {}) or {}
         order_id = metadata.get("order_id")
         external_id = obj.get("id")
         event_type = raw.get("event")
         await db.record_payment_event("yookassa", raw, event_type, order_id, external_id)
+        kind = str(metadata.get("kind") or "").lower()
+        if kind == "credit_pack":
+            credit_order_id = metadata.get("credit_pack_order_id") or order_id
+            credit_order = await features.get_credit_pack_order(str(credit_order_id)) if credit_order_id else None
+            if not credit_order and external_id:
+                credit_order = await features.find_credit_pack_order_by_external_id(str(external_id))
+            if not credit_order:
+                return {"ok": True, "ignored": True, "kind": "credit_pack"}
+            status = obj.get("status")
+            if event_type == "payment.succeeded" or status == "succeeded":
+                if str(credit_order.get("status") or "").lower() == "paid":
+                    return {"ok": True, "already_processed": True, "kind": "credit_pack"}
+                await finalize_credit_pack_order(credit_order, raw_event=raw)
+            elif status == "canceled" or event_type == "payment.canceled":
+                try:
+                    verified = await fetch_yookassa_payment(settings, str(external_id))
+                except BillingError as exc:
+                    await db.log_error("yookassa_credit_pack_cancel_verify", str(exc))
+                    return {"ok": True, "ignored": True, "kind": "credit_pack"}
+                if verified.get("status") == "canceled":
+                    await features.update_credit_pack_order_payment(credit_order["id"], status="canceled")
+            return {"ok": True, "kind": "credit_pack"}
+
         order = await db.get_billing_order(order_id) if order_id else None
         if not order and external_id:
             order = await db.find_billing_order_by_external_id(external_id)
@@ -1331,38 +1498,24 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             return {"ok": True, "ignored": True}
         status = obj.get("status")
         if event_type == "payment.succeeded" or status == "succeeded":
-            plan = plan_catalog(settings)[str(order["plan"])]
-            verified_payment = await verify_yookassa_payment(settings, order, external_id)
-            await activate_subscription(db, order["telegram_user_id"], plan.key, "yookassa", order["id"], plan.daily_limit, plan.monthly_limit)
-            method = verified_payment.get("payment_method") or {}
-            method_id = method.get("id")
-            metadata = metadata_from_order(order)
-            if method_id and (metadata.get("auto_renew") or str((verified_payment.get("metadata") or {}).get("auto_renew")) == "1"):
-                await db.save_autopay_payment_method(
-                    int(order["telegram_user_id"]),
-                    plan=plan.key,
-                    payment_method_id_encrypted=encrypt_text(str(method_id), settings.app_secret) or "",
-                    payment_method_mask=mask_token(str(method_id)),
-                    next_charge_at=subscription_next_charge_at(),
-                )
-            await db.record_payment(
-                order_id=order["id"],
-                telegram_id=int(order["telegram_user_id"]),
-                provider="yookassa",
-                plan=plan.key,
-                amount=float(order["amount"]),
-                currency=order["currency"],
-                status="succeeded",
-                external_payment_id=external_id,
-                raw_event=raw,
-            )
+            if str(order.get("status") or "").lower() == "paid":
+                return {"ok": True, "already_processed": True}
+            await finalize_yookassa_order(order, raw_event=raw)
         elif status == "canceled" or event_type == "payment.canceled":
-            await db.update_billing_order(order["id"], status="canceled")
+            try:
+                verified = await fetch_yookassa_payment(settings, str(external_id))
+            except BillingError as exc:
+                await db.log_error("yookassa_cancel_verify", str(exc), int(order["telegram_user_id"]))
+                return {"ok": True, "ignored": True}
+            if verified.get("status") == "canceled":
+                await db.update_billing_order(order["id"], status="canceled")
         return {"ok": True}
 
     @app.post("/api/billing/webhooks/btcpay")
     async def btcpay_webhook(request: Request, btcpay_sig: str | None = Header(default=None, alias="BTCPay-Sig")) -> dict[str, Any]:
         raw_body = await request.body()
+        if len(raw_body) > settings.max_request_body_bytes:
+            raise HTTPException(status_code=413, detail="Request body is too large.")
         if not verify_btcpay_signature(settings, raw_body, btcpay_sig):
             raise HTTPException(status_code=403, detail="Неверная подпись BTCPay.")
         raw = json_loads_safe(raw_body)
@@ -1372,6 +1525,8 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         await db.record_payment_event("btcpay_btc", raw, event_type, order.get("id") if order else None, str(invoice_id) if invoice_id else None)
         if not order:
             return {"ok": True, "ignored": True}
+        if str(order.get("status") or "").lower() == "paid":
+            return {"ok": True, "already_processed": True}
         event_text = str(event_type or "").lower()
         status_text = str(raw.get("status") or raw.get("invoiceStatus") or "").lower()
         if any(word in event_text or word in status_text for word in ["settled", "confirmed", "complete", "paid"]):
@@ -1428,13 +1583,17 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             free_limit_default=settings.free_trial_requests,
             monthly_limit_default=settings.free_monthly_credits,
         )
+        business = await db.get_business_profile(user.id)
         return {
             "user": {
                 "id": user.id,
                 "username": user.username,
                 "first_name": user.first_name,
                 "last_name": user.last_name,
+                "business_profile": (business or {}).get("description") or (business or {}).get("main_problem") or "",
+                "company_name": (business or {}).get("business_name") or (business or {}).get("niche") or "",
             },
+            "business_profile": business,
             "usage": usage_payload(access),
             "limits": {
                 "free_trial_requests": settings.free_trial_requests,
@@ -1442,6 +1601,19 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                 "per_minute_limit": settings.per_minute_limit,
             },
         }
+
+    @app.post("/api/profile")
+    async def update_profile(request: Request, user: TelegramUser = Depends(current_user)) -> dict[str, Any]:
+        payload = await read_json_dict(request)
+        company = str(payload.get("company_name") or payload.get("business_name") or "").strip()
+        description = str(payload.get("business_profile") or payload.get("description") or "").strip()
+        await db.upsert_user(user.id, user.username, user.first_name, user.last_name, photo_url=user.photo_url)
+        saved = await db.upsert_business_profile(user.id, {
+            "business_name": company,
+            "description": description,
+            "main_problem": description,
+        })
+        return {"ok": True, "profile": saved}
 
 
     @app.get("/api/projects")
@@ -1506,13 +1678,96 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     async def credit_packs() -> dict[str, Any]:
         return {"ok": True, "packs": features.credit_packs()}
 
+    async def finalize_credit_pack_order(order: dict[str, Any], raw_event: dict[str, Any] | None = None) -> dict[str, Any]:
+        if not order:
+            raise BillingError("Заказ пакета кредитов не найден.")
+        if str(order.get("status") or "").lower() == "paid":
+            return {"ok": True, "status": "paid", "credits": int(order.get("credits") or 0), "order": order}
+        external_id = str(order.get("external_payment_id") or "")
+        if not external_id:
+            raise BillingError("У заказа пакета нет ID платежа ЮKassa.")
+        # Verify amount/currency/kind manually, then grant credits exactly once.
+        payment = await verify_yookassa_payment_for_credit_pack(order, external_id)
+        result = await features.grant_credit_pack(int(order["telegram_user_id"]), order["id"], "yookassa")
+        await features.update_credit_pack_order_payment(order["id"], status="paid", provider="yookassa", external_payment_id=external_id)
+        await db.record_payment(
+            order_id=order["id"],
+            telegram_id=int(order["telegram_user_id"]),
+            provider="yookassa_credit_pack",
+            plan=str(order.get("pack_key") or "credit_pack"),
+            amount=float(order.get("amount") or 0),
+            currency=order.get("currency") or "RUB",
+            status="succeeded",
+            external_payment_id=external_id,
+            raw_event=raw_event or payment,
+        )
+        return {"ok": True, "status": "paid", "credits": result.get("credits"), "order": await features.get_credit_pack_order(order["id"])}
+
+    async def verify_yookassa_payment_for_credit_pack(order: dict[str, Any], payment_id: str) -> dict[str, Any]:
+        from app.billing import fetch_yookassa_payment, rub_value
+        from decimal import Decimal
+        data = await fetch_yookassa_payment(settings, payment_id)
+        metadata = data.get("metadata") or {}
+        amount = data.get("amount") or {}
+        if str(metadata.get("kind") or "") != "credit_pack":
+            raise BillingError("ЮKassa: платёж не относится к пакету кредитов.")
+        if str(metadata.get("credit_pack_order_id") or metadata.get("order_id") or "") != str(order["id"]):
+            raise BillingError("ЮKassa: metadata.order_id не совпадает с заказом пакета.")
+        if str(amount.get("currency") or "").upper() != "RUB":
+            raise BillingError("ЮKassa: валюта пакета кредитов не совпадает.")
+        if str(amount.get("value") or "") != rub_value(Decimal(str(order["amount"]))):
+            raise BillingError("ЮKassa: сумма пакета кредитов не совпадает.")
+        if data.get("status") != "succeeded":
+            raise BillingError("ЮKassa: платёж пакета кредитов ещё не подтверждён.")
+        return data
+
     @app.post("/api/credits/packs/order")
     async def create_credit_pack_order(payload: CreditPackOrderRequest, user: TelegramUser = Depends(current_user)) -> dict[str, Any]:
         telegram_id = resolve_telegram_id(user, payload.telegram_user_id)
+        await db.upsert_user(telegram_id, user.username, user.first_name, user.last_name, photo_url=user.photo_url)
         pack_key = payload.pack_key or payload.pack_id
         if not pack_key:
             return {"ok": False, "error": "Пакет кредитов не выбран."}
-        return await features.create_credit_pack_order(telegram_id, pack_key, payload.provider)
+        provider = (payload.provider or "yookassa").strip().lower()
+        order = await features.create_credit_pack_order(telegram_id, pack_key, provider)
+        pack = order.get("pack") or next((p for p in features.credit_packs() if p["key"] == pack_key or p["id"] == pack_key), None)
+        if provider != "yookassa":
+            return {**order, "disabled": True, "error": "Пакеты кредитов сейчас оплачиваются через ЮKassa."}
+        if not provider_enabled(settings, "yookassa"):
+            return {"ok": False, "error": "ЮKassa пока не настроена."}
+        try:
+            payment_order = {
+                "id": order["order_id"],
+                "telegram_user_id": str(telegram_id),
+                "pack_key": pack_key,
+                "amount": float((pack or {}).get("amount") or 0),
+                "currency": "RUB",
+            }
+            external_id, payment_url = await create_yookassa_credit_pack_payment(settings, payment_order, pack or {})
+            updated = await features.update_credit_pack_order_payment(order["order_id"], status="pending", provider="yookassa", external_payment_id=external_id, payment_url=payment_url)
+            return {"ok": True, "order_id": order["order_id"], "provider": "yookassa", "payment_url": payment_url, "order": updated, "pack": pack}
+        except BillingError as exc:
+            await features.update_credit_pack_order_payment(order["order_id"], status="failed", provider="yookassa")
+            return {"ok": False, "error": str(exc), "order_id": order["order_id"]}
+        except Exception as exc:  # noqa: BLE001
+            await features.update_credit_pack_order_payment(order["order_id"], status="failed", provider="yookassa")
+            await db.log_error("credit_pack_yookassa_order", str(exc), telegram_id)
+            return {"ok": False, "error": "Не удалось создать оплату пакета кредитов. Попробуйте позже.", "order_id": order["order_id"]}
+
+    @app.get("/api/credits/packs/order/{order_id}")
+    async def get_credit_pack_order(order_id: str, user: TelegramUser = Depends(current_user)) -> dict[str, Any]:
+        order = await features.get_credit_pack_order(order_id)
+        if not order:
+            raise HTTPException(status_code=404, detail="Заказ пакета кредитов не найден.")
+        if not settings.allow_dev_auth and str(order.get("telegram_user_id")) != str(user.id):
+            raise HTTPException(status_code=403, detail="Этот заказ принадлежит другому пользователю.")
+        if order.get("provider") == "yookassa" and str(order.get("status") or "").lower() == "pending" and order.get("external_payment_id"):
+            try:
+                await finalize_credit_pack_order(order)
+                order = await features.get_credit_pack_order(order_id) or order
+            except BillingError:
+                pass
+        return {"ok": True, "order": order, "status": order.get("status")}
 
     @app.post("/api/credits/packs/{order_id}/grant")
     async def grant_credit_pack(order_id: str, telegram_user_id: int, x_admin_secret: str | None = Header(default=None)) -> dict[str, Any]:

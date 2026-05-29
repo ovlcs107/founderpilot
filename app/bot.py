@@ -4,7 +4,7 @@ from html import escape
 
 from aiogram import Dispatcher, F, Router
 from aiogram.filters import Command, CommandObject
-from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup, Message, PreCheckoutQuery
+from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup, Message, PreCheckoutQuery, WebAppInfo
 
 from app.billing import activate_subscription, plan_catalog
 from app.credits import estimate_credits, estimate_output_tokens
@@ -39,15 +39,16 @@ def split_for_telegram(text: str, limit: int = 3900) -> list[str]:
 
 def build_main_keyboard(settings: Settings) -> InlineKeyboardMarkup:
     keyboard: list[list[InlineKeyboardButton]] = []
-    if settings.telegram_channel_enabled:
+    if settings.telegram_webapp_enabled:
         keyboard.append(
             [
                 InlineKeyboardButton(
-                    text="📣 Telegram канал",
-                    url=settings.telegram_channel_url,
+                    text="Открыть FounderPilot AI",
+                    web_app=WebAppInfo(url=settings.webapp_url),
                 )
             ]
         )
+    keyboard.append([InlineKeyboardButton(text="Как получить сильный разбор", callback_data="help")])
     return InlineKeyboardMarkup(inline_keyboard=keyboard)
 
 
@@ -82,6 +83,11 @@ def build_dispatcher(
         if not order or order.get("status") not in {"pending", "failed"}:
             await query.answer(ok=False, error_message="Заказ не найден или уже обработан.")
             return
+        plan = plan_catalog(settings).get(str(order.get("plan")))
+        if order.get("provider") != "telegram_stars" or not plan or query.currency != "XTR" or int(query.total_amount or 0) != int(plan.price_stars):
+            await db.update_billing_order(payload, status="failed")
+            await query.answer(ok=False, error_message="Order payment data mismatch.")
+            return
         await query.answer(ok=True)
 
     @router.message(F.successful_payment)
@@ -99,9 +105,23 @@ def build_dispatcher(
         if not plan:
             await message.answer("Платёж получен, но тариф не найден. Напишите администратору.")
             return
+        expected_amount = int(plan.price_stars)
+        actual_amount = int(getattr(payment, "total_amount", 0) or 0)
+        if order.get("provider") != "telegram_stars" or payment.currency != "XTR" or actual_amount != expected_amount:
+            await db.update_billing_order(order_id, status="failed")
+            await db.log_error(
+                "telegram_stars_payment_mismatch",
+                f"order={order_id} provider={order.get('provider')} currency={payment.currency} amount={actual_amount} expected={expected_amount}",
+                message.from_user.id,
+            )
+            await message.answer("Payment received, but order data mismatch. Contact support.")
+            return
+        order_user_id = int(order.get("telegram_user_id") or message.from_user.id)
+        if order_user_id != message.from_user.id:
+            await db.log_error("telegram_stars_payer_mismatch", f"order={order_id} payer={message.from_user.id} owner={order_user_id}", order_user_id)
         result = await activate_subscription(
             db,
-            message.from_user.id,
+            order_user_id,
             plan.key,
             "telegram_stars",
             order_id,
@@ -110,7 +130,7 @@ def build_dispatcher(
         )
         await db.record_payment(
             order_id=order_id,
-            telegram_id=message.from_user.id,
+            telegram_id=order_user_id,
             provider="telegram_stars",
             plan=plan.key,
             amount=float(order.get("amount") or 0),
@@ -138,30 +158,30 @@ def build_dispatcher(
             if command.args:
                 await db.set_referrer(user.id, command.args.strip())
 
-        action_hint = "Откройте Mini App через меню бота или отправьте задачу прямо сюда."
+        action_hint = "Откройте Mini App или отправьте задачу прямо в чат."
         if not settings.telegram_webapp_enabled:
-            action_hint = "Пока Mini App подключается, можно отправлять задачи прямо в этот чат."
+            action_hint = (
+                "Mini App будет доступен после подключения публичного HTTPS-адреса. "
+                "Сейчас можно отправить задачу прямо в чат."
+            )
         text = (
-            "🚀 <b>FounderPilot AI</b>\n"
-            "AI-помощник для предпринимателей, селлеров и команд, которые хотят быстрее проверять идеи, "
-            "считать экономику и собирать понятные планы роста.\n\n"
-            "✨ <b>Что можно сделать:</b>\n"
-            "• разобрать идею бизнеса или продукта;\n"
-            "• посчитать маржу, риски и точку безубыточности;\n"
-            "• улучшить карточку WB/Ozon и оффер;\n"
-            "• подготовить план продаж, рекламу и контент;\n"
-            "• получить краткий разбор без лишней воды.\n\n"
-            "🧭 <b>Как начать:</b>\n"
-            f"{action_hint} Чем точнее вводные, тем полезнее результат."
+            "<b>FounderPilot AI</b>\n"
+            "FounderPilot AI - помощник для предпринимателей и селлеров WB/Ozon. "
+            "Поможет собрать оффер, карточку товара, рекламу, SWOT, план продаж, контент и расчет маржи.\n\n"
+            "<b>Примеры задач:</b>\n"
+            "- улучшить карточку товара для WB/Ozon;\n"
+            "- посчитать маржу и риски цены;\n"
+            "- написать ответ на отзыв или рекламный оффер.\n\n"
+            "<b>Как начать:</b>\n"
+            f"{action_hint} Чем точнее вводные, тем практичнее результат."
         )
         await message.answer(text, parse_mode=TELEGRAM_PARSE_MODE, reply_markup=build_main_keyboard(settings))
 
     @router.message(Command("app"))
     async def app_command(message: Message) -> None:
         await message.answer(
-            "📱 <b>FounderPilot Mini App</b>\n\n"
-            "В Mini App доступны чат, инструменты, история, подписка, профиль и рабочие пространства. "
-            "Откройте приложение через меню бота, а новости и обновления — в Telegram-канале ниже.",
+            "<b>FounderPilot AI Mini App</b>\n\n"
+            "Основной интерфейс находится в Mini App: AI Chat, инструменты, история, профиль бизнеса и сохраненные результаты.",
             parse_mode=TELEGRAM_PARSE_MODE,
             reply_markup=build_main_keyboard(settings),
         )
@@ -174,17 +194,16 @@ def build_dispatcher(
             else "Для Mini App укажите публичный HTTPS <code>WEBAPP_PUBLIC_URL</code>. До этого можно отправлять запросы прямо в чат.\n"
         )
         await message.answer(
-            "💡 <b>FounderPilot AI помогает быстро разбирать бизнес-задачи</b>\n\n"
+            "<b>Что умеет FounderPilot AI</b>\n\n"
             f"{webapp_step}"
-            "\n<b>Подходит для:</b>\n"
-            "• идей стартапов и MVP;\n"
-            "• WB/Ozon карточек и офферов;\n"
-            "• юнит-экономики, маржи и рисков;\n"
-            "• контента, рекламы и планов продаж.\n\n"
-            "<b>Хороший запрос:</b>\n"
+            "\n<b>Основные задачи:</b>\n"
+            "- AI Chat для бизнес-вопросов;\n"
+            "- карточки WB/Ozon, офферы, реклама и ответы на отзывы;\n"
+            "- расчет маржи, SWOT, контент-план и план продаж;\n"
+            "- история, сохраненные результаты и профиль бизнеса.\n\n"
+            "<b>Шаблон запроса:</b>\n"
             "<pre>Ниша:\nКлиент:\nПродукт:\nЦена:\nЦель:\nОграничения:</pre>",
             parse_mode=TELEGRAM_PARSE_MODE,
-            reply_markup=build_main_keyboard(settings),
         )
 
     @router.message(Command("stats"))

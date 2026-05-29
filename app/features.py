@@ -86,9 +86,17 @@ CREATE TABLE IF NOT EXISTS credit_pack_orders (
     currency TEXT NOT NULL DEFAULT 'RUB',
     status TEXT NOT NULL DEFAULT 'created',
     provider TEXT,
+    external_payment_id TEXT,
+    payment_url TEXT,
     created_at TEXT NOT NULL,
     updated_at TEXT NOT NULL
 );
+
+CREATE INDEX IF NOT EXISTS idx_credit_pack_orders_user_created
+ON credit_pack_orders(telegram_user_id, created_at);
+
+CREATE INDEX IF NOT EXISTS idx_credit_pack_orders_external
+ON credit_pack_orders(external_payment_id);
 
 CREATE TABLE IF NOT EXISTS abuse_events (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -179,6 +187,11 @@ async def init_features(db_path: str) -> None:
         cols = await _columns(db, "users")
         if "purchased_credits" not in cols:
             await db.execute("ALTER TABLE users ADD COLUMN purchased_credits INTEGER DEFAULT 0")
+        credit_cols = await _columns(db, "credit_pack_orders")
+        if "external_payment_id" not in credit_cols:
+            await db.execute("ALTER TABLE credit_pack_orders ADD COLUMN external_payment_id TEXT")
+        if "payment_url" not in credit_cols:
+            await db.execute("ALTER TABLE credit_pack_orders ADD COLUMN payment_url TEXT")
         await db.commit()
 
 
@@ -449,8 +462,56 @@ class FeatureStore:
             await db.commit()
         return {"ok": True, "order_id": order_id, "pack": pack, "status": "created"}
 
+    async def update_credit_pack_order_payment(
+        self,
+        order_id: str,
+        *,
+        status: str | None = None,
+        provider: str | None = None,
+        external_payment_id: str | None = None,
+        payment_url: str | None = None,
+    ) -> dict[str, Any] | None:
+        async with aiosqlite.connect(self.db_path) as db:
+            db.row_factory = aiosqlite.Row
+            cur = await db.execute("SELECT * FROM credit_pack_orders WHERE id = ?", (order_id,))
+            row = await cur.fetchone()
+            if not row:
+                return None
+            current = dict(row)
+            await db.execute(
+                """
+                UPDATE credit_pack_orders
+                SET status = ?, provider = COALESCE(?, provider), external_payment_id = COALESCE(?, external_payment_id),
+                    payment_url = COALESCE(?, payment_url), updated_at = ?
+                WHERE id = ?
+                """,
+                (status or current.get("status") or "created", provider, external_payment_id, payment_url, utc_now(), order_id),
+            )
+            await db.commit()
+            cur = await db.execute("SELECT * FROM credit_pack_orders WHERE id = ?", (order_id,))
+            row = await cur.fetchone()
+            return dict(row) if row else None
+
+    async def get_credit_pack_order(self, order_id: str) -> dict[str, Any] | None:
+        async with aiosqlite.connect(self.db_path) as db:
+            db.row_factory = aiosqlite.Row
+            cur = await db.execute("SELECT * FROM credit_pack_orders WHERE id = ?", (order_id,))
+            row = await cur.fetchone()
+            return dict(row) if row else None
+
+    async def find_credit_pack_order_by_external_id(self, external_payment_id: str) -> dict[str, Any] | None:
+        async with aiosqlite.connect(self.db_path) as db:
+            db.row_factory = aiosqlite.Row
+            cur = await db.execute(
+                "SELECT * FROM credit_pack_orders WHERE external_payment_id = ? ORDER BY created_at DESC LIMIT 1",
+                (external_payment_id,),
+            )
+            row = await cur.fetchone()
+            return dict(row) if row else None
+
     async def grant_credit_pack(self, telegram_id: int, order_id: str, admin_note: str = "manual") -> dict[str, Any]:
         async with aiosqlite.connect(self.db_path) as db:
+            await db.execute("BEGIN IMMEDIATE")
             db.row_factory = aiosqlite.Row
             cur = await db.execute(
                 "SELECT * FROM credit_pack_orders WHERE id = ? AND telegram_user_id = ?",
@@ -458,17 +519,26 @@ class FeatureStore:
             )
             order = await cur.fetchone()
             if not order:
+                await db.rollback()
                 raise ValueError("Заказ пакета не найден.")
             if order["status"] == "paid":
+                await db.rollback()
+                return {"ok": True, "status": "already_paid", "credits": int(order["credits"])}
+            updated = await db.execute(
+                """
+                UPDATE credit_pack_orders
+                SET status = 'paid', updated_at = ?
+                WHERE id = ? AND telegram_user_id = ? AND status != 'paid'
+                """,
+                (utc_now(), order_id, str(telegram_id)),
+            )
+            if updated.rowcount != 1:
+                await db.rollback()
                 return {"ok": True, "status": "already_paid", "credits": int(order["credits"])}
             credits = int(order["credits"])
             await db.execute(
                 "UPDATE users SET purchased_credits = COALESCE(purchased_credits, 0) + ?, updated_at = ? WHERE telegram_id = ? OR telegram_user_id = ?",
                 (credits, utc_now(), telegram_id, str(telegram_id)),
-            )
-            await db.execute(
-                "UPDATE credit_pack_orders SET status = 'paid', updated_at = ? WHERE id = ?",
-                (utc_now(), order_id),
             )
             await db.execute(
                 """
@@ -541,6 +611,7 @@ class FeatureStore:
 
     async def list_organizations(self, telegram_id: int, username: str | None = None) -> dict[str, Any]:
         clean_username = (username or "").strip().lstrip("@").lower()
+        now = utc_now()
         async with aiosqlite.connect(self.db_path) as db:
             db.row_factory = aiosqlite.Row
             owned_cur = await db.execute(
@@ -568,10 +639,12 @@ class FeatureStore:
                     SELECT oi.*, o.title AS organization_title, o.owner_telegram_user_id
                     FROM organization_invites oi
                     JOIN organizations o ON o.id = oi.organization_id
-                    WHERE oi.status = 'pending' AND (oi.invited_telegram_user_id = ? OR lower(oi.invited_username) = ?)
+                    WHERE oi.status = 'pending'
+                      AND (oi.expires_at IS NULL OR oi.expires_at >= ?)
+                      AND (oi.invited_telegram_user_id = ? OR lower(oi.invited_username) = ?)
                     ORDER BY oi.created_at DESC
                     """,
-                    (str(telegram_id), clean_username),
+                    (now, str(telegram_id), clean_username),
                 )
                 pending = [dict(row) for row in await inv_cur.fetchall()]
             else:
@@ -580,10 +653,12 @@ class FeatureStore:
                     SELECT oi.*, o.title AS organization_title, o.owner_telegram_user_id
                     FROM organization_invites oi
                     JOIN organizations o ON o.id = oi.organization_id
-                    WHERE oi.status = 'pending' AND oi.invited_telegram_user_id = ?
+                    WHERE oi.status = 'pending'
+                      AND (oi.expires_at IS NULL OR oi.expires_at >= ?)
+                      AND oi.invited_telegram_user_id = ?
                     ORDER BY oi.created_at DESC
                     """,
-                    (str(telegram_id),),
+                    (now, str(telegram_id)),
                 )
                 pending = [dict(row) for row in await inv_cur.fetchall()]
 
@@ -678,6 +753,8 @@ class FeatureStore:
         clean_username = username.strip().lstrip("@").lower()
         if not clean_username:
             raise ValueError("Укажите username Telegram.")
+        if len(clean_username) < 5 or len(clean_username) > 32 or not all(ch.isalnum() or ch == "_" for ch in clean_username):
+            raise ValueError("Invalid Telegram username.")
         invited_user = await self.find_user_by_username(clean_username)
         now_dt = datetime.now(timezone.utc)
         now = now_dt.isoformat()
@@ -715,6 +792,11 @@ class FeatureStore:
             if not invite:
                 raise ValueError("Приглашение не найдено или уже использовано.")
             invite_dict = dict(invite)
+            expires_at = invite_dict.get("expires_at")
+            if expires_at and str(expires_at) < utc_now():
+                await db.execute("UPDATE organization_invites SET status = 'expired' WHERE token = ?", (token,))
+                await db.commit()
+                raise ValueError("Invitation has expired.")
             invited_tg = invite_dict.get("invited_telegram_user_id")
             invited_username = str(invite_dict.get("invited_username") or "").lower()
             if invited_tg and str(invited_tg) != str(telegram_id):
@@ -743,6 +825,11 @@ class FeatureStore:
             if not invite:
                 raise ValueError("Приглашение не найдено или уже использовано.")
             invite_dict = dict(invite)
+            expires_at = invite_dict.get("expires_at")
+            if expires_at and str(expires_at) < now:
+                await db.execute("UPDATE organization_invites SET status = 'expired' WHERE token = ?", (token,))
+                await db.commit()
+                raise ValueError("Invitation has expired.")
             invited_tg = invite_dict.get("invited_telegram_user_id")
             invited_username = str(invite_dict.get("invited_username") or "").lower()
             if invited_tg and str(invited_tg) != str(telegram_id):
