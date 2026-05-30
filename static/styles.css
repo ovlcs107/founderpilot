@@ -5409,3 +5409,337 @@ textarea,
 input {
   overflow-wrap: normal;
 }
+
+
+/* === FounderPilot UI Polish v4: Mini App / desktop hard visual safety ===
+   Purpose: keep the interface minimal, but stop profile/list/nav text from
+   sticking, clipping, or hiding behind Telegram/system bars. */
+:root {
+  --fp-app-height: min(100dvh, var(--fp-viewport-height, 100dvh));
+  --fp-bottom-safe: max(env(safe-area-inset-bottom, 0px), var(--fp-tg-safe-bottom, 0px), var(--fp-content-safe-bottom, 0px));
+  --fp-top-safe: max(env(safe-area-inset-top, 0px), var(--fp-content-safe-top, 0px));
+  --fp-nav-height: 64px;
+  --fp-mobile-x: 16px;
+}
+
+html,
+body {
+  max-width: 100%;
+  overflow: hidden !important;
+}
+
+body,
+.app-shell,
+.main-content {
+  height: var(--fp-app-height) !important;
+  min-height: var(--fp-app-height) !important;
+  max-height: var(--fp-app-height) !important;
+}
+
+.main-content,
+.view,
+.view.active,
+.view-inner,
+.profile-shell,
+.profile-content,
+.profile-sub-pane,
+.settings-list,
+.app-style-list {
+  min-width: 0 !important;
+  max-width: 100% !important;
+}
+
+.view.active {
+  height: 100% !important;
+  overflow: hidden !important;
+}
+
+.view-inner {
+  height: 100% !important;
+  overflow-x: hidden !important;
+  overflow-y: auto !important;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+}
+
+@media (max-width: 1099px) {
+  .view-inner {
+    padding-left: var(--fp-mobile-x) !important;
+    padding-right: var(--fp-mobile-x) !important;
+    padding-top: calc(16px + var(--fp-top-safe)) !important;
+    padding-bottom: calc(var(--fp-nav-height) + 20px + var(--fp-bottom-safe)) !important;
+  }
+
+  .mobile-nav {
+    display: grid !important;
+    position: fixed !important;
+    left: 0 !important;
+    right: 0 !important;
+    bottom: 0 !important;
+    z-index: 240 !important;
+    height: calc(var(--fp-nav-height) + var(--fp-bottom-safe)) !important;
+    min-height: calc(var(--fp-nav-height) + var(--fp-bottom-safe)) !important;
+    padding: 6px max(7px, var(--fp-tg-safe-right, 0px)) calc(5px + var(--fp-bottom-safe)) max(7px, var(--fp-tg-safe-left, 0px)) !important;
+    grid-template-columns: repeat(5, minmax(0, 1fr)) !important;
+    align-items: stretch !important;
+    background: rgba(255,255,255,.96) !important;
+    border-top: 1px solid var(--line) !important;
+    box-shadow: 0 -10px 28px rgba(16,20,31,.055) !important;
+    backdrop-filter: blur(22px);
+    -webkit-backdrop-filter: blur(22px);
+    transform: translateZ(0);
+  }
+
+  .mobile-nav .nav-item {
+    min-width: 0 !important;
+    min-height: 48px !important;
+    padding: 3px 0 !important;
+    gap: 2px !important;
+    overflow: hidden !important;
+  }
+
+  .mobile-nav .nav-icon {
+    width: 20px !important;
+    height: 20px !important;
+  }
+
+  .mobile-nav .nav-item > span:last-child {
+    max-width: 100% !important;
+    overflow: hidden !important;
+    text-overflow: ellipsis !important;
+    white-space: nowrap !important;
+    font-size: clamp(9px, 2.35vw, 10.5px) !important;
+    line-height: 1.05 !important;
+  }
+
+  #view-profile .view-inner {
+    padding-top: calc(14px + var(--fp-top-safe)) !important;
+  }
+
+  #view-profile .profile-page,
+  #view-profile .profile-shell,
+  #view-profile .mobile-profile-overview {
+    width: 100% !important;
+  }
+
+  #view-profile .mobile-profile-head {
+    margin: 0 0 14px !important;
+  }
+
+  #view-profile .mobile-profile-head h2,
+  #view-profile .page-head h2 {
+    font-size: 24px !important;
+    line-height: 1.08 !important;
+    letter-spacing: -0.02em;
+  }
+
+  #view-profile .profile-hero-card {
+    width: 100% !important;
+    margin: 0 0 16px !important;
+    padding: 16px !important;
+    min-height: 112px !important;
+    display: grid !important;
+    grid-template-columns: 58px minmax(0, 1fr) 16px !important;
+    align-items: center !important;
+    gap: 14px !important;
+    overflow: hidden !important;
+  }
+
+  #view-profile .profile-avatar {
+    width: 58px !important;
+    height: 58px !important;
+    font-size: 22px !important;
+    flex: 0 0 58px !important;
+  }
+
+  #view-profile .profile-hero-card h3 {
+    font-size: 18px !important;
+    line-height: 1.15 !important;
+    max-width: 100% !important;
+    overflow: hidden !important;
+    text-overflow: ellipsis !important;
+    white-space: nowrap !important;
+  }
+
+  #view-profile .profile-hero-card p {
+    font-size: 13.5px !important;
+    line-height: 1.2 !important;
+    max-width: 100% !important;
+    overflow: hidden !important;
+    text-overflow: ellipsis !important;
+    white-space: nowrap !important;
+  }
+
+  #view-profile .profile-plan-inline-badge {
+    min-width: 0 !important;
+    max-width: 100% !important;
+    flex-wrap: nowrap !important;
+    overflow: hidden !important;
+  }
+
+  #view-profile .mini-plan-badge,
+  #view-profile .mini-price {
+    flex: 0 0 auto !important;
+    white-space: nowrap !important;
+  }
+
+  #view-profile .profile-root-list,
+  #view-profile .settings-list {
+    width: 100% !important;
+    overflow: hidden !important;
+  }
+
+  #view-profile .profile-root-list .settings-row,
+  #view-profile .profile-sub-pane .settings-row {
+    width: 100% !important;
+    min-height: 60px !important;
+    padding: 13px 14px !important;
+    display: grid !important;
+    grid-template-columns: 32px minmax(0, 1fr) auto !important;
+    align-items: center !important;
+    gap: 12px !important;
+    overflow: hidden !important;
+  }
+
+  #view-profile .settings-row > span:not(.row-icon):not(.menu-icon-box):not(.chevron),
+  #view-profile .settings-row > div:not(.row-icon):not(.menu-icon-box) {
+    min-width: 0 !important;
+    overflow: hidden !important;
+  }
+
+  #view-profile .settings-row b {
+    display: block !important;
+    min-width: 0 !important;
+    max-width: 100% !important;
+    overflow: hidden !important;
+    text-overflow: ellipsis !important;
+    white-space: nowrap !important;
+    font-size: 15px !important;
+    line-height: 1.18 !important;
+  }
+
+  #view-profile .settings-row small {
+    display: block !important;
+    min-width: 0 !important;
+    max-width: 100% !important;
+    margin-top: 3px !important;
+    overflow: hidden !important;
+    text-overflow: ellipsis !important;
+    white-space: nowrap !important;
+    font-size: 12px !important;
+    line-height: 1.2 !important;
+  }
+
+  #view-profile .settings-row em,
+  #view-profile .settings-row .chevron {
+    max-width: 34vw !important;
+    justify-self: end !important;
+    overflow: hidden !important;
+    text-overflow: ellipsis !important;
+    white-space: nowrap !important;
+  }
+
+  #view-profile .profile-root-list .row-icon,
+  #view-profile .profile-sub-pane .row-icon,
+  #view-profile .menu-icon-box {
+    width: 32px !important;
+    height: 32px !important;
+    border-radius: 10px !important;
+  }
+
+  .modal-sheet {
+    max-height: calc(var(--fp-app-height) - 10px) !important;
+  }
+
+  .modal-scroll-content {
+    max-height: calc(var(--fp-app-height) - 154px) !important;
+  }
+}
+
+@media (max-width: 390px) {
+  :root { --fp-mobile-x: 14px; }
+  #view-profile .profile-hero-card {
+    grid-template-columns: 54px minmax(0, 1fr) 14px !important;
+    gap: 12px !important;
+    padding: 15px !important;
+  }
+  #view-profile .profile-avatar {
+    width: 54px !important;
+    height: 54px !important;
+    flex-basis: 54px !important;
+  }
+  #view-profile .profile-root-list .settings-row,
+  #view-profile .profile-sub-pane .settings-row {
+    grid-template-columns: 30px minmax(0, 1fr) auto !important;
+    gap: 10px !important;
+    padding-left: 13px !important;
+    padding-right: 13px !important;
+  }
+}
+
+@media (min-width: 1100px) {
+  body,
+  .app-shell,
+  .main-content {
+    height: 100vh !important;
+    min-height: 100vh !important;
+    max-height: 100vh !important;
+  }
+
+  .main-content {
+    margin-left: var(--sidebar-w, 260px) !important;
+    width: calc(100vw - var(--sidebar-w, 260px)) !important;
+  }
+
+  .view-inner {
+    height: 100vh !important;
+    overflow-y: auto !important;
+    overflow-x: hidden !important;
+    padding: 54px 32px 56px !important;
+  }
+
+  .desktop-top-bar {
+    max-width: calc(100vw - var(--sidebar-w, 260px) - 48px) !important;
+    overflow: hidden !important;
+  }
+
+  .profile-shell {
+    grid-template-columns: minmax(220px, 250px) minmax(0, 1fr) !important;
+    align-items: start !important;
+  }
+
+  .profile-menu,
+  .profile-content,
+  .profile-sub-pane,
+  .settings-section,
+  .settings-list,
+  .subscription-layout,
+  .subscription-main,
+  .subscription-side,
+  .list-panel,
+  .app-style-list {
+    min-width: 0 !important;
+  }
+
+  .settings-row,
+  .tool-card,
+  .history-item,
+  .workspace-row,
+  .template-row,
+  .pack-row,
+  .organization-row {
+    min-width: 0 !important;
+    overflow: hidden !important;
+  }
+
+  .settings-row > span,
+  .settings-row > div,
+  .tool-info,
+  .history-item > div,
+  .workspace-row > div,
+  .template-row > div,
+  .pack-row > div,
+  .organization-row > div {
+    min-width: 0 !important;
+  }
+}

@@ -3292,3 +3292,74 @@ document.addEventListener('DOMContentLoaded', () => {
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', bootPolish);
   else bootPolish();
 })();
+
+
+/* === FounderPilot UI Polish v4: safer Telegram viewport math === */
+(function founderPilotUiPolishV4() {
+  const root = document.documentElement;
+  const webApp = window.Telegram?.WebApp || null;
+
+  function px(value) {
+    const n = Number(value);
+    return Number.isFinite(n) && n > 0 ? `${Math.round(n)}px` : '0px';
+  }
+
+  function pickAppHeight() {
+    const candidates = [];
+    const visual = window.visualViewport?.height;
+    const inner = window.innerHeight;
+    const client = document.documentElement.clientHeight;
+    const tgHeight = webApp?.viewportHeight;
+    [visual, inner, client, tgHeight].forEach(value => {
+      const n = Number(value);
+      if (Number.isFinite(n) && n > 220) candidates.push(n);
+    });
+    if (!candidates.length) return 0;
+    return Math.min(...candidates);
+  }
+
+  function syncV4() {
+    const appHeight = pickAppHeight();
+    if (appHeight) root.style.setProperty('--fp-app-height', `${Math.round(appHeight)}px`);
+
+    const stable = Number(webApp?.viewportStableHeight) || window.innerHeight || appHeight || 0;
+    if (stable) root.style.setProperty('--fp-stable-viewport-height', `${Math.round(stable)}px`);
+
+    const current = appHeight || Number(webApp?.viewportHeight) || window.innerHeight || 0;
+    document.body?.classList.toggle('keyboard-open', Boolean(stable && current && stable - current > 90));
+
+    const nav = document.querySelector('.mobile-nav');
+    const active = document.querySelector('.view.active .view-inner');
+    if (nav && active && window.innerWidth < 1100) {
+      const navHeight = Math.ceil(nav.getBoundingClientRect().height || 0);
+      if (navHeight > 0) active.style.scrollPaddingBottom = `${navHeight + 18}px`;
+    }
+  }
+
+  function bootV4() {
+    syncV4();
+    requestAnimationFrame(syncV4);
+    setTimeout(syncV4, 120);
+    setTimeout(syncV4, 420);
+  }
+
+  try { webApp?.onEvent?.('viewportChanged', syncV4); } catch {}
+  try { webApp?.onEvent?.('safeAreaChanged', syncV4); } catch {}
+  window.addEventListener('resize', syncV4, { passive: true });
+  window.visualViewport?.addEventListener('resize', syncV4, { passive: true });
+  window.visualViewport?.addEventListener('scroll', syncV4, { passive: true });
+
+  const previousSwitchViewV4 = typeof switchView === 'function' ? switchView : null;
+  if (previousSwitchViewV4 && !window.__fpUiPolishV4SwitchWrapped) {
+    window.__fpUiPolishV4SwitchWrapped = true;
+    switchView = function founderPilotV4SafeSwitch(target) {
+      const result = previousSwitchViewV4.apply(this, arguments);
+      requestAnimationFrame(syncV4);
+      setTimeout(syncV4, 80);
+      return result;
+    };
+  }
+
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', bootV4);
+  else bootV4();
+})();
