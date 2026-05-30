@@ -3169,3 +3169,126 @@ document.addEventListener('DOMContentLoaded', () => {
   };
   document.addEventListener('DOMContentLoaded', updateCompactStatusSurface);
 })();
+
+
+/* === FounderPilot UI Polish v3: Telegram viewport + text/layout safety === */
+(function founderPilotUiPolishV3() {
+  const root = document.documentElement;
+  const webApp = window.Telegram?.WebApp || null;
+
+  function numberPx(value) {
+    const n = Number(value);
+    return Number.isFinite(n) && n >= 0 ? `${Math.round(n)}px` : '0px';
+  }
+
+  function insetValue(source, key) {
+    if (!source) return '0px';
+    return numberPx(source[key] ?? source[key.replace('Inset', '')] ?? 0);
+  }
+
+  function syncTelegramViewport() {
+    const visualHeight = window.visualViewport?.height || window.innerHeight || document.documentElement.clientHeight || 0;
+    const viewportHeight = Number(webApp?.viewportHeight) || visualHeight;
+    const stableHeight = Number(webApp?.viewportStableHeight) || window.innerHeight || viewportHeight;
+
+    root.style.setProperty('--fp-viewport-height', numberPx(viewportHeight));
+    root.style.setProperty('--fp-stable-viewport-height', numberPx(stableHeight));
+
+    const safe = webApp?.safeAreaInset || {};
+    const contentSafe = webApp?.contentSafeAreaInset || {};
+    root.style.setProperty('--fp-tg-safe-top', insetValue(safe, 'top'));
+    root.style.setProperty('--fp-tg-safe-right', insetValue(safe, 'right'));
+    root.style.setProperty('--fp-tg-safe-bottom', insetValue(safe, 'bottom'));
+    root.style.setProperty('--fp-tg-safe-left', insetValue(safe, 'left'));
+    root.style.setProperty('--fp-content-safe-top', insetValue(contentSafe, 'top'));
+    root.style.setProperty('--fp-content-safe-bottom', insetValue(contentSafe, 'bottom'));
+
+    document.body?.classList.toggle('tg-mini-app', Boolean(webApp && (webApp.initData || webApp.initDataUnsafe?.user || (webApp.platform && webApp.platform !== 'unknown'))));
+    document.body?.classList.toggle('keyboard-open', stableHeight - viewportHeight > 90);
+  }
+
+  function normalizeOneLineTexts(rootNode = document) {
+    const selectors = [
+      '.nav-item span:last-child',
+      '.settings-row b', '.settings-row small', '.settings-row em',
+      '.tool-info h4', '.tool-info p',
+      '.history-item h4', '.history-item p',
+      '.organization-row b', '.organization-row small',
+      '.workspace-row b', '.workspace-row small',
+      '.template-row b', '.template-row small',
+      '.pack-row b', '.pack-row small',
+      '.subscription-price', '.card-masked-numbers strong', '.card-masked-numbers small',
+      '.profile-hero-card h3', '.profile-hero-card p',
+      '.project-switch-main b', '.project-switch-main small',
+      '.fp-select-value', '.fp-select-option b', '.fp-select-option small'
+    ];
+    rootNode.querySelectorAll?.(selectors.join(',')).forEach(el => {
+      if (!el || el.dataset.fpTextSafe === '1') return;
+      el.dataset.fpTextSafe = '1';
+      el.title = el.title || String(el.textContent || '').trim();
+    });
+  }
+
+  function syncChatInputState() {
+    const input = document.getElementById('homeChatInput');
+    const send = document.getElementById('homeChatSendBtn');
+    if (!input) return;
+    input.style.height = 'auto';
+    input.style.height = `${Math.min(input.scrollHeight, 132)}px`;
+    const hasText = Boolean(input.value.trim());
+    input.closest('.chat-composer-zone')?.classList.toggle('has-text', hasText);
+    if (send) {
+      send.disabled = !hasText || Boolean(window.state?.isSending || state?.isSending);
+      send.classList.toggle('is-ready', hasText && !send.disabled);
+    }
+  }
+
+  if (typeof autoResizeTextarea === 'function' && !window.__fpUiPolishAutoResizeWrapped) {
+    window.__fpUiPolishAutoResizeWrapped = true;
+    const previousAutoResizeTextarea = autoResizeTextarea;
+    autoResizeTextarea = function founderPilotSafeAutoResizeTextarea() {
+      try { previousAutoResizeTextarea.apply(this, arguments); } catch {}
+      syncChatInputState();
+    };
+  }
+
+  if (typeof switchView === 'function' && !window.__fpUiPolishSwitchViewWrapped) {
+    window.__fpUiPolishSwitchViewWrapped = true;
+    const previousSwitchView = switchView;
+    switchView = function founderPilotSafeSwitchView(target) {
+      const result = previousSwitchView.apply(this, arguments);
+      requestAnimationFrame(() => {
+        syncTelegramViewport();
+        normalizeOneLineTexts(document);
+        const active = document.querySelector('.view.active .view-inner');
+        if (active && target !== 'home') active.scrollTop = 0;
+      });
+      return result;
+    };
+  }
+
+  function bootPolish() {
+    syncTelegramViewport();
+    normalizeOneLineTexts(document);
+    syncChatInputState();
+    document.getElementById('homeChatInput')?.addEventListener('input', syncChatInputState, { passive: true });
+
+    const observer = new MutationObserver(mutations => {
+      let shouldNormalize = false;
+      for (const mutation of mutations) {
+        if (mutation.addedNodes && mutation.addedNodes.length) { shouldNormalize = true; break; }
+      }
+      if (shouldNormalize) requestAnimationFrame(() => normalizeOneLineTexts(document));
+    });
+    observer.observe(document.body, { childList: true, subtree: true });
+  }
+
+  try { webApp?.onEvent?.('viewportChanged', syncTelegramViewport); } catch {}
+  try { webApp?.onEvent?.('safeAreaChanged', syncTelegramViewport); } catch {}
+  window.addEventListener('resize', syncTelegramViewport, { passive: true });
+  window.visualViewport?.addEventListener('resize', syncTelegramViewport, { passive: true });
+  window.visualViewport?.addEventListener('scroll', syncTelegramViewport, { passive: true });
+
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', bootPolish);
+  else bootPolish();
+})();
