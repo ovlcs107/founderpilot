@@ -60,6 +60,7 @@ from app.rate_limit import RateLimitError, RateLimiter
 from app.telegram_auth import TelegramAuthError, TelegramUser, dev_user, validate_telegram_init_data
 from app.secure_store import decrypt_text, encrypt_text, mask_account, mask_token, only_digits
 from app.features import FeatureStore, init_features
+from app.system_hardening import Stopwatch, estimate_ai_cost_rub, run_maintenance_cycle, system_task_loop
 
 logger = logging.getLogger(__name__)
 BASE_DIR = Path(__file__).resolve().parents[1]
@@ -901,14 +902,26 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     async def on_startup() -> None:
         app.state.db_ready = False
         app.state.startup_error = None
+        app.state.system_task = None
         try:
             await db.init()
             await init_features(settings.database_dsn)
             app.state.db_ready = True
             logger.info("Database initialized at %s", settings.database_dsn)
+            if settings.system_tasks_enabled:
+                app.state.system_task = asyncio.create_task(system_task_loop(db, settings))
+                logger.info("FounderPilot system tasks enabled, interval=%ss", settings.system_tasks_interval_seconds)
         except Exception as exc:  # noqa: BLE001
             app.state.startup_error = str(exc)
             logger.exception("Database/features initialization failed. /health will stay alive; app APIs may fail until this is fixed: %s", exc)
+
+    @app.on_event("shutdown")
+    async def on_shutdown() -> None:
+        task = getattr(app.state, "system_task", None)
+        if task:
+            task.cancel()
+            with suppress(asyncio.CancelledError):
+                await task
 
     @app.get("/", include_in_schema=False)
     async def root() -> RedirectResponse:
@@ -2822,9 +2835,16 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             "ai_today": await db.ai_usage_summary(day_start),
             "ai_total": await db.ai_usage_summary(),
             "credits": await db.credit_ledger_summary(),
+            "maintenance": await db.maintenance_snapshot(),
+            "recent_system_events": await db.list_system_audit_events(limit=10),
             "recent_errors": await db.list_error_logs(limit=10),
             "recent_payments": await db.list_payments(limit=10),
         }
+
+    @app.post("/api/admin/maintenance/run")
+    async def admin_run_maintenance(x_admin_secret: str | None = Header(default=None)) -> dict[str, Any]:
+        require_admin(x_admin_secret)
+        return await run_maintenance_cycle(db, settings)
 
     return app
 

@@ -3122,3 +3122,50 @@ document.addEventListener('DOMContentLoaded', () => {
   });
   observer.observe(document.body, { childList: true, subtree: true });
 });
+
+
+/* === FounderPilot system-hardening v2: tiny status surface === */
+(function founderPilotSystemHardeningV2() {
+  function fmtNum(value) {
+    const n = Number(value);
+    return Number.isFinite(n) ? n.toLocaleString('ru-RU') : '—';
+  }
+  function currentCreditValue(user = state.user || {}) {
+    if (typeof getRemainingCredits === 'function') return getRemainingCredits(user);
+    const n = Number(user.remaining ?? user.remaining_credits_today ?? user.credits ?? 0);
+    return Number.isFinite(n) ? n : 0;
+  }
+  function updateCompactStatusSurface() {
+    const u = state.user || {};
+    const plan = String(u.plan || 'free');
+    const planTitle = plan.charAt(0).toUpperCase() + plan.slice(1);
+    const credits = currentCreditValue(u);
+    const used = Number(u.daily_used ?? u.used_today ?? 0);
+    const limit = u.daily_limit ?? u.current_limit ?? null;
+    const dailyText = limit === null || limit === undefined ? fmtNum(used) : `${fmtNum(used)}/${fmtNum(limit)}`;
+    const billingState = state.autopay?.enabled ? 'Авто' : (plan.toLowerCase() === 'free' ? 'Free' : 'Активно');
+    const openTickets = (state.supportTickets || []).filter(t => String(t.status || '').toLowerCase() !== 'closed').length;
+    setText('accountStatusPlan', planTitle);
+    setText('accountStatusCredits', fmtNum(credits));
+    setText('accountStatusDaily', dailyText);
+    setText('accountStatusSafety', 'OK');
+    setText('opsCreditsValue', fmtNum(credits));
+    setText('opsLimitValue', dailyText);
+    setText('opsBillingValue', billingState);
+    setText('opsSupportValue', openTickets ? String(openTickets) : 'OK');
+    setText('appSystemTasksValue', 'V2');
+  }
+  const prevUpdateProfile = updateProfileUI;
+  updateProfileUI = function founderPilotProfileWithCompactStatuses() {
+    const result = prevUpdateProfile.apply(this, arguments);
+    updateCompactStatusSurface();
+    return result;
+  };
+  const prevRenderSupportTickets = renderSupportTickets;
+  renderSupportTickets = function founderPilotSupportStatusSync() {
+    const result = prevRenderSupportTickets.apply(this, arguments);
+    updateCompactStatusSurface();
+    return result;
+  };
+  document.addEventListener('DOMContentLoaded', updateCompactStatusSurface);
+})();

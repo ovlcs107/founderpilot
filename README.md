@@ -23,6 +23,29 @@
 - Все декоративные кнопки без backend-действия теперь дают понятный feedback, а не молчат как кнопка лифта в заброшенном ТЦ.
 
 
+
+## System Hardening v2
+
+Добавлен тихий backend-слой без перегруза интерфейса текстами:
+
+- cron-like maintenance loop через `SYSTEM_TASKS_ENABLED=true`;
+- ручной admin-запуск `POST /api/admin/maintenance/run`;
+- очистка зависших AI-резерваций кредитов после crash/timeout;
+- автоматическое истечение неоплаченных billing orders;
+- автоматический downgrade просроченных подписок;
+- расширенный `/api/admin/system-health` с `maintenance` и последними системными событиями;
+- в профиле появился компактный экран “Статусы”: баланс, лимит, оплата, поддержка — коротко, без простыней текста.
+
+Env:
+
+```env
+SYSTEM_TASKS_ENABLED=false
+SYSTEM_TASKS_INTERVAL_SECONDS=300
+SYSTEM_TASKS_STALE_AI_MINUTES=30
+```
+
+Для Railway включайте `SYSTEM_TASKS_ENABLED=true` только в одном сервисе, чтобы несколько процессов не дёргали maintenance одновременно. Ну а то будет не SaaS, а хор бухгалтеров.
+
 ## AI Quality Core
 
 В этой сборке усилена главная часть продукта — AI-ответы и стабильность запросов:
@@ -257,7 +280,7 @@ node --check static/app.js
 ```text
 python -m compileall app run.py tests  ✅
 node --check static/app.js             ✅
-pytest                                 ✅ 25 passed
+pytest                                 ✅ 46 passed
 ```
 
 ## Важные ограничения

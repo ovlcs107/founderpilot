@@ -4654,3 +4654,64 @@ button:focus-visible {
 button:focus:not(:focus-visible),
 input:focus:not(:focus-visible),
 textarea:focus:not(:focus-visible) { outline: none; box-shadow: none; }
+
+
+/* === FounderPilot system-hardening v2: compact statuses, no text overload === */
+.account-status-strip,
+.operations-brief-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 10px;
+  margin: 14px 0;
+  padding: 12px;
+  border-radius: 22px;
+  background: rgba(255, 255, 255, 0.86);
+  border: 1px solid rgba(15, 23, 42, 0.06);
+}
+
+.account-status-strip div,
+.operations-brief-grid div {
+  min-width: 0;
+  padding: 12px;
+  border-radius: 18px;
+  background: linear-gradient(180deg, rgba(248, 250, 252, 0.96), rgba(241, 245, 249, 0.72));
+  border: 1px solid rgba(15, 23, 42, 0.05);
+}
+
+.account-status-strip span,
+.operations-brief-grid span,
+.operations-brief-grid small {
+  display: block;
+  color: var(--muted);
+  font-size: 11px;
+  line-height: 1.25;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.account-status-strip b,
+.operations-brief-grid b {
+  display: block;
+  margin-top: 4px;
+  color: var(--text);
+  font-size: 15px;
+  line-height: 1.2;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.operations-action-list { margin-top: 14px; }
+
+@media (max-width: 760px) {
+  .account-status-strip,
+  .operations-brief-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    padding: 10px;
+    gap: 8px;
+    border-radius: 20px;
+  }
+  .account-status-strip div,
+  .operations-brief-grid div { padding: 10px; border-radius: 16px; }
+}

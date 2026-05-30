@@ -139,6 +139,13 @@ class Settings(BaseSettings):
     support_public_name: str = Field(default="FounderPilot Support", alias="SUPPORT_PUBLIC_NAME")
     telegram_user_notifications_enabled: bool = Field(default=True, alias="TELEGRAM_USER_NOTIFICATIONS_ENABLED")
 
+    # Quiet backend maintenance. Keep it off by default for local dev/tests;
+    # enable on Railway with SYSTEM_TASKS_ENABLED=true when one service should
+    # periodically clean stale reservations, expired orders and subscriptions.
+    system_tasks_enabled: bool = Field(default=False, alias="SYSTEM_TASKS_ENABLED")
+    system_tasks_interval_seconds: int = Field(default=300, alias="SYSTEM_TASKS_INTERVAL_SECONDS")
+    system_tasks_stale_ai_minutes: int = Field(default=30, alias="SYSTEM_TASKS_STALE_AI_MINUTES")
+
     app_version: str = Field(default="1.3.0", alias="APP_VERSION")
     app_updated_at: str = Field(default="2026-05-29", alias="APP_UPDATED_AT")
     app_changelog: str = Field(default="Глобальная полировка интерфейса, поддержка, уведомления и история", alias="APP_CHANGELOG")

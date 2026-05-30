@@ -2608,6 +2608,191 @@ class Database:
             }
 
 
+    async def cleanup_stale_ai_reservations(self, max_age_minutes: int = 30, limit: int = 200) -> dict[str, Any]:
+        """Release AI credit reservations that were left active after a crash/timeout.
+
+        Reservations live in active_ai_requests and are included in access math.
+        If a request never reaches finalize/refund (process restart, provider timeout,
+        deployment kill), the user can be locked out by phantom reserved credits.
+        This maintenance task removes only old reservations and records a refund audit
+        row so the owner can see what happened.
+        """
+        safe_limit = max(1, min(int(limit or 200), 1000))
+        safe_minutes = max(5, int(max_age_minutes or 30))
+        now = datetime.now(timezone.utc)
+        cutoff = (now - timedelta(minutes=safe_minutes)).isoformat()
+        now_iso = now.isoformat()
+        async with aiosqlite.connect(self.path) as db:
+            db.row_factory = aiosqlite.Row
+            cur = await db.execute(
+                """
+                SELECT * FROM active_ai_requests
+                WHERE started_at < ?
+                ORDER BY started_at ASC
+                LIMIT ?
+                """,
+                (cutoff, safe_limit),
+            )
+            rows = [dict(row) for row in await cur.fetchall()]
+            if not rows:
+                return {"ok": True, "released": 0, "credits": 0, "cutoff": cutoff, "items": []}
+            request_ids = [str(row.get("request_id")) for row in rows if row.get("request_id")]
+            placeholders = ",".join("?" for _ in request_ids)
+            await db.execute(f"DELETE FROM active_ai_requests WHERE request_id IN ({placeholders})", tuple(request_ids))
+            credits_total = 0
+            for row in rows:
+                credits = max(0, int(row.get("reserved_credits") or 0))
+                credits_total += credits
+                if credits:
+                    await db.execute(
+                        """
+                        INSERT INTO credit_transactions(
+                            telegram_user_id, request_id, transaction_type, amount, reason, metadata_json, created_at
+                        ) VALUES (?, ?, 'refund', ?, ?, ?, ?)
+                        """,
+                        (
+                            str(row.get("telegram_user_id") or ""),
+                            str(row.get("request_id") or ""),
+                            credits,
+                            f"stale_reservation_cleanup:{row.get('tool_id') or 'ai'}",
+                            json.dumps({"started_at": row.get("started_at"), "cutoff": cutoff}, ensure_ascii=False, separators=(",", ":")),
+                            now_iso,
+                        ),
+                    )
+            await db.execute(
+                """
+                INSERT INTO system_audit_events(event_type, source, severity, message, metadata_json, created_at)
+                VALUES ('stale_ai_reservations_cleaned', 'maintenance', 'info', ?, ?, ?)
+                """,
+                (
+                    f"Released {len(rows)} stale AI reservations",
+                    json.dumps({"released": len(rows), "credits": credits_total, "cutoff": cutoff}, ensure_ascii=False, separators=(",", ":")),
+                    now_iso,
+                ),
+            )
+            await db.commit()
+        return {
+            "ok": True,
+            "released": len(rows),
+            "credits": credits_total,
+            "cutoff": cutoff,
+            "items": rows[:20],
+        }
+
+    async def expire_stale_billing_orders(self, limit: int = 500) -> dict[str, Any]:
+        """Mark expired unpaid billing orders as expired.
+
+        Payment providers may never call a failure webhook for abandoned checkout
+        sessions. This keeps admin analytics and user order status clean.
+        """
+        safe_limit = max(1, min(int(limit or 500), 2000))
+        now_iso = utc_now_iso()
+        async with aiosqlite.connect(self.path) as db:
+            db.row_factory = aiosqlite.Row
+            cur = await db.execute(
+                """
+                SELECT id FROM billing_orders
+                WHERE status IN ('created', 'pending')
+                  AND expires_at IS NOT NULL
+                  AND expires_at <= ?
+                ORDER BY expires_at ASC
+                LIMIT ?
+                """,
+                (now_iso, safe_limit),
+            )
+            rows = [dict(row) for row in await cur.fetchall()]
+            ids = [str(row["id"]) for row in rows]
+            if not ids:
+                return {"ok": True, "expired": 0}
+            placeholders = ",".join("?" for _ in ids)
+            await db.execute(
+                f"UPDATE billing_orders SET status = 'expired', updated_at = ? WHERE id IN ({placeholders})",
+                tuple([now_iso, *ids]),
+            )
+            await db.execute(
+                """
+                INSERT INTO system_audit_events(event_type, source, severity, message, metadata_json, created_at)
+                VALUES ('billing_orders_expired', 'maintenance', 'info', ?, ?, ?)
+                """,
+                (
+                    f"Expired {len(ids)} unpaid billing orders",
+                    json.dumps({"expired": len(ids), "ids": ids[:50]}, ensure_ascii=False, separators=(",", ":")),
+                    now_iso,
+                ),
+            )
+            await db.commit()
+        return {"ok": True, "expired": len(ids), "ids": ids[:50]}
+
+    async def expire_due_subscriptions(self, limit: int = 500) -> dict[str, Any]:
+        """Downgrade users whose paid subscription_until is already in the past."""
+        safe_limit = max(1, min(int(limit or 500), 2000))
+        now_iso = utc_now_iso()
+        async with aiosqlite.connect(self.path) as db:
+            db.row_factory = aiosqlite.Row
+            cur = await db.execute(
+                """
+                SELECT telegram_id, telegram_user_id, plan, subscription_until
+                FROM users
+                WHERE COALESCE(unlimited_access, 0) = 0
+                  AND COALESCE(plan, 'free') NOT IN ('free', 'blocked', 'unlimited')
+                  AND subscription_until IS NOT NULL
+                  AND subscription_until <= ?
+                ORDER BY subscription_until ASC
+                LIMIT ?
+                """,
+                (now_iso, safe_limit),
+            )
+            rows = [dict(row) for row in await cur.fetchall()]
+        expired = 0
+        for row in rows:
+            raw_id = row.get("telegram_id") or row.get("telegram_user_id")
+            try:
+                await self.expire_subscription_if_needed(int(raw_id))
+                expired += 1
+            except Exception:
+                await self.log_error("maintenance_expire_subscription", f"Failed to expire subscription for {raw_id}", None)
+        if expired:
+            await self.log_system_event(
+                "subscriptions_expired",
+                source="maintenance",
+                severity="info",
+                message=f"Expired {expired} paid subscriptions",
+                metadata={"expired": expired},
+            )
+        return {"ok": True, "expired": expired}
+
+    async def list_system_audit_events(self, limit: int = 20) -> list[dict[str, Any]]:
+        safe_limit = max(1, min(int(limit or 20), 200))
+        async with aiosqlite.connect(self.path) as db:
+            db.row_factory = aiosqlite.Row
+            cur = await db.execute(
+                """
+                SELECT * FROM system_audit_events
+                ORDER BY created_at DESC, id DESC
+                LIMIT ?
+                """,
+                (safe_limit,),
+            )
+            return [dict(row) for row in await cur.fetchall()]
+
+    async def maintenance_snapshot(self) -> dict[str, Any]:
+        """Small health payload for admin UI/API without long external calls."""
+        now = datetime.now(timezone.utc)
+        day_start = now.replace(hour=0, minute=0, second=0, microsecond=0).isoformat()
+        async with aiosqlite.connect(self.path) as db:
+            async def scalar(sql: str, params: tuple[Any, ...] = ()) -> int:
+                cur = await db.execute(sql, params)
+                row = await cur.fetchone()
+                return int(row[0] or 0) if row else 0
+
+            return {
+                "active_ai_requests": await scalar("SELECT COUNT(*) FROM active_ai_requests"),
+                "pending_orders": await scalar("SELECT COUNT(*) FROM billing_orders WHERE status IN ('created', 'pending')"),
+                "expired_orders_today": await scalar("SELECT COUNT(*) FROM system_audit_events WHERE event_type = 'billing_orders_expired' AND created_at >= ?", (day_start,)),
+                "maintenance_events_today": await scalar("SELECT COUNT(*) FROM system_audit_events WHERE source = 'maintenance' AND created_at >= ?", (day_start,)),
+                "recent_system_events": await scalar("SELECT COUNT(*) FROM system_audit_events WHERE created_at >= ?", (day_start,)),
+            }
+
     async def begin_idempotency_key(
         self,
         scope: str,
