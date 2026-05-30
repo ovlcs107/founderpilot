@@ -553,3 +553,24 @@ Notes:
 
 - PDF export uses ReportLab and system fonts when available. If the host lacks Cyrillic-capable fonts, install DejaVu/Liberation fonts in the deployment image.
 - Import currently accepts `.txt`, `.md` and `.markdown` up to 500 KB. PDF/DOCX import is intentionally not enabled yet to avoid unreliable parsing.
+
+## System hardening v1
+
+This build adds the first non-visual production hardening pass:
+
+- idempotency keys for subscription and credit-pack activation, so repeated webhooks/polling cannot safely double-activate the same order;
+- credit ledger summaries from `credit_transactions` for owner diagnostics;
+- AI usage cost tracking fields in `ai_usage_events` (`cost_estimate_rub`, `duration_ms`, `request_metadata_json`);
+- admin system health endpoint: `GET /api/admin/system-health` with `X-Admin-Secret`;
+- audit events table for future operational/security events;
+- subscription activation now records a `subscription_grant` ledger entry for audit visibility;
+- PostgreSQL/SQLite schema migration safety for new columns/tables.
+
+Useful owner endpoint:
+
+```bash
+curl -H "X-Admin-Secret: $ADMIN_SECRET" \
+  https://your-domain/api/admin/system-health
+```
+
+The endpoint is read-only: it does not expose CRUD controls and is intended for monitoring payments, AI usage, credits, recent errors and recent payments.

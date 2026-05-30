@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
   <title>FounderPilot AI</title>
-  <link rel="stylesheet" href="/static/styles.css?v=ultimate-workspace-2">
+  <link rel="stylesheet" href="/static/styles.css?v=gemini-ui-safe-1">
   <script src="https://telegram.org/js/telegram-web-app.js"></script>
 </head>
 <body>
@@ -41,7 +41,7 @@
         <span>Кредиты</span>
         <div class="credits-counter-row">
           <strong id="desktopTopCreditsValue">1 250</strong>
-          <span class="coin-badge" aria-hidden="true">✦</span>
+          <span class="coin-badge" aria-hidden="true"><span data-icon="coin"></span></span>
         </div>
       </div>
 
@@ -67,7 +67,7 @@
         <div class="view-inner home-inner">
           <header class="page-head compact-head home-mobile-head chat-home-head">
             <div class="home-title-block">
-              <h2 id="homeGreeting">Доброе утро, Пользователь! 👋</h2>
+              <h2 id="homeGreeting">Доброе утро, Пользователь! <span class="home-greeting-icon" data-icon="spark" aria-hidden="true"></span></h2>
               <p>Чем могу помочь сегодня?</p>
             </div>
             <div class="home-head-actions">
@@ -142,8 +142,8 @@
             </div>
             <div class="toolbar-right-search-controls desktop-only">
               <div class="search-box"><span data-icon="search"></span><input type="text" id="historySearchInput" placeholder="Поиск по истории..."></div>
-              <button type="button" class="selector-dropdown-filter-btn">Все типы <span class="arrow-indicator">⌃</span></button>
-              <button type="button" class="selector-dropdown-filter-btn"><span data-icon="history"></span> За всё время <span class="arrow-indicator">⌃</span></button>
+              <button type="button" class="selector-dropdown-filter-btn">Все типы <span class="arrow-indicator" data-icon="chevron-down"></span></button>
+              <button type="button" class="selector-dropdown-filter-btn"><span data-icon="history"></span> За всё время <span class="arrow-indicator" data-icon="chevron-down"></span></button>
             </div>
           </div>
           <div class="search-box mobile-only history-mobile-search"><span data-icon="search"></span><input type="text" id="historySearchInputMobile" placeholder="Поиск по истории..."></div>
@@ -402,6 +402,8 @@
                     <button class="plain-btn" type="button" data-generate-document="pitch_deck">Pitch</button>
                     <button class="plain-btn" type="button" data-generate-document="financial_model">Финмодель</button>
                     <button class="plain-btn" type="button" data-generate-document="marketing_plan">Маркетинг</button>
+                    <button class="plain-btn" type="button" id="workspaceImportDocBtn"><span data-icon="save"></span> Импорт TXT/MD</button>
+                    <input id="workspaceImportDocInput" type="file" accept=".txt,.md,.markdown,text/plain,text/markdown" hidden>
                   </div>
                   <div id="workspaceDocumentsList" class="settings-list app-style-list"></div>
                 </section>
@@ -675,6 +677,6 @@
   <div id="profileCreditsMonthPct" style="display:none;"></div>
   <div id="profileCreditsTodayPct" style="display:none;"></div>
   <div id="toast" class="toast-component">Оповещение</div>
-  <script src="/static/app.js?v=ultimate-workspace-2"></script>
+  <script src="/static/app.js?v=gemini-ui-safe-1"></script>
 </body>
 </html>

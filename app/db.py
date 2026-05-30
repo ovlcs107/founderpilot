@@ -275,6 +275,28 @@ CREATE TABLE IF NOT EXISTS active_ai_requests (
     reserved_credits INTEGER NOT NULL,
     started_at TEXT NOT NULL
 );
+
+
+CREATE TABLE IF NOT EXISTS idempotency_keys (
+    key TEXT PRIMARY KEY,
+    scope TEXT NOT NULL,
+    status TEXT NOT NULL DEFAULT 'processing',
+    result_json TEXT,
+    metadata_json TEXT,
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS system_audit_events (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    event_type TEXT NOT NULL,
+    telegram_user_id TEXT,
+    source TEXT,
+    severity TEXT NOT NULL DEFAULT 'info',
+    message TEXT,
+    metadata_json TEXT,
+    created_at TEXT NOT NULL
+);
 """
 
 
@@ -363,8 +385,31 @@ ON active_ai_requests(telegram_user_id);
 CREATE INDEX IF NOT EXISTS idx_autopay_enabled_next
 ON autopay_settings(enabled, next_charge_at);
 
+
+CREATE INDEX IF NOT EXISTS idx_idempotency_keys_scope_created
+ON idempotency_keys(scope, created_at);
+
+CREATE INDEX IF NOT EXISTS idx_system_audit_events_created
+ON system_audit_events(created_at);
+
+CREATE INDEX IF NOT EXISTS idx_system_audit_events_user
+ON system_audit_events(telegram_user_id, created_at);
+
+
 """
 
+
+
+AI_USAGE_ADD_COLUMNS = {
+    "cost_estimate_rub": "ALTER TABLE ai_usage_events ADD COLUMN cost_estimate_rub REAL DEFAULT 0",
+    "duration_ms": "ALTER TABLE ai_usage_events ADD COLUMN duration_ms INTEGER DEFAULT 0",
+    "request_metadata_json": "ALTER TABLE ai_usage_events ADD COLUMN request_metadata_json TEXT",
+}
+
+CREDIT_TRANSACTION_ADD_COLUMNS = {
+    "balance_after": "ALTER TABLE credit_transactions ADD COLUMN balance_after INTEGER",
+    "metadata_json": "ALTER TABLE credit_transactions ADD COLUMN metadata_json TEXT",
+}
 
 USER_ADD_COLUMNS = {
     "telegram_id": "ALTER TABLE users ADD COLUMN telegram_id BIGINT",
@@ -477,6 +522,8 @@ class Database:
             await self._migrate_simple_add_columns(db, "users", USER_BILLING_ADD_COLUMNS)
             await self._migrate_simple_add_columns(db, "subscriptions", SUBSCRIPTION_ADD_COLUMNS)
             await self._migrate_simple_add_columns(db, "payments", PAYMENT_ADD_COLUMNS)
+            await self._migrate_simple_add_columns(db, "ai_usage_events", AI_USAGE_ADD_COLUMNS)
+            await self._migrate_simple_add_columns(db, "credit_transactions", CREDIT_TRANSACTION_ADD_COLUMNS)
             await self._migrate_payout_tables(db)
             await db.executescript(INDEXES)
             await db.commit()
@@ -1023,6 +1070,9 @@ class Database:
         output_tokens: int,
         status: str = "success",
         error_message: str | None = None,
+        cost_estimate_rub: float | None = None,
+        duration_ms: int | None = None,
+        request_metadata: dict[str, Any] | None = None,
     ) -> None:
         now = utc_now_iso()
         charged_credits = max(0, int(charged_credits))
@@ -1049,8 +1099,9 @@ class Database:
                 """
                 INSERT INTO ai_usage_events (
                     telegram_user_id, request_id, tool_id, model, input_tokens, output_tokens,
-                    total_tokens, credits_estimated, credits_charged, status, error_message, created_at
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    total_tokens, credits_estimated, credits_charged, status, error_message,
+                    cost_estimate_rub, duration_ms, request_metadata_json, created_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 (
                     tg_text_id(telegram_id),
@@ -1064,6 +1115,9 @@ class Database:
                     charged_credits,
                     status,
                     error_message,
+                    float(cost_estimate_rub or 0),
+                    int(duration_ms or 0),
+                    json.dumps(request_metadata or {}, ensure_ascii=False, separators=(",", ":")),
                     now,
                 ),
             )
@@ -2192,6 +2246,21 @@ class Database:
                 """,
                 (now, order_id),
             )
+            await db.execute(
+                """
+                INSERT INTO credit_transactions (
+                    telegram_user_id, request_id, transaction_type, amount, reason, metadata_json, created_at
+                ) VALUES (?, ?, 'subscription_grant', ?, ?, ?, ?)
+                """,
+                (
+                    tg_text_id(telegram_id),
+                    f"subscription:{order_id}",
+                    int(monthly_limit or 0),
+                    f"subscription:{plan}",
+                    json.dumps({"provider": provider, "order_id": order_id, "daily_limit": daily_limit}, ensure_ascii=False, separators=(",", ":")),
+                    now,
+                ),
+            )
             await db.commit()
         await self.record_access_event(
             telegram_id,
@@ -2510,6 +2579,7 @@ class Database:
                 "users_total": await scalar("SELECT COUNT(*) FROM users"),
                 "requests_today": await scalar("SELECT COUNT(*) FROM usage_logs WHERE created_at >= ?", (day_start,)),
                 "credits_charged_today": await scalar("SELECT COALESCE(SUM(amount), 0) FROM credit_transactions WHERE transaction_type = 'charge' AND created_at >= ?", (day_start,)),
+                "ai_cost_rub_today": await scalar("SELECT CAST(COALESCE(SUM(cost_estimate_rub), 0) AS INTEGER) FROM ai_usage_events WHERE created_at >= ?", (day_start,)),
                 "active_ai_requests": await scalar("SELECT COUNT(*) FROM active_ai_requests"),
                 "chat_messages_today": await scalar("SELECT COUNT(*) FROM chat_messages WHERE created_at >= ?", (day_start,)),
                 "tool_runs_today": await scalar("SELECT COUNT(*) FROM tool_runs WHERE created_at >= ?", (day_start,)),
@@ -2536,6 +2606,184 @@ class Database:
                     )).fetchall()
                 ],
             }
+
+
+    async def begin_idempotency_key(
+        self,
+        scope: str,
+        key: str,
+        metadata: dict[str, Any] | None = None,
+    ) -> dict[str, Any]:
+        """Register an external event/order action once.
+
+        Returns {fresh: True} for the caller that should process the event.
+        Duplicate calls return the stored status and must not apply side effects.
+        """
+        clean_scope = (scope or "global").strip() or "global"
+        clean_key = f"{clean_scope}:{str(key or '').strip()}"
+        if not clean_key or clean_key.endswith(":"):
+            clean_key = f"{clean_scope}:empty"
+        now = utc_now_iso()
+        async with aiosqlite.connect(self.path) as db:
+            db.row_factory = aiosqlite.Row
+            await db.execute(
+                """
+                INSERT OR IGNORE INTO idempotency_keys(key, scope, status, metadata_json, created_at, updated_at)
+                VALUES (?, ?, 'processing', ?, ?, ?)
+                """,
+                (clean_key, clean_scope, json.dumps(metadata or {}, ensure_ascii=False, separators=(",", ":")), now, now),
+            )
+            cur = await db.execute("SELECT * FROM idempotency_keys WHERE key = ?", (clean_key,))
+            row = await cur.fetchone()
+            await db.commit()
+        result = dict(row) if row else {}
+        created_at = result.get("created_at")
+        current_status = str(result.get("status") or "").lower()
+        fresh = created_at == now and current_status == "processing"
+        if not fresh and current_status in {"failed", "retry"}:
+            async with aiosqlite.connect(self.path) as db:
+                await db.execute(
+                    """
+                    UPDATE idempotency_keys
+                    SET status = 'processing', metadata_json = ?, updated_at = ?
+                    WHERE key = ?
+                    """,
+                    (json.dumps(metadata or {}, ensure_ascii=False, separators=(",", ":")), now, clean_key),
+                )
+                await db.commit()
+            result["status"] = "processing"
+            result["updated_at"] = now
+            fresh = True
+        result["fresh"] = bool(fresh)
+        return result
+
+    async def finish_idempotency_key(
+        self,
+        scope: str,
+        key: str,
+        *,
+        status: str = "processed",
+        result: dict[str, Any] | None = None,
+    ) -> None:
+        clean_scope = (scope or "global").strip() or "global"
+        clean_key = f"{clean_scope}:{str(key or '').strip()}"
+        now = utc_now_iso()
+        async with aiosqlite.connect(self.path) as db:
+            await db.execute(
+                """
+                UPDATE idempotency_keys
+                SET status = ?, result_json = ?, updated_at = ?
+                WHERE key = ?
+                """,
+                (status, json.dumps(result or {}, ensure_ascii=False, separators=(",", ":")), now, clean_key),
+            )
+            await db.commit()
+
+    async def log_system_event(
+        self,
+        event_type: str,
+        *,
+        telegram_user_id: int | str | None = None,
+        source: str | None = None,
+        severity: str = "info",
+        message: str | None = None,
+        metadata: dict[str, Any] | None = None,
+    ) -> None:
+        now = utc_now_iso()
+        async with aiosqlite.connect(self.path) as db:
+            await db.execute(
+                """
+                INSERT INTO system_audit_events(event_type, telegram_user_id, source, severity, message, metadata_json, created_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    event_type,
+                    str(telegram_user_id) if telegram_user_id is not None else None,
+                    source,
+                    severity,
+                    message,
+                    json.dumps(metadata or {}, ensure_ascii=False, separators=(",", ":")),
+                    now,
+                ),
+            )
+            await db.commit()
+
+    async def credit_ledger_summary(self, telegram_id: int | None = None) -> dict[str, Any]:
+        where = ""
+        params: tuple[Any, ...] = ()
+        if telegram_id is not None:
+            where = "WHERE telegram_user_id = ?"
+            params = (tg_text_id(telegram_id),)
+        async with aiosqlite.connect(self.path) as db:
+            db.row_factory = aiosqlite.Row
+            cur = await db.execute(
+                f"""
+                SELECT transaction_type, COUNT(*) AS count, COALESCE(SUM(amount), 0) AS amount
+                FROM credit_transactions
+                {where}
+                GROUP BY transaction_type
+                ORDER BY transaction_type
+                """,
+                params,
+            )
+            rows = [dict(row) for row in await cur.fetchall()]
+        by_type = {str(row["transaction_type"]): int(row["amount"] or 0) for row in rows}
+        granted = sum(by_type.get(kind, 0) for kind in ("grant", "admin_grant", "subscription_grant", "credit_pack", "credit_pack_purchase"))
+        revoked = sum(by_type.get(kind, 0) for kind in ("admin_revoke", "revoke"))
+        charged = by_type.get("charge", 0)
+        refunded = by_type.get("refund", 0)
+        reserved = by_type.get("reserve", 0)
+        net_spent = max(0, charged - refunded)
+        return {
+            "rows": rows,
+            "granted": granted,
+            "revoked": revoked,
+            "charged": charged,
+            "refunded": refunded,
+            "reserved_events_total": reserved,
+            "net_spent": net_spent,
+            "manual_balance_delta": max(0, granted - revoked),
+        }
+
+    async def ai_usage_summary(self, since_iso: str | None = None) -> dict[str, Any]:
+        where = ""
+        params: tuple[Any, ...] = ()
+        if since_iso:
+            where = "WHERE created_at >= ?"
+            params = (since_iso,)
+        async with aiosqlite.connect(self.path) as db:
+            db.row_factory = aiosqlite.Row
+            cur = await db.execute(
+                f"""
+                SELECT
+                    COUNT(*) AS requests,
+                    COALESCE(SUM(input_tokens), 0) AS input_tokens,
+                    COALESCE(SUM(output_tokens), 0) AS output_tokens,
+                    COALESCE(SUM(total_tokens), 0) AS total_tokens,
+                    COALESCE(SUM(credits_estimated), 0) AS credits_estimated,
+                    COALESCE(SUM(credits_charged), 0) AS credits_charged,
+                    COALESCE(SUM(cost_estimate_rub), 0) AS cost_estimate_rub,
+                    COALESCE(AVG(NULLIF(duration_ms, 0)), 0) AS avg_duration_ms
+                FROM ai_usage_events
+                {where}
+                """,
+                params,
+            )
+            row = dict(await cur.fetchone() or {})
+            model_rows = [dict(r) for r in await (await db.execute(
+                f"""
+                SELECT model, COUNT(*) AS requests, COALESCE(SUM(credits_charged), 0) AS credits_charged,
+                       COALESCE(SUM(cost_estimate_rub), 0) AS cost_estimate_rub
+                FROM ai_usage_events
+                {where}
+                GROUP BY model
+                ORDER BY requests DESC
+                LIMIT 10
+                """,
+                params,
+            )).fetchall()]
+        row["by_model"] = model_rows
+        return row
 
     async def record_access_event(
         self,

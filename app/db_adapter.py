@@ -53,6 +53,7 @@ _SERIAL_ID_TABLES = {
     "support_messages",
     "support_group_bridge_messages",
     "ai_response_feedback",
+    "system_audit_events",
 }
 
 

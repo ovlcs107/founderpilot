@@ -645,9 +645,23 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         if not plan or plan.key == "free":
             raise BillingError("Некорректный тариф в заказе.")
 
-        verified_payment = await verify_yookassa_payment(settings, order, external_id)
-        await activate_subscription(db, order["telegram_user_id"], plan.key, "yookassa", order["id"], plan.daily_limit, plan.monthly_limit)
-        await notify_user(order["telegram_user_id"], title="Подписка активна", body=f"Тариф {plan.title} успешно подключён.", type="billing", action_url="subscription", metadata={"order_id": order["id"], "plan": plan.key})
+        idem_key = f"yookassa:{order['id']}:succeeded"
+        idem = await db.begin_idempotency_key(
+            "billing_activation",
+            idem_key,
+            {"provider": "yookassa", "order_id": order["id"], "external_payment_id": external_id, "plan": plan.key},
+        )
+        if not idem.get("fresh") and str(idem.get("status") or "").lower() == "processed":
+            updated = await db.get_billing_order(order["id"])
+            return updated or order
+
+        try:
+            verified_payment = await verify_yookassa_payment(settings, order, external_id)
+            await activate_subscription(db, order["telegram_user_id"], plan.key, "yookassa", order["id"], plan.daily_limit, plan.monthly_limit)
+            await notify_user(order["telegram_user_id"], title="Подписка активна", body=f"Тариф {plan.title} успешно подключён.", type="billing", action_url="subscription", metadata={"order_id": order["id"], "plan": plan.key})
+        except Exception as exc:  # noqa: BLE001
+            await db.finish_idempotency_key("billing_activation", idem_key, status="failed", result={"error": str(exc)[:500]})
+            raise
 
         method = verified_payment.get("payment_method") or {}
         method_id = method.get("id")
@@ -683,6 +697,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             external_payment_id=external_id,
             raw_event=raw_event or verified_payment,
         )
+        await db.finish_idempotency_key("billing_activation", idem_key, status="processed", result={"order_id": order["id"], "plan": plan.key})
         updated = await db.get_billing_order(order["id"])
         return updated or order
 
@@ -725,6 +740,37 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             estimate,
             credits=guarded.credits,
             reason=f"{estimate.reason}; {guarded.reason}",
+        )
+
+    async def finalize_ai_charge(
+        telegram_id: int,
+        request_id: str,
+        tool_id: str,
+        estimated_credits: int,
+        charged_credits: int,
+        *,
+        model: str | None,
+        input_tokens: int,
+        output_tokens: int,
+        status: str = "success",
+        error_message: str | None = None,
+        duration_ms: int | None = None,
+        request_metadata: dict[str, Any] | None = None,
+    ) -> None:
+        await db.finalize_credit_charge(
+            telegram_id,
+            request_id,
+            tool_id,
+            estimated_credits,
+            charged_credits,
+            model=model,
+            input_tokens=input_tokens,
+            output_tokens=output_tokens,
+            status=status,
+            error_message=error_message,
+            cost_estimate_rub=estimate_ai_cost_rub(settings, model=model, input_tokens=input_tokens, output_tokens=output_tokens),
+            duration_ms=duration_ms,
+            request_metadata=request_metadata,
         )
 
     async def read_json_dict(request: Request) -> dict[str, Any]:
@@ -1073,7 +1119,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                 access_context=access_state,
             )
             output_tokens = estimate_output_tokens(answer)
-            await db.finalize_credit_charge(
+            await finalize_ai_charge(
                 user.id,
                 estimate.request_id,
                 estimate.tool_id,
@@ -1152,7 +1198,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                 access_context=access_state,
             )
             answer = f"{result_prefix}\n{ai_answer}".strip() if result_prefix else ai_answer
-            await db.finalize_credit_charge(
+            await finalize_ai_charge(
                 telegram_id,
                 estimate.request_id,
                 estimate.tool_id,
@@ -1278,7 +1324,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                 access_context=access_state,
             )
             answer = f"{result_prefix}\n{ai_answer}".strip() if result_prefix else ai_answer
-            await db.finalize_credit_charge(
+            await finalize_ai_charge(
                 telegram_id,
                 estimate.request_id,
                 estimate.tool_id,
@@ -1395,7 +1441,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                 access_context=access_state,
                 intent=intent,
             )
-            await db.finalize_credit_charge(
+            await finalize_ai_charge(
                 telegram_id,
                 estimate.request_id,
                 estimate.tool_id,
@@ -1910,19 +1956,32 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         status_text = str(raw.get("status") or raw.get("invoiceStatus") or "").lower()
         if any(word in event_text or word in status_text for word in ["settled", "confirmed", "complete", "paid"]):
             plan = plan_catalog(settings)[str(order["plan"])]
-            await activate_subscription(db, order["telegram_user_id"], plan.key, "btcpay_btc", order["id"], plan.daily_limit, plan.monthly_limit)
-            await notify_user(order["telegram_user_id"], title="Подписка активна", body=f"Тариф {plan.title} успешно подключён.", type="billing", action_url="subscription", metadata={"order_id": order["id"], "plan": plan.key})
-            await db.record_payment(
-                order_id=order["id"],
-                telegram_id=int(order["telegram_user_id"]),
-                provider="btcpay_btc",
-                plan=plan.key,
-                amount=float(order["amount"]),
-                currency=order["currency"],
-                status="paid",
-                external_payment_id=str(invoice_id),
-                raw_event=raw,
+            idem_key = f"btcpay:{order['id']}:paid"
+            idem = await db.begin_idempotency_key(
+                "billing_activation",
+                idem_key,
+                {"provider": "btcpay_btc", "order_id": order["id"], "invoice_id": str(invoice_id), "plan": plan.key},
             )
+            if not idem.get("fresh") and str(idem.get("status") or "").lower() == "processed":
+                return {"ok": True, "already_processed": True}
+            try:
+                await activate_subscription(db, order["telegram_user_id"], plan.key, "btcpay_btc", order["id"], plan.daily_limit, plan.monthly_limit)
+                await notify_user(order["telegram_user_id"], title="Подписка активна", body=f"Тариф {plan.title} успешно подключён.", type="billing", action_url="subscription", metadata={"order_id": order["id"], "plan": plan.key})
+                await db.record_payment(
+                    order_id=order["id"],
+                    telegram_id=int(order["telegram_user_id"]),
+                    provider="btcpay_btc",
+                    plan=plan.key,
+                    amount=float(order["amount"]),
+                    currency=order["currency"],
+                    status="paid",
+                    external_payment_id=str(invoice_id),
+                    raw_event=raw,
+                )
+                await db.finish_idempotency_key("billing_activation", idem_key, status="processed", result={"order_id": order["id"], "plan": plan.key})
+            except Exception as exc:  # noqa: BLE001
+                await db.finish_idempotency_key("billing_activation", idem_key, status="failed", result={"error": str(exc)[:500]})
+                raise
         elif any(word in event_text or word in status_text for word in ["expired", "invalid", "failed"]):
             await db.update_billing_order(order["id"], status="expired")
         return {"ok": True}
@@ -2186,7 +2245,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                 metadata={"endpoint": "/api/documents/generate", "model": ai_model, "document_type": doc_type},
             )
             content = await ai_client.ask_business_ai(mode, user_prompt, optional_fields, plan_key=plan_key, access_context=access_state)
-            await db.finalize_credit_charge(
+            await finalize_ai_charge(
                 user.id,
                 estimate.request_id,
                 f"document_{doc_type}",
@@ -2444,22 +2503,36 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         external_id = str(order.get("external_payment_id") or "")
         if not external_id:
             raise BillingError("У заказа пакета нет ID платежа ЮKassa.")
-        # Verify amount/currency/kind manually, then grant credits exactly once.
-        payment = await verify_yookassa_payment_for_credit_pack(order, external_id)
-        result = await features.grant_credit_pack(int(order["telegram_user_id"]), order["id"], "yookassa")
-        await features.update_credit_pack_order_payment(order["id"], status="paid", provider="yookassa", external_payment_id=external_id)
-        await db.record_payment(
-            order_id=order["id"],
-            telegram_id=int(order["telegram_user_id"]),
-            provider="yookassa_credit_pack",
-            plan=str(order.get("pack_key") or "credit_pack"),
-            amount=float(order.get("amount") or 0),
-            currency=order.get("currency") or "RUB",
-            status="succeeded",
-            external_payment_id=external_id,
-            raw_event=raw_event or payment,
+        idem_key = f"credit_pack:{order['id']}:succeeded"
+        idem = await db.begin_idempotency_key(
+            "credit_pack_activation",
+            idem_key,
+            {"provider": "yookassa", "order_id": order["id"], "external_payment_id": external_id},
         )
-        return {"ok": True, "status": "paid", "credits": result.get("credits"), "order": await features.get_credit_pack_order(order["id"])}
+        if not idem.get("fresh") and str(idem.get("status") or "").lower() == "processed":
+            current = await features.get_credit_pack_order(order["id"])
+            return {"ok": True, "status": "paid", "credits": int((current or order).get("credits") or 0), "order": current or order}
+        try:
+            # Verify amount/currency/kind manually, then grant credits exactly once.
+            payment = await verify_yookassa_payment_for_credit_pack(order, external_id)
+            result = await features.grant_credit_pack(int(order["telegram_user_id"]), order["id"], "yookassa")
+            await features.update_credit_pack_order_payment(order["id"], status="paid", provider="yookassa", external_payment_id=external_id)
+            await db.record_payment(
+                order_id=order["id"],
+                telegram_id=int(order["telegram_user_id"]),
+                provider="yookassa_credit_pack",
+                plan=str(order.get("pack_key") or "credit_pack"),
+                amount=float(order.get("amount") or 0),
+                currency=order.get("currency") or "RUB",
+                status="succeeded",
+                external_payment_id=external_id,
+                raw_event=raw_event or payment,
+            )
+            await db.finish_idempotency_key("credit_pack_activation", idem_key, status="processed", result={"order_id": order["id"], "credits": result.get("credits")})
+            return {"ok": True, "status": "paid", "credits": result.get("credits"), "order": await features.get_credit_pack_order(order["id"])}
+        except Exception as exc:  # noqa: BLE001
+            await db.finish_idempotency_key("credit_pack_activation", idem_key, status="failed", result={"error": str(exc)[:500]})
+            raise
 
     async def verify_yookassa_payment_for_credit_pack(order: dict[str, Any], payment_id: str) -> dict[str, Any]:
         from app.billing import fetch_yookassa_payment, rub_value
@@ -2737,6 +2810,21 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     async def admin_stats(x_admin_secret: str | None = Header(default=None)) -> dict[str, Any]:
         require_admin(x_admin_secret)
         return {"ok": True, **await db.admin_stats()}
+
+    @app.get("/api/admin/system-health")
+    async def admin_system_health(x_admin_secret: str | None = Header(default=None)) -> dict[str, Any]:
+        require_admin(x_admin_secret)
+        now = datetime.now(timezone.utc)
+        day_start = now.replace(hour=0, minute=0, second=0, microsecond=0).isoformat()
+        return {
+            "ok": True,
+            "stats": await db.admin_stats(),
+            "ai_today": await db.ai_usage_summary(day_start),
+            "ai_total": await db.ai_usage_summary(),
+            "credits": await db.credit_ledger_summary(),
+            "recent_errors": await db.list_error_logs(limit=10),
+            "recent_payments": await db.list_payments(limit=10),
+        }
 
     return app
 

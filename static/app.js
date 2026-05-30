@@ -252,7 +252,8 @@ function openPaymentLink(url, provider) {
 
 // API
 async function apiRequest(url, options = {}) {
-  const headers = { "Content-Type": "application/json" };
+  const isFormData = typeof FormData !== "undefined" && options.body instanceof FormData;
+  const headers = isFormData ? {} : { "Content-Type": "application/json" };
   const initData = getTelegramInitData();
   if (initData) headers["X-Telegram-Init-Data"] = initData;
 
@@ -419,7 +420,7 @@ function updateProfileUI() {
   const planNameUpper = planName.charAt(0).toUpperCase() + planName.slice(1);
   const subtitle = u.username ? `@${u.username}` : `ID: ${u.telegram_id || "—"}`;
 
-  setText("homeGreeting", `Доброе утро, ${u.first_name}! 👋`);
+  setText("homeGreeting", `Доброе утро, ${u.first_name}!`);
 
   ["sidebarAvatar", "headerUserAvatar", "desktopTopAvatar", "mobileHeaderAvatar", "profileUserAvatar", "profileUserAvatarLarge"].forEach(id => applyAvatar($(id), u));
 
@@ -1316,7 +1317,7 @@ function renderSupportMessages() {
     return;
   }
   if (!messages.length) {
-    box.innerHTML = `<div class="support-empty"><b>Сообщений пока нет</b><small>Мы уже получили обращение. Ответ появится в этом диалоге.</small></div>`;
+    box.innerHTML = `<div class="support-empty"><b>Сообщений пока нет</b><small>Ответ появится здесь, когда поддержка обработает обращение.</small></div>`;
     return;
   }
   box.innerHTML = messages.map(m => {
@@ -1756,7 +1757,7 @@ function updateProfileUI() {
   const planNameUpper = planName.charAt(0).toUpperCase() + planName.slice(1);
   const subtitle = u.username ? `@${u.username}` : `Telegram ID: ${u.telegram_id || '—'}`;
 
-  setText('homeGreeting', `Доброе утро, ${u.first_name || 'друг'}! 👋`);
+  setText('homeGreeting', `Доброе утро, ${u.first_name || 'Пользователь'}!`);
   ['sidebarAvatar', 'headerUserAvatar', 'desktopTopAvatar', 'mobileHeaderAvatar', 'profileUserAvatar', 'profileUserAvatarLarge'].forEach(id => applyAvatar($(id), u));
   setText('sidebarUserName', u.first_name || 'Пользователь');
   setText('sidebarUserPlan', planNameUpper);
@@ -1943,7 +1944,7 @@ function renderSupportMessages() {
   if (!box) return;
   const messages = state.supportMessages || [];
   if (!state.activeSupportTicketId) { box.innerHTML = `<div class="support-empty clean"><b>Выберите обращение</b><small>Откройте обращение из истории, чтобы продолжить диалог.</small></div>`; return; }
-  if (!messages.length) { box.innerHTML = `<div class="support-empty clean"><b>Сообщений пока нет</b><small>Мы уже получили обращение. Ответ появится в этом диалоге.</small></div>`; return; }
+  if (!messages.length) { box.innerHTML = `<div class="support-empty clean"><b>Сообщений пока нет</b><small>Ответ появится здесь, когда поддержка обработает обращение.</small></div>`; return; }
   box.innerHTML = messages.map(m => {
     const isUser = String(m.author_type || '') === 'user';
     const author = isUser ? 'Вы' : (m.author_name || 'Поддержка');
@@ -2486,6 +2487,7 @@ function renderWorkspaceSuite() {
       <button type="button" class="workspace-doc-open" data-open-doc="${escapeAttr(d.id)}"><b>${escapeHTML(d.title || 'Документ')}</b><small>${escapeHTML(documentTypeLabel(d.document_type))} • ${escapeHTML(formatHistoryDate(d.updated_at || d.created_at))}</small></button>
       <button type="button" class="mini-action-btn" data-export-doc="${escapeAttr(d.id)}">MD</button>
       <button type="button" class="mini-action-btn" data-export-docx="${escapeAttr(d.id)}">DOCX</button>
+      <button type="button" class="mini-action-btn" data-export-pdf="${escapeAttr(d.id)}">PDF</button>
       <button type="button" class="mini-action-btn danger" data-delete-doc="${escapeAttr(d.id)}"><span data-icon="close"></span></button>
     </div>`).join('') : `<div class="settings-row"><span><b>Документов пока нет</b><small>Выберите тип документа выше — AI подготовит черновик по проекту.</small></span></div>`;
   }
@@ -2684,14 +2686,15 @@ appendMessage = function founderPilotAppendMessageWithFeedback(role, text, id = 
   good.title = 'Хороший ответ';
   good.setAttribute('data-ai-feedback', '1');
   good.setAttribute('data-reason', 'useful');
-  good.innerHTML = '<span>👍</span>';
+  good.innerHTML = '<span data-icon="thumb-up"></span>';
   const bad = document.createElement('button');
   bad.className = 'message-action-btn icon-only';
   bad.type = 'button';
   bad.title = 'Плохой ответ';
   bad.setAttribute('data-ai-feedback', '-1');
   bad.setAttribute('data-reason', 'low_quality');
-  bad.innerHTML = '<span>👎</span>';
+  bad.innerHTML = '<span data-icon="thumb-down"></span>';
+  if (typeof injectIcons === 'function') injectIcons(actions);
   actions.appendChild(good);
   actions.appendChild(bad);
 };
@@ -2719,7 +2722,7 @@ document.addEventListener('DOMContentLoaded', () => {
       listCard.className = 'workspace-card workspace-projects-list-card app-card-shadow';
       listCard.innerHTML = `
         <div class="support-card-head workspace-card-head">
-          <div><h3>Мои проекты</h3><p>Переключайтесь между идеями, архивируйте лишнее и держите контекст в порядке.</p></div>
+          <div><h3>Мои проекты</h3><p>Переключайтесь между идеями и держите контекст в порядке.</p></div>
           <button class="text-link-action-btn" type="button" id="workspaceFocusCreateBtn">Создать</button>
         </div>
         <div id="workspaceProjectsList" class="workspace-project-list"></div>`;
@@ -2772,7 +2775,7 @@ document.addEventListener('DOMContentLoaded', () => {
       const modal = document.createElement('div');
       modal.id = 'documentPreviewModal';
       modal.className = 'modal-overlay';
-      modal.innerHTML = `<div class="modal-sheet document-preview-sheet"><div class="modal-header"><h3 id="documentPreviewTitle">Документ</h3><button class="modal-close-btn" type="button" id="documentPreviewClose">×</button></div><div class="modal-scroll-content"><div id="documentPreviewContent" class="md-content document-preview-content"></div></div><div class="modal-footer-actions"><button class="btn-secondary" type="button" id="documentPreviewDownloadMd">Markdown</button><button class="primary-btn" type="button" id="documentPreviewDownloadDocx">DOCX</button></div></div>`;
+      modal.innerHTML = `<div class="modal-sheet document-preview-sheet"><div class="modal-header"><h3 id="documentPreviewTitle">Документ</h3><button class="modal-close-btn" type="button" id="documentPreviewClose" aria-label="Закрыть"><span data-icon="close"></span></button></div><div class="modal-scroll-content"><div id="documentPreviewContent" class="md-content document-preview-content"></div></div><div class="modal-footer-actions"><button class="btn-secondary" type="button" id="documentPreviewDownloadMd">Markdown</button><button class="btn-secondary" type="button" id="documentPreviewDownloadPdf">PDF</button><button class="primary-btn" type="button" id="documentPreviewDownloadDocx">DOCX</button></div></div>`;
       document.body.appendChild(modal);
     }
   }
@@ -2792,8 +2795,8 @@ document.addEventListener('DOMContentLoaded', () => {
           <span class="project-dot"></span>
           <span><b>${safe(p.name || 'Проект')}</b><small>${safe(p.description || p.niche || 'Без описания')}</small></span>
         </button>
-        <button type="button" class="project-row-action" data-edit-project="${attr(p.id)}" title="Редактировать">✎</button>
-        <button type="button" class="project-row-action danger" data-delete-project="${attr(p.id)}" title="Удалить">×</button>
+        <button type="button" class="project-row-action" data-edit-project="${attr(p.id)}" title="Редактировать" aria-label="Редактировать"><span data-icon="edit"></span></button>
+        <button type="button" class="project-row-action danger" data-delete-project="${attr(p.id)}" title="Удалить" aria-label="Удалить"><span data-icon="trash"></span></button>
       </div>`).join('');
   }
 
@@ -2874,6 +2877,8 @@ document.addEventListener('DOMContentLoaded', () => {
       byId('documentPreviewContent').innerHTML = typeof renderMarkdown === 'function' ? renderMarkdown(doc.content || '') : safe(doc.content || '');
       byId('documentPreviewDownloadMd').onclick = () => { window.location.href = `/api/documents/${encodeURIComponent(id)}/export?format=md`; };
       byId('documentPreviewDownloadDocx').onclick = () => { window.location.href = `/api/documents/${encodeURIComponent(id)}/export?format=docx`; };
+      const pdfBtn = byId('documentPreviewDownloadPdf');
+      if (pdfBtn) pdfBtn.onclick = () => { window.location.href = `/api/documents/${encodeURIComponent(id)}/export?format=pdf`; };
       byId('documentPreviewModal').classList.add('active');
     } catch (err) { showToast(friendlyError(err, 'Не удалось открыть документ')); }
   }
@@ -2952,6 +2957,8 @@ document.addEventListener('DOMContentLoaded', () => {
     if (edit) { e.preventDefault(); editProjectV2(edit.dataset.editProject); return; }
     const openDoc = e.target.closest('[data-open-doc]');
     if (openDoc) { e.preventDefault(); openDocumentPreview(openDoc.dataset.openDoc); return; }
+    const pdfDoc = e.target.closest('[data-export-pdf]');
+    if (pdfDoc) { e.preventDefault(); window.location.href = `/api/documents/${encodeURIComponent(pdfDoc.dataset.exportPdf)}/export?format=pdf`; return; }
     if (e.target.closest('#documentPreviewClose') || (e.target.id === 'documentPreviewModal')) byId('documentPreviewModal')?.classList.remove('active');
   });
 
@@ -2960,3 +2967,158 @@ document.addEventListener('DOMContentLoaded', () => {
     setTimeout(() => { ensureUltimateWorkspaceDom(); renderProjectsListV2(); renderOverviewGridV2(); renderFinanceResult(); loadAdminPaneV2(); }, 600);
   });
 })();
+
+/* === FounderPilot Workspace v3: import + PDF polish === */
+(function founderPilotWorkspaceV3() {
+  async function importWorkspaceDocument(file) {
+    if (!file) return;
+    const form = new FormData();
+    form.append('file', file);
+    const projectId = state.workspace?.active_project?.id;
+    const query = projectId ? `?project_id=${encodeURIComponent(projectId)}` : '';
+    try {
+      showToast('Импортирую документ…');
+      await apiRequest(`/api/documents/import${query}`, { method: 'POST', body: form });
+      await loadWorkspaceSuite();
+      showToast('Документ импортирован');
+    } catch (err) {
+      showToast(friendlyError(err, 'Не удалось импортировать документ'));
+    }
+  }
+
+  document.addEventListener('click', e => {
+    const importBtn = e.target.closest('#workspaceImportDocBtn');
+    if (importBtn) {
+      e.preventDefault();
+      document.getElementById('workspaceImportDocInput')?.click();
+    }
+    const pdfBtn = e.target.closest('[data-export-pdf]');
+    if (pdfBtn) {
+      e.preventDefault();
+      window.location.href = `/api/documents/${encodeURIComponent(pdfBtn.dataset.exportPdf)}/export?format=pdf`;
+    }
+  });
+
+  document.addEventListener('change', e => {
+    if (e.target && e.target.id === 'workspaceImportDocInput') {
+      const file = e.target.files && e.target.files[0];
+      importWorkspaceDocument(file).finally(() => { e.target.value = ''; });
+    }
+  });
+})();
+
+
+/* === FounderPilot Gemini UI safety patch: SVG icons, clean text, no emoji === */
+Object.assign(iconPaths, {
+  'thumb-up': '<path d="M14 9V5a3 3 0 0 0-3-3L7 11v11h10.3a2 2 0 0 0 2-1.7l1.2-7.8A2 2 0 0 0 18.5 10H14Z"></path><path d="M7 22H4a2 2 0 0 1-2-2v-7a2 2 0 0 1 2-2h3"></path>',
+  'thumb-down': '<path d="M10 15v4a3 3 0 0 0 3 3l4-9V2H6.7A2 2 0 0 0 4.7 3.7L3.5 11.5A2 2 0 0 0 5.5 14H10Z"></path><path d="M17 2h3a2 2 0 0 1 2 2v7a2 2 0 0 1-2 2h-3"></path>',
+  'trash': '<path d="M3 6h18"></path><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"></path><path d="M10 11v6"></path><path d="M14 11v6"></path>',
+  'check': '<path d="M20 6 9 17l-5-5"></path>',
+  'chevron-right': '<path d="m9 18 6-6-6-6"></path>',
+  'chevron-left': '<path d="m15 18-6-6 6-6"></path>',
+  'chevron-down': '<path d="m6 9 6 6 6-6"></path>'
+});
+
+function fpGeminiEnsureHomeGreetingIcon() {
+  const heading = $('homeGreeting');
+  if (!heading) return;
+  heading.textContent = String(heading.textContent || '').replace(/[\u{1F44B}\u{1F44D}\u{1F44E}]/gu, '').replace(/\s+$/g, '');
+  if (!heading.querySelector('.home-greeting-icon')) {
+    const icon = document.createElement('span');
+    icon.className = 'home-greeting-icon';
+    icon.setAttribute('data-icon', 'spark');
+    icon.setAttribute('aria-hidden', 'true');
+    heading.appendChild(document.createTextNode(' '));
+    heading.appendChild(icon);
+    injectIcons(heading);
+  }
+}
+
+function fpGeminiNormalizeDynamicIcons(root = document) {
+  root.querySelectorAll('[data-ai-feedback="1"]').forEach(btn => {
+    btn.classList.add('icon-only');
+    btn.title = btn.title || 'Хороший ответ';
+    btn.innerHTML = '<span data-icon="thumb-up"></span>';
+  });
+  root.querySelectorAll('[data-ai-feedback="-1"]').forEach(btn => {
+    btn.classList.add('icon-only');
+    btn.title = btn.title || 'Плохой ответ';
+    btn.innerHTML = '<span data-icon="thumb-down"></span>';
+  });
+  root.querySelectorAll('[data-delete-project]').forEach(btn => {
+    btn.setAttribute('aria-label', 'Удалить проект');
+    btn.innerHTML = '<span data-icon="trash"></span>';
+  });
+  root.querySelectorAll('[data-edit-project]').forEach(btn => {
+    btn.setAttribute('aria-label', 'Редактировать проект');
+    btn.innerHTML = '<span data-icon="edit"></span>';
+  });
+  root.querySelectorAll('.modal-close-btn').forEach(btn => {
+    if (!btn.querySelector('svg')) {
+      btn.setAttribute('aria-label', btn.getAttribute('aria-label') || 'Закрыть');
+      btn.innerHTML = '<span data-icon="close"></span>';
+    }
+  });
+  root.querySelectorAll('.coin-badge').forEach(el => {
+    if (!el.querySelector('[data-icon]')) el.innerHTML = '<span data-icon="coin"></span>';
+  });
+  injectIcons(root);
+}
+
+const __fpGeminiUpdateProfileUI = updateProfileUI;
+updateProfileUI = function founderPilotUpdateProfileUiNoEmoji() {
+  __fpGeminiUpdateProfileUI();
+  const rawUser = state.user || {};
+  const name = rawUser.first_name || 'Пользователь';
+  setText('homeGreeting', `Доброе утро, ${name}!`);
+  fpGeminiEnsureHomeGreetingIcon();
+  fpGeminiNormalizeDynamicIcons(document);
+};
+
+const __fpGeminiAppendMessage = appendMessage;
+appendMessage = function founderPilotAppendMessageSvgFeedback(role, text, id = null) {
+  __fpGeminiAppendMessage(role, text, id);
+  if (role === 'bot') {
+    const scroll = $('homeChatScroll');
+    const msg = scroll?.querySelector('.msg.bot:last-child');
+    if (msg) fpGeminiNormalizeDynamicIcons(msg);
+  }
+};
+
+const __fpGeminiRenderSupportMessages = renderSupportMessages;
+renderSupportMessages = function founderPilotRenderSupportMessagesClean() {
+  __fpGeminiRenderSupportMessages();
+  const box = $('supportChatMessages');
+  if (!box) return;
+  box.innerHTML = box.innerHTML
+    .replace('Мы уже получили обращение. Ответ появится в этом диалоге.', 'Ответ появится здесь, когда поддержка обработает обращение.')
+    .replace('reply в группе саппортов', 'ответа поддержки');
+};
+
+const __fpGeminiRenderWorkspaceSuite = window.renderWorkspaceSuite;
+if (typeof __fpGeminiRenderWorkspaceSuite === 'function') {
+  window.renderWorkspaceSuite = function founderPilotWorkspaceSvgPolish() {
+    const result = __fpGeminiRenderWorkspaceSuite.apply(this, arguments);
+    fpGeminiNormalizeDynamicIcons(document);
+    return result;
+  };
+}
+
+const __fpGeminiRenderHistory = renderHistory;
+renderHistory = function founderPilotRenderHistorySvgPolish() {
+  __fpGeminiRenderHistory();
+  fpGeminiNormalizeDynamicIcons($('historyList') || document);
+};
+
+document.addEventListener('DOMContentLoaded', () => {
+  fpGeminiEnsureHomeGreetingIcon();
+  fpGeminiNormalizeDynamicIcons(document);
+  const observer = new MutationObserver(mutations => {
+    for (const mutation of mutations) {
+      mutation.addedNodes.forEach(node => {
+        if (node && node.nodeType === 1) fpGeminiNormalizeDynamicIcons(node);
+      });
+    }
+  });
+  observer.observe(document.body, { childList: true, subtree: true });
+});
