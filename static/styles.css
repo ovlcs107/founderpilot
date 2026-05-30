@@ -4821,3 +4821,109 @@ textarea:focus:not(:focus-visible) { outline: none; box-shadow: none; }
     flex: 0 0 auto;
   }
 }
+
+
+/* === FIX v6: scope icon grid ONLY to menu rows, not every profile row === */
+/* v5 was too broad: it forced all .profile-sub-pane .settings-row into a 36px first column,
+   so normal rows like Version/Date/Support collapsed into "Ве...". */
+
+/* Normal profile detail rows: label/value layout */
+.profile-sub-pane .settings-row {
+  display: flex !important;
+  grid-template-columns: none !important;
+  align-items: center !important;
+  gap: 14px !important;
+  width: 100% !important;
+  min-width: 0 !important;
+}
+
+.profile-sub-pane .settings-row > span:not(.row-icon) {
+  flex: 1 1 auto !important;
+  min-width: 0 !important;
+  width: auto !important;
+}
+
+.profile-sub-pane .settings-row > em {
+  flex: 0 1 auto !important;
+  margin-left: auto !important;
+  max-width: 62% !important;
+  min-width: 0 !important;
+  overflow: hidden !important;
+  text-overflow: ellipsis !important;
+  white-space: nowrap !important;
+  text-align: right !important;
+}
+
+.profile-sub-pane .settings-row b,
+.profile-sub-pane .settings-row small {
+  max-width: 100% !important;
+}
+
+/* Root profile menu rows: icon / text / chevron */
+.profile-root-list .settings-row.mobile-tab-link {
+  display: grid !important;
+  grid-template-columns: 36px minmax(0, 1fr) 18px !important;
+  align-items: center !important;
+  column-gap: 14px !important;
+  width: 100% !important;
+  min-width: 0 !important;
+}
+
+.profile-root-list .settings-row.mobile-tab-link > .row-icon {
+  width: 36px !important;
+  height: 36px !important;
+  min-width: 36px !important;
+  min-height: 36px !important;
+  margin: 0 !important;
+  justify-self: start !important;
+  align-self: center !important;
+}
+
+.profile-root-list .settings-row.mobile-tab-link > .row-icon svg,
+.profile-root-list .settings-row.mobile-tab-link > .row-icon [data-icon],
+.profile-root-list .settings-row.mobile-tab-link > .row-icon [data-icon] svg {
+  width: 18px !important;
+  height: 18px !important;
+  display: block !important;
+}
+
+.profile-root-list .settings-row.mobile-tab-link > span:nth-child(2) {
+  display: block !important;
+  min-width: 0 !important;
+  width: 100% !important;
+  overflow: hidden !important;
+}
+
+.profile-root-list .settings-row.mobile-tab-link b,
+.profile-root-list .settings-row.mobile-tab-link small {
+  display: block !important;
+  overflow: hidden !important;
+  text-overflow: ellipsis !important;
+  white-space: nowrap !important;
+}
+
+.profile-root-list .settings-row.mobile-tab-link .chevron {
+  margin-left: 0 !important;
+  justify-self: end !important;
+  width: 18px !important;
+  text-align: right !important;
+}
+
+/* Desktop profile rail: keep normal flex row; never collapse to an icon-only column */
+@media (min-width: 1100px) {
+  .profile-menu .rail-link {
+    display: flex !important;
+    grid-template-columns: none !important;
+    align-items: center !important;
+    gap: 12px !important;
+    width: 100% !important;
+    min-width: 0 !important;
+  }
+
+  .profile-menu .rail-link > span,
+  .profile-menu .rail-link > [data-icon] {
+    flex: 0 0 20px !important;
+    width: 20px !important;
+    height: 20px !important;
+  }
+}
